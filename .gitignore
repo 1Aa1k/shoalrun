@@ -1,0 +1,4 @@
+.venv/
+data/stack.npz
+data/lake_raw.json
+__pycache__/

@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="theme-color" content="#0d1117">
+<title>shoalrun - Millinocket Lake</title>
+<style>
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html, body { margin: 0; height: 100%; overflow: hidden;
+  background: #0d1117; color: #c9d1d9;
+  font: 15px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+#map { position: absolute; inset: 0; width: 100%; height: 100%; touch-action: none; }
+
+.alert { position: absolute; top: env(safe-area-inset-top, 0); left: 0; right: 0;
+  padding: 14px 16px; font-size: 20px; font-weight: 700; letter-spacing: .02em;
+  text-align: center; transition: background .15s; }
+.alert.clear   { background: rgba(22,27,34,.82); color: #7d8590; font-weight: 600; font-size: 15px; }
+.alert.caution { background: #b26a00; color: #fff; }
+.alert.danger  { background: #c92a1c; color: #fff; animation: pulse .7s infinite alternate; }
+@keyframes pulse { to { background: #ff3b26; } }
+
+.bar { position: absolute; left: 0; right: 0; bottom: 0;
+  padding: 10px 12px calc(10px + env(safe-area-inset-bottom, 0));
+  background: rgba(13,17,23,.9); border-top: 1px solid #21262d;
+  display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+button { background: #21262d; color: #c9d1d9; border: 1px solid #30363d;
+  border-radius: 8px; padding: 9px 13px; font-size: 14px; font-weight: 600; }
+button.on { background: #1f6feb; border-color: #1f6feb; color: #fff; }
+label.chk { display: flex; align-items: center; gap: 6px; font-size: 13px; color: #7d8590; }
+#status, #counts, #meta { font-size: 12px; color: #7d8590; width: 100%; }
+#status.ok { color: #3fb950; } #status.warn { color: #d29922; }
+
+.legend { position: absolute; top: 74px; left: 12px;
+  background: rgba(22,27,34,.85); border: 1px solid #30363d; border-radius: 8px;
+  padding: 8px 10px; font-size: 12px; }
+.legend div { display: flex; align-items: center; gap: 7px; margin: 3px 0; }
+.dot { width: 10px; height: 10px; border-radius: 50%; }
+
+.sheet { position: absolute; left: 0; right: 0; bottom: -100%;
+  background: #161b22; border-top: 1px solid #30363d;
+  border-radius: 14px 14px 0 0; padding: 16px;
+  transition: bottom .18s ease-out; z-index: 10; }
+.sheet.open { bottom: 0; }
+.sheet h3 { margin: 0 0 10px; font-size: 17px; }
+.kv { display: flex; justify-content: space-between; padding: 5px 0;
+  border-bottom: 1px solid #21262d; font-size: 13px; color: #7d8590; }
+.kv b { color: #c9d1d9; font-weight: 600; }
+.sheet .row { display: flex; gap: 8px; margin-top: 12px; }
+.sheet .row button { flex: 1; }
+#btnConfirm { background: #8b1a10; border-color: #a52a1a; color: #fff; }
+#btnAbsent  { background: #21262d; }
+
+body.sim::after { content: "SIMULATION"; position: absolute; top: 50%; left: 0; right: 0;
+  text-align: center; font-size: 42px; font-weight: 800; color: rgba(255,255,255,.07);
+  pointer-events: none; letter-spacing: .1em; }
+
+.disclaimer { position: absolute; top: 74px; right: 12px; max-width: 190px;
+  background: rgba(201,42,28,.14); border: 1px solid rgba(201,42,28,.5);
+  color: #f0a89f; border-radius: 8px; padding: 8px 10px; font-size: 11px; line-height: 1.35; }
+</style>
+</head>
+<body>
+<canvas id="map"></canvas>
+<div id="alert" class="alert clear">waiting for GPS</div>
+
+<div class="legend">
+  <div><span class="dot" style="background:#c3d0da"></span> exposed rock</div>
+  <div><span class="dot" style="background:#ffb02e"></span> submerged shoal</div>
+  <div><span class="dot" style="background:#ff2d1a"></span> you confirmed</div>
+</div>
+
+<div class="disclaimer">
+  Satellite-derived and <b>unverified</b>. An aid, not a chart. Absence of a
+  marker is not evidence of clear water.
+</div>
+
+<div class="sheet" id="sheet">
+  <h3 id="sheetTitle">Rock</h3>
+  <div id="sheetBody"></div>
+  <div class="row">
+    <button id="btnConfirm">It's there</button>
+    <button id="btnAbsent">Not there</button>
+    <button id="btnUnmark">Clear</button>
+    <button id="btnClose">Close</button>
+  </div>
+</div>
+
+<div class="bar">
+  <button id="btnFollow" class="on">Follow</button>
+  <button id="btnExport">Export</button>
+  <label class="chk"><input type="checkbox" id="sound" checked> alarm sound</label>
+  <div id="status"></div>
+  <div id="counts"></div>
+  <div id="meta"></div>
+</div>
+
+<script>window.SHOALRUN_DATA = /*__DATA__*/;</script>
+<script type="module">/*__APP__*/</script>
+</body>
+</html>
