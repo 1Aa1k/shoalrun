@@ -17,10 +17,13 @@ export const MAX_CORRIDOR_M = 600; // cap the projection at ~35 kn * 20 s
 // boat does not turn on a dime.
 export const CORRIDOR_HALF_W = 35;
 
-// Alert tiers by class. `drawdown` outranks `exposed` deliberately: an exposed
-// ledge is one your friend can see out the windshield, while a drawdown rock is
-// invisible at full pond and is the one that takes a lower unit off.
-const SEVERITY = { drawdown: 3, shoal: 2, exposed: 1 };
+// Alert tiers by class, ranked by how INVISIBLE the hazard is rather than how
+// big it is. A shoal is a shallow bottom that never breaks the surface -- it
+// looks like open water right up to the moment it stops being open water, so it
+// outranks everything. `rock` is a sub-pixel rock that does break the surface;
+// often visible, but too small for 10 m imagery to resolve as land. `exposed`
+// and `island` are things you can see out the windshield.
+const SEVERITY = { shoal: 4, drawdown: 3, rock: 2, exposed: 1, island: 1 };
 
 export function severityOf(cls) {
   return SEVERITY[cls] ?? 1;

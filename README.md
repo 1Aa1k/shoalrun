@@ -14,13 +14,45 @@ has been checked against a survey.
 
 | class | n | meaning |
 |---|---|---|
-| `exposed` | 84 | above water in most scenes — a visible ledge or boulder |
-| `shoal` | 150 | never dries, but persistently brighter in green than surrounding water — shallow bottom |
+| `shoal` | 61 | **submerged shallow bottom — never breaks the surface.** The dangerous one |
+| `rock` | 125 | rock that breaks the surface but is smaller than a 10 m pixel |
+| `exposed` | 49 | large enough to resolve as land in most scenes — a visible ledge |
+| `island` | 18 | landmass OSM never mapped |
 
-Sanity check that these are geomorphology and not sun glint: `exposed` sits a
-median of **40 m** from shore (96% within 150 m), `shoal` a median of 61 m (73%
-within 150 m), and the deep western basin is **empty**. Glint would scatter
-uniformly across open water.
+### The mistake worth reading about
+
+The first version had only `exposed` and `shoal`, and called 150 things shoals.
+Nate cross-checked them against the lake and said they looked like rocks. He was
+right, and the cause was a resolution limit dressed up as physics.
+
+At 10 m, **a rock smaller than a pixel can never be classified as land** — the
+pixel's reflectance is dominated by the water around it, so it can only ever
+present as "brighter water", which is identical to a shallow bottom. The class
+boundary was really *bigger than a pixel* vs *smaller than a pixel*, which is the
+wrong axis entirely, and it inflated the scary invisible-hazard class with things
+you can actually see.
+
+NIR resolves it physically. Water absorbs near-infrared almost completely, so a
+submerged rock returns the water background while any dry surface in the pixel
+reflects it. Measured: **74% of the original "shoals" carried an NIR excess**
+(median z 1.58, p90 3.06) that nothing underwater can produce.
+
+Independent check that the new split is real, not just a re-partition of noise —
+distance from shore, which was never tuned for:
+
+| class | median from shore | within 150 m |
+|---|---|---|
+| `exposed` | 29 m | 96% |
+| `island` | 55 m | 100% |
+| `rock` | 82 m | 68% |
+| `shoal` | **170 m** | 46% |
+
+Reclassified shoals sit twice as far offshore as rocks, which is what genuine
+mid-lake shallow bottom should do.
+
+Sanity check that these are geomorphology and not sun glint: everything clusters
+on shoreline and island structure, and the deep western basin is **empty**. Glint
+would scatter uniformly across open water.
 
 ## How it works
 

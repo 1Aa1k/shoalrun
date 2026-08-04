@@ -8,7 +8,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { GridIndex } from "./geo.js";
-import { scan, alertLevel, CORRIDOR_HALF_W, MIN_SPEED_MS, MIN_CORRIDOR_M } from "./hazard.js";
+import { scan, alertLevel, severityOf, CORRIDOR_HALF_W, MIN_SPEED_MS, MIN_CORRIDOR_M } from "./hazard.js";
 
 const EAST = 0; // heading in maths convention: 0 rad = +x = east
 const NORTH = Math.PI / 2;
@@ -111,6 +111,20 @@ test("alertLevel escalates on proximity even when slow", () => {
   // Creeping up on a rock at idle speed still has to warn.
   assert.equal(alertLevel({ ttc: Infinity, range: 30 }), "danger");
   assert.equal(alertLevel({ ttc: Infinity, range: 100 }), "caution");
+});
+
+test("an unseen shoal outranks a visible rock at equal time-to-contact", () => {
+  // Both the same distance dead ahead: the one you cannot see must be reported,
+  // because the one you can see is one you are probably already avoiding.
+  const idx = indexOf(rock("r", 200, 10, "rock"), rock("s", 200, -10, "shoal"));
+  const { worst } = scan({ x: 0, y: 0 }, EAST, 10, idx, new Set());
+  assert.equal(worst.rock.id, "s");
+});
+
+test("severity ranks invisibility, not size", () => {
+  assert.ok(severityOf("shoal") > severityOf("rock"));
+  assert.ok(severityOf("rock") > severityOf("exposed"));
+  assert.equal(severityOf("island"), severityOf("exposed"));
 });
 
 test("empty index is safe", () => {

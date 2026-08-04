@@ -102,7 +102,20 @@ EXPOSED_MIN = 0.60      # land fraction to call it a permanently visible rock
 # be shown as an obstruction outline instead of a hazard dot.
 ISLAND_MIN_M2 = 5000.0
 DRAWDOWN_MIN_DELTA = 0.35   # land-at-low minus land-at-high, for drawdown class
-SHOAL_Z = 1.8           # green-anomaly z-score, sustained, to call it a shoal
+SHOAL_Z = 1.8           # green-anomaly z-score, sustained, to flag a bright anomaly
+
+# Green anomaly alone CANNOT tell a submerged bottom from a rock that breaks the
+# surface inside a 10 m pixel. Both are "brighter than the water around them".
+# At this resolution a rock smaller than a pixel can never cross a water/land
+# threshold -- the pixel is dominated by the water around it -- so it can only
+# ever present as bright water. Classifying on green alone therefore sorts by
+# size, not by whether the thing is underwater, which is the wrong axis entirely.
+#
+# NIR resolves it physically: water absorbs near-infrared almost completely, so a
+# submerged rock returns the water background, while any dry surface in the pixel
+# reflects it. Measured on this lake, 74% of green-flagged "shoals" carry an NIR
+# excess (median z 1.58, p90 3.06) that nothing underwater can produce.
+NIR_DRY_Z = 1.0
 SHOAL_MIN_FRAC = 0.55   # fraction of scenes the anomaly must hold
 NEIGHBORHOOD_PX = 25    # ~250 m box for the local water-brightness baseline
 MIN_BLOB_PX = 2         # a single 10 m pixel is too easily a sensor artefact
@@ -280,6 +293,7 @@ def main():
     # is why it must hold across most scenes, not just be bright on average.
     anomaly_hits = np.zeros((H, W), dtype="int32")
     anomaly_obs = np.zeros((H, W), dtype="int32")
+    nir_z_sum = np.zeros((H, W), dtype="float64")
     for t in range(T):
         wet = is_water[t] & lake_mask
         if wet.sum() < 1000:
@@ -300,8 +314,22 @@ def main():
         anomaly_hits += ((z > SHOAL_Z) & wet).astype("int32")
         anomaly_obs += wet.astype("int32")
 
+        # Same local-background statistic, on NIR, to see whether the pixel holds
+        # anything dry.
+        nsum = ndimage.uniform_filter(np.where(wet, nir[t], 0.0).astype("float32"),
+                                      NEIGHBORHOOD_PX, mode="nearest")
+        nsq = ndimage.uniform_filter(np.where(wet, nir[t] ** 2, 0.0).astype("float32"),
+                                     NEIGHBORHOOD_PX, mode="nearest")
+        nmean = np.where(cnt > 0.05, nsum / np.maximum(cnt, 1e-6), np.nan)
+        nmsq = np.where(cnt > 0.05, nsq / np.maximum(cnt, 1e-6), np.nan)
+        nstd = np.sqrt(np.maximum(nmsq - nmean ** 2, 1e-6))
+        with np.errstate(invalid="ignore"):
+            nz = (np.where(wet, nir[t], np.nan) - nmean) / nstd
+        nir_z_sum += np.where(wet & np.isfinite(nz), nz, 0.0)
+
     shoal_frac = np.where(anomaly_obs > 0, anomaly_hits / np.maximum(anomaly_obs, 1), 0.0)
-    shoal = (
+    nir_z = np.where(anomaly_obs > 0, nir_z_sum / np.maximum(anomaly_obs, 1), 0.0)
+    bright = (
         (shoal_frac >= SHOAL_MIN_FRAC)
         & (anomaly_obs >= MIN_VALID_OBS)
         & inner_mask
@@ -309,10 +337,21 @@ def main():
         & ~drawdown
     )
 
-    print(f"raw pixels -> exposed {exposed.sum():,}  drawdown {drawdown.sum():,}  shoal {shoal.sum():,}")
+    # Split the bright anomalies on NIR. This is the class boundary that actually
+    # matters to a boater: `rock` is something you can often see, `shoal` is the
+    # one that looks like open water right up until you hit it.
+    rock = bright & (nir_z >= NIR_DRY_Z)
+    shoal = bright & (nir_z < NIR_DRY_Z)
+
+    print(f"raw pixels -> exposed {exposed.sum():,}  drawdown {drawdown.sum():,}  "
+          f"rock(sub-pixel) {rock.sum():,}  shoal(submerged) {shoal.sum():,}")
 
     # --- vectorise -----------------------------------------------------------
-    classes = [("exposed", exposed, frac_all), ("shoal", shoal, shoal_frac)]
+    classes = [
+        ("exposed", exposed, frac_all),
+        ("rock", rock, shoal_frac),
+        ("shoal", shoal, shoal_frac),
+    ]
     if EMIT_DRAWDOWN:
         classes.insert(1, ("drawdown", drawdown, delta))
     else:

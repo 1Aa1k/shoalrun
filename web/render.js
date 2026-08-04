@@ -13,6 +13,7 @@ const COLORS = {
   corridorEdge: "rgba(255, 210, 90, 0.35)",
   exposed: "#8b9aa6",
   island: "#5a6b78",
+  rock: "#e0574a",
   drawdown: "#ff5b4a",
   shoal: "#ffb02e",
   confirmed: "#ff2d1a",
@@ -24,6 +25,7 @@ const MAX_MARKER_PX = 18;
 const CLASS_COLOR = {
   island: COLORS.island,
   exposed: COLORS.exposed,
+  rock: COLORS.rock,
   drawdown: COLORS.drawdown,
   shoal: COLORS.shoal,
 };
