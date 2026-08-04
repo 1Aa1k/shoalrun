@@ -22,6 +22,10 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 from pyproj import Transformer
+
+import sys as _sys; _sys.path.insert(0, str(Path(__file__).resolve().parent))
+from shoalrun_config import lake_crs
+LAKE_CRS = lake_crs()
 from scipy.interpolate import griddata
 from scipy.ndimage import gaussian_filter
 from shapely.geometry import LineString, MultiLineString, mapping, shape
@@ -47,8 +51,8 @@ def densify(line, step):
 
 def main():
     lake_ll = shape(json.loads(LAKE.read_text())["geometry"])
-    fwd = Transformer.from_crs("EPSG:4326", "EPSG:32619", always_xy=True)
-    back = Transformer.from_crs("EPSG:32619", "EPSG:4326", always_xy=True)
+    fwd = Transformer.from_crs("EPSG:4326", LAKE_CRS, always_xy=True)
+    back = Transformer.from_crs(LAKE_CRS, "EPSG:4326", always_xy=True)
     lake = shp_transform(lambda x, y: fwd.transform(x, y), lake_ll)
 
     pts = json.loads(SOUND.read_text())["features"]

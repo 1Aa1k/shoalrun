@@ -183,3 +183,59 @@ calibration points and **we now have 260 measured soundings**, and it is quoted
 good to ~30 m in lakes while this lake bottoms out at 26 m (86 ft). That would
 replace interpolation-between-1954-transects with a continuous 10 m depth surface.
 Needs a re-fetch to add band B02 (blue) — the current stack only carries B03/B08.
+
+## Does it work on any lake?
+
+**The detector: yes, anywhere on Earth.** **The depth data: Maine only.**
+
+Two things used to pin this to one lake, and both are gone:
+
+- **Projection.** UTM zone 19N was hardcoded in five files. A lake outside that
+  zone would still "reproject successfully" and land the grid in the wrong place,
+  putting the shoreline mask on forest. Now derived per lake from its own
+  centroid (`shoalrun_config.utm_epsg`).
+- **Season.** "Trusted months = July, August" was tuned to 45.7°N and travels
+  nowhere. Months were only ever a proxy for **sun elevation**, which is the
+  actual variable — low sun raises specular response over water until it swamps
+  the water index. Now computed analytically (NOAA solar position) and filtered at
+  ≥51°. On this lake that threshold reproduces the empirical Jul/Aug result exactly
+  and correctly reinstates June, which the hand-written month list had dropped for
+  no reason.
+
+To point it at another lake: change `OSM_RELATION` and `OSM_SEARCH_BBOX` in
+`scripts/shoalrun_config.py`, then rerun the pipeline.
+
+### Real limits, which are not about code
+
+- **Depth is Maine-only.** `extract_soundings.py` reads the MDIFW `LakeDpth`
+  layer. Maine surveyed thousands of its lakes; most states published nothing
+  comparable. Elsewhere you get hazards with no contours unless you find a local
+  equivalent.
+- **Clear water required.** Shoal detection reads the bottom through the water
+  column in the green band. A turbid, silty or algal lake will produce confident
+  nonsense. Millinocket is clear and oligotrophic, which is why this works here.
+- **Size floor.** 10 m pixels mean a small pond has too few water pixels for the
+  per-scene Otsu threshold to find two modes. Below roughly 0.5 km² expect it to
+  fail, and fail loudly rather than quietly — that is what `MIN_VALID_OBS` and the
+  scene-count guard are for.
+- **Latitude ceiling.** Above roughly 60°N the sun never clears 51°, so the filter
+  will correctly refuse to emit anything rather than trust bad radiometry.
+
+### Scene selection now
+
+Two independent gates, both principled rather than tuned:
+
+| gate | value | why |
+|---|---|---|
+| sun elevation | ≥51° | below this, specular glare swamps the water index |
+| scene usable | ≥85% | a mostly-cloud scene should not get an equal vote in a persistence statistic |
+
+On this lake: 29 of 70 scenes survive both. The one scene at 62% usable reported
+the lake 20 points drier than every neighbouring date.
+
+## Licence
+
+Code is **MIT**. The data is not — see [DATA-LICENSE.md](DATA-LICENSE.md). The
+shoreline is OSM-derived and therefore **ODbL share-alike**, which MIT does not
+override, and `dist/index.html` inlines it. The MDIFW soundings carry their own
+notice: *"Data not to be used for navigation purposes."*

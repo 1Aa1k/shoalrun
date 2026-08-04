@@ -11,7 +11,11 @@ bundler into the toolchain.
 
 import json
 import re
+import sys
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from shoalrun_config import LAKE_NAME
 
 ROOT = Path(__file__).resolve().parent.parent
 WEB = ROOT / "web"
@@ -83,9 +87,9 @@ def main():
         "contours": round_coords(contours),
         "meta": {
             "summary": (
-                f"{sum(counts.values())} candidates "
+                f"{LAKE_NAME}: {sum(counts.values())} candidates "
                 f"({', '.join(f'{v} {k}' for k, v in sorted(counts.items()))}) "
-                "from 30 Sentinel-2 scenes, Jul/Aug 2019-2026. Unverified."
+                "from Sentinel-2 persistence. Unverified - aid, not a chart."
             ),
             "counts": counts,
         },

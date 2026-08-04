@@ -18,11 +18,15 @@ from shapely.geometry import shape
 from shapely.ops import transform as st
 from pyproj import Transformer
 
+import sys as _sys; _sys.path.insert(0, str(Path(__file__).resolve().parent))
+from shoalrun_config import lake_crs
+LAKE_CRS = lake_crs()
+
 ROOT = Path(__file__).resolve().parent.parent
 lake = shape(json.loads((ROOT / "data" / "lake.geojson").read_text())["geometry"])
 rocks = json.loads((ROOT / "data" / "rocks.geojson").read_text())["features"]
 
-tr = Transformer.from_crs("EPSG:4326", "EPSG:32619", always_xy=True)
+tr = Transformer.from_crs("EPSG:4326", LAKE_CRS, always_xy=True)
 lake_u = st(lambda x, y: tr.transform(x, y), lake)
 shore = lake_u.boundary
 

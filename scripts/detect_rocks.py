@@ -27,12 +27,17 @@ Three output classes:
 """
 
 import json
+import sys
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import numpy as np
 import rasterio
 from rasterio.features import shapes
 from scipy import ndimage
+
+from shoalrun_config import MIN_SUN_ELEVATION_DEG, lake_crs, solar_elevation
 from shapely.geometry import mapping, shape
 from shapely.ops import transform as shp_transform
 
@@ -41,6 +46,9 @@ STACK = ROOT / "data" / "stack.npz"
 LAKE = ROOT / "data" / "lake.geojson"
 OUT = ROOT / "data" / "rocks.geojson"
 EDGE_OUT = ROOT / "data" / "edges.geojson"
+
+# Derived from the lake's own centroid, so the pipeline is not pinned to Maine.
+LAKE_CRS = lake_crs()
 
 # The water/land split is found per scene by Otsu rather than fixed. Sentinel-2
 # processing baseline 04.00 (Jan 2022) added a +1000 DN offset to every band, so
@@ -57,16 +65,21 @@ NDWI_FALLBACK = -0.25   # only if a scene's histogram is degenerate
 BASELINE_0400_DATE = "2022-01-25"
 SHORE_BUFFER_M = 20.0   # pixels this close to mapped shore are mixels, not rocks
 MIN_VALID_OBS = 12      # a pixel needs this many clean looks before we trust it
+
+# Whole-scene quality gate, separate from the sun-elevation gate. A scene that is
+# mostly cloud and shadow still passes an elevation test but should not get an
+# equal vote in a persistence statistic -- its few clear pixels are unrepresentative
+# and its water mask is unreliable. Measured: the one scene below this threshold
+# reported the lake 20 points drier than every neighbouring date.
+MIN_SCENE_USABLE = 0.85
 STAGE_LOW_Q = 0.30      # bottom 30% of scenes by water area = "low stage"
 STAGE_HIGH_Q = 0.70
 
-# Only July and August are trusted. Measured over 70 scenes, the per-scene water
-# fraction has sd ~1.1% in Jul/Aug but 8.3% in September and 14.3% in October --
-# at 45.7N the autumn sun elevation drops far enough that specular response over
-# water swamps the water index. An October scene read the lake as 48% dry, which
-# for a 34.6 km2 lake is physically impossible. Those months are radiometry, not
-# hydrology, and they are excluded rather than corrected.
-TRUSTED_MONTHS = (7, 8)
+# Scenes are filtered on SUN ELEVATION, not on the calendar. Low sun raises
+# specular response over water until it swamps the water index; at this lake an
+# October scene read the lake as 48% dry, physically impossible for 34.6 km2.
+# Months were only ever a proxy for elevation and a proxy that holds at exactly
+# one latitude. See shoalrun_config.MIN_SUN_ELEVATION_DEG.
 
 # The drawdown class is DISABLED, and this is the most important comment here.
 # The idea was sound: a rock that dries out at low pond is the one that takes a
@@ -134,7 +147,7 @@ def lake_masks(transform, shape_hw):
     from rasterio.features import rasterize
 
     lake_ll = shape(json.loads(LAKE.read_text())["geometry"])
-    tf = Transformer.from_crs("EPSG:4326", "EPSG:32619", always_xy=True)
+    tf = Transformer.from_crs("EPSG:4326", LAKE_CRS, always_xy=True)
     lake = shp_transform(lambda x, y: tf.transform(x, y), lake_ll)
 
     full = rasterize([(mapping(lake), 1)], out_shape=shape_hw, transform=transform, dtype="uint8")
@@ -171,16 +184,32 @@ def main():
     np.clip(nir, 1.0, None, out=nir)
     print(f"BOA offset removed from {n_shift}/{T} scenes (baseline >= 04.00)")
 
-    keep = [t for t in range(T) if int(meta[t]["date"][5:7]) in TRUSTED_MONTHS]
+    import datetime as _dt
+    from shapely.geometry import shape as _shape
+    _c = _shape(json.loads(LAKE.read_text())["geometry"]).centroid
+    keep, elevations = [], []
+    for t in range(T):
+        when = _dt.datetime.fromisoformat(meta[t]["date"].replace("Z", "+00:00")).replace(tzinfo=None)
+        elev = solar_elevation(when, _c.y, _c.x)
+        elevations.append(elev)
+        if elev >= MIN_SUN_ELEVATION_DEG and meta[t].get("usable", 1.0) >= MIN_SCENE_USABLE:
+            keep.append(t)
     if len(keep) < MIN_VALID_OBS:
         raise SystemExit(
-            f"only {len(keep)} scenes in trusted months {TRUSTED_MONTHS}; "
+            f"only {len(keep)} scenes above {MIN_SUN_ELEVATION_DEG} deg sun elevation; "
             "refusing to emit hazards from too little evidence"
         )
+    dropped_q = sum(
+        1 for t in range(T)
+        if elevations[t] >= MIN_SUN_ELEVATION_DEG and meta[t].get("usable", 1.0) < MIN_SCENE_USABLE
+    )
+    print(f"sun elevation >= {MIN_SUN_ELEVATION_DEG} deg and usable >= {MIN_SCENE_USABLE:.0%}: "
+          f"kept {len(keep)}/{T} (elevation range {min(elevations):.0f}-{max(elevations):.0f} deg, "
+          f"{dropped_q} dropped on scene quality)")
     green, nir, valid = green[keep], nir[keep], valid[keep]
     meta = [meta[t] for t in keep]
     T = len(keep)
-    print(f"restricted to months {TRUSTED_MONTHS}: {T} scenes")
+
 
     lake_mask, inner_mask, lake_utm = lake_masks(transform, (H, W))
     print(f"lake pixels: {lake_mask.sum():,}   after {SHORE_BUFFER_M:g} m shore erosion: {inner_mask.sum():,}")
@@ -316,7 +345,7 @@ def main():
     # Reproject to WGS84 for the app.
     from pyproj import Transformer
 
-    back = Transformer.from_crs("EPSG:32619", "EPSG:4326", always_xy=True)
+    back = Transformer.from_crs(LAKE_CRS, "EPSG:4326", always_xy=True)
     # Promote oversized "exposed" blobs to their own island class. Done after
     # vectorising because the decision is about the blob's footprint, which only
     # exists once the pixels have been grouped.
