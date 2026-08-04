@@ -49,6 +49,7 @@ def round_coords(obj, nd=5):
 def main():
     lake = json.loads((DATA / "lake.geojson").read_text())
     rocks = json.loads((DATA / "rocks.geojson").read_text())
+    contours = json.loads((DATA / "contours.geojson").read_text())
 
     # Rocks ship as centroids only: the app alerts on proximity to a point, and
     # the full outlines would multiply the payload for no navigational gain.
@@ -79,6 +80,7 @@ def main():
     payload = {
         "lake": round_coords(lake),
         "rocks": round_coords(slim),
+        "contours": round_coords(contours),
         "meta": {
             "summary": (
                 f"{sum(counts.values())} candidates "

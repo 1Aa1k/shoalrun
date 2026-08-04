@@ -5,7 +5,7 @@ import { logFix, allMarks, setMark, clearMark, exportAll, trackCount } from "./s
 
 // DATA is injected at build time so the app is one self-contained file with no
 // network dependency of any kind. There is no cell service on this lake.
-const { lake: LAKE_GEO, rocks: ROCK_GEO, meta: DATA_META } = window.SHOALRUN_DATA;
+const { lake: LAKE_GEO, rocks: ROCK_GEO, contours: CONTOUR_GEO, meta: DATA_META } = window.SHOALRUN_DATA;
 
 const el = (id) => document.getElementById(id);
 const state = {
@@ -13,6 +13,7 @@ const state = {
   rocks: [],
   marks: new Map(),
   track: [],
+  contours: [],
   fix: null,
   heading: null,
   speed: 0,
@@ -35,6 +36,13 @@ function ringsOf(geom) {
 
 for (const poly of ringsOf(LAKE_GEO.geometry)) {
   state.lake.push(poly.map((ring) => ring.map(([lon, lat]) => proj.fwd(lon, lat))));
+}
+
+for (const f of (CONTOUR_GEO ? CONTOUR_GEO.features : [])) {
+  state.contours.push({
+    depth: f.properties.depth_ft,
+    pts: f.geometry.coordinates.map(([lon, lat]) => proj.fwd(lon, lat)),
+  });
 }
 
 const index = new GridIndex(200);

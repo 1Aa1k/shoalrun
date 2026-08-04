@@ -117,3 +117,69 @@ for 4 s before clearing so a hazard at the edge of tolerance cannot strobe.
 
 Shoreline © OpenStreetMap contributors (ODbL). Imagery: Copernicus Sentinel-2,
 via Microsoft Planetary Computer.
+
+## Depth data (added)
+
+**Yes, machine-readable depth exists for this lake.** MDIFW surveyed it in August
+1954 (revised January 1979) along east-west transects, and the state digitised
+those soundings into the `LakeDpth` layer, served as 68 KMZ tiles:
+
+- Survey sheet (PDF, sounding numbers not contours):
+  https://www.maine.gov/ifw/docs/lake-survey-maps/penobscot/millinocket_lake.pdf
+- Statewide sounding points (KML → 68 KMZ tiles):
+  https://www.maine.gov/ifw/fishing/kml/Lake_Depths.kml
+- Metadata: http://geolibportal.usm.maine.edu/geonetwork/srv/en/metadata.show?id=345
+
+`extract_soundings.py` pulls **260 soundings inside this lake**, 2–78 ft
+(surveyed max 86 ft). `make_contours.py` interpolates them to **10 ft contours**.
+
+Sparse data (one point per ~13 ha) is rescued by treating the shoreline as a
+depth-0 boundary: 2,557 synthetic zero-points densified along the 99 km shore and
+all 74 island edges anchor the surface where transects do not reach.
+
+These contours are an **interpolated surface, not a survey**. Between transects
+they are an educated guess, from 1954 soundings, on a regulated lake whose level
+moves. A rock does not appear in a 10 ft contour — contours are context for the
+hazard layer, not a replacement.
+
+### The survey independently corroborates the detector
+
+MDIFW's 1954 write-up, without any satellite involved:
+
+> "rockiness is the outstanding feature of Millinocket Lake... **Large submerged
+> rocks and shoals make navigation of the south portion of the lake quite
+> hazardous**" and "a large deep basin on the northern end".
+
+Both match: the densest candidate cluster is the southern/southwestern shallows,
+and the interpolated 70 ft basin sits in the north, where the detector finds
+nothing.
+
+### Island class
+
+Blobs ≥5000 m² are reclassified `island` (20 of them) — the largest was 96,700 m²,
+a 9.7 ha landmass OSM never mapped. Calling that a rock is wrong, and drawing it
+as a footprint-scaled dot produced a 175 m radius disc. Markers are now capped at
+18 px.
+
+## Prior art
+
+| project | what | licence / cost | inland US lakes? |
+|---|---|---|---|
+| [Garmin Quickdraw Community](https://www.garmin.com/en-US/newsroom/press-release/marine/2016-garmin-introduces-quickdraw-community-an-online-community-of-free-user-generated-map-data/) | user-recorded sonar contours, shared pool | free, Garmin account, proprietary | yes — best existing option for this lake |
+| [OpenSeaMap](https://www.openseamap.org/) | OSM-based charts + crowd depth, KAP export | ODbL / free | mostly coastal + waterways |
+| [OpenCPN](https://opencpn.org/) | open-source chartplotter, reads KAP/S-57 | GPLv2 | viewer only, brings no lake data |
+| [ACOLITE](https://github.com/acolite/acolite) | atmospheric correction + SDB for S2/Landsat | open source | yes, general purpose |
+| [S2Shores](https://www.nature.com/articles/s41597-025-06402-w) | wave-inversion bathymetry from S2 | open source | coastal (needs swell) — not lakes |
+| Stumpf ratio transform | ln(B2)/ln(B3) → depth, needs 5–10 calibration points | published method | yes, ~30 m depth in lakes |
+
+Nothing found produces a rock/shoal hazard layer for a small inland US lake from
+imagery. Quickdraw is the closest, and it requires somebody to have driven every
+line with a Garmin sounder.
+
+### Obvious next step
+
+Stumpf ratio transform for real satellite-derived bathymetry: it wants 5–10
+calibration points and **we now have 260 measured soundings**, and it is quoted
+good to ~30 m in lakes while this lake bottoms out at 26 m (86 ft). That would
+replace interpolation-between-1954-transects with a continuous 10 m depth surface.
+Needs a re-fetch to add band B02 (blue) — the current stack only carries B03/B08.

@@ -12,13 +12,17 @@ const COLORS = {
   corridor: "rgba(255, 210, 90, 0.13)",
   corridorEdge: "rgba(255, 210, 90, 0.35)",
   exposed: "#8b9aa6",
+  island: "#5a6b78",
   drawdown: "#ff5b4a",
   shoal: "#ffb02e",
   confirmed: "#ff2d1a",
   absent: "#3a4750",
 };
 
+const MAX_MARKER_PX = 18;
+
 const CLASS_COLOR = {
+  island: COLORS.island,
   exposed: COLORS.exposed,
   drawdown: COLORS.drawdown,
   shoal: COLORS.shoal,
@@ -113,10 +117,29 @@ export class MapView {
       }
     }
 
+    if (state.contours) this._drawContours(state.contours);
     if (state.track && state.track.length > 1) this._drawTrack(state.track);
     if (state.corridor) this._drawCorridor(state.corridor);
     this._drawRocks(state);
     if (state.fix) this._drawBoat(state);
+  }
+
+  // Depth contours, drawn beneath everything else. Deeper lines are brighter so
+  // the deep basin reads at a glance without needing every line labelled.
+  _drawContours(contours) {
+    const ctx = this.ctx;
+    ctx.lineWidth = 1;
+    for (const c of contours) {
+      const t = Math.min(1, c.depth / 70);
+      ctx.strokeStyle = `rgba(${90 + t * 70}, ${140 + t * 70}, ${190 + t * 60}, ${0.22 + t * 0.3})`;
+      ctx.beginPath();
+      for (let i = 0; i < c.pts.length; i++) {
+        const [sx, sy] = this.toScreen(c.pts[i][0], c.pts[i][1]);
+        if (i === 0) ctx.moveTo(sx, sy);
+        else ctx.lineTo(sx, sy);
+      }
+      ctx.stroke();
+    }
   }
 
   _drawTrack(track) {
@@ -172,13 +195,19 @@ export class MapView {
       const color =
         verdict === "confirmed" ? COLORS.confirmed : CLASS_COLOR[r.cls] || COLORS.exposed;
 
-      // Radius from footprint, floored so a one-pixel rock is still tappable.
-      const rad = Math.max(4, Math.sqrt(r.area_m2 / Math.PI) * this.scale);
+      // Radius from true footprint, but clamped at both ends. Floored so a
+      // single-pixel rock stays tappable; capped because an unmapped island of
+      // 96,700 m2 is a 175 m radius, which at any useful zoom renders as a disc
+      // that covers the screen and hides the hazards next to it. Beyond the cap
+      // the marker stops meaning "this big" and starts meaning "look here".
+      const rad = Math.min(MAX_MARKER_PX, Math.max(4, Math.sqrt(r.area_m2 / Math.PI) * this.scale));
 
       ctx.beginPath();
       ctx.arc(sx, sy, rad, 0, Math.PI * 2);
       ctx.fillStyle = color;
-      ctx.globalAlpha *= verdict === "confirmed" ? 0.9 : 0.55;
+      // Islands are obstructions to route around, not point hazards to dodge --
+      // drawn hollow so they read as "land here" rather than "rock here".
+      ctx.globalAlpha *= r.cls === "island" ? 0.12 : verdict === "confirmed" ? 0.9 : 0.55;
       ctx.fill();
       ctx.globalAlpha = verdict === "absent" ? 0.35 : 1;
       ctx.lineWidth = verdict === "confirmed" ? 2.5 : 1.5;

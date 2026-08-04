@@ -81,6 +81,13 @@ TRUSTED_MONTHS = (7, 8)
 EMIT_DRAWDOWN = False
 
 EXPOSED_MIN = 0.60      # land fraction to call it a permanently visible rock
+
+# Above this footprint a blob is not a rock, it is a landmass OSM never mapped --
+# the largest here is 96,700 m2, which is 9.7 hectares. Calling that "a rock" is
+# wrong, and drawing it as a point marker scaled to its true size produced a
+# 175 m radius disc that swallowed the map. Split it into its own class so it can
+# be shown as an obstruction outline instead of a hazard dot.
+ISLAND_MIN_M2 = 5000.0
 DRAWDOWN_MIN_DELTA = 0.35   # land-at-low minus land-at-high, for drawdown class
 SHOAL_Z = 1.8           # green-anomaly z-score, sustained, to call it a shoal
 SHOAL_MIN_FRAC = 0.55   # fraction of scenes the anomaly must hold
@@ -310,6 +317,19 @@ def main():
     from pyproj import Transformer
 
     back = Transformer.from_crs("EPSG:32619", "EPSG:4326", always_xy=True)
+    # Promote oversized "exposed" blobs to their own island class. Done after
+    # vectorising because the decision is about the blob's footprint, which only
+    # exists once the pixels have been grouped.
+    promoted = 0
+    relabelled = []
+    for name, g, px, cx, cy, conf in feats:
+        if name == "exposed" and px * 100 >= ISLAND_MIN_M2:
+            name = "island"
+            promoted += 1
+        relabelled.append((name, g, px, cx, cy, conf))
+    feats = relabelled
+    print(f"promoted {promoted} oversized blobs to class 'island' (>= {ISLAND_MIN_M2:g} m2)")
+
     out = []
     for name, g, px, cx, cy, conf in feats:
         gll = shp_transform(lambda x, y: back.transform(x, y), g)

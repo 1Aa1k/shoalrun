@@ -62,6 +62,24 @@ for p in polys:
         ax.fill(xs, ys, color="#0d1117", zorder=2)
         ax.plot(xs, ys, color="#4a86b4", lw=0.6, zorder=3)
 
+# Depth contours underneath the hazards, so the two can be read together.
+contour_path = ROOT / "data" / "contours.geojson"
+if contour_path.exists():
+    cfeats = json.loads(contour_path.read_text())["features"]
+    depths = sorted({f["properties"]["depth_ft"] for f in cfeats})
+    for f in cfeats:
+        d = f["properties"]["depth_ft"]
+        g = st(lambda x, y: tr.transform(x, y), shape(f["geometry"]))
+        shade = 0.25 + 0.6 * (d / max(depths))
+        ax.plot(*g.xy, color=(0.35 * shade, 0.6 * shade, 0.95 * shade), lw=0.9, zorder=4)
+    # Label the deepest contour so the basin is identifiable.
+    deepest = [f for f in cfeats if f["properties"]["depth_ft"] == max(depths)]
+    for f in deepest:
+        g = st(lambda x, y: tr.transform(x, y), shape(f["geometry"]))
+        c = g.centroid
+        ax.text(c.x, c.y, f"{max(depths)} ft", color="#9fd0ff", fontsize=9,
+                ha="center", zorder=6)
+
 style = {"exposed": ("#c3d0da", "exposed rock/ledge"), "shoal": ("#ffb02e", "submerged shoal")}
 for cls, (color, label) in style.items():
     pts = [(f["properties"]["lon"], f["properties"]["lat"]) for f in rocks
