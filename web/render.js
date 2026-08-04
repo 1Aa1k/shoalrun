@@ -194,8 +194,20 @@ export class MapView {
         ctx.globalAlpha = 0.35;
       }
 
+      // Appearance is driven by NAIP verification, not by the raw detector
+      // class. An unconfirmed candidate is drawn faint and hollow so the map
+      // never gives a 10 m inference the same visual weight as a 0.3 m
+      // confirmation -- but it is still drawn, because one September flight
+      // cannot prove a rock is absent.
+      const unconfirmed = r.verdict === "open_water" || r.verdict === "unchecked";
       const color =
-        verdict === "confirmed" ? COLORS.confirmed : CLASS_COLOR[r.cls] || COLORS.exposed;
+        verdict === "confirmed"
+          ? COLORS.confirmed
+          : r.verdict === "shoal_confirmed"
+          ? COLORS.shoal
+          : r.verdict === "rock_confirmed"
+          ? COLORS.rock
+          : CLASS_COLOR[r.cls] || COLORS.exposed;
 
       // Radius from true footprint, but clamped at both ends. Floored so a
       // single-pixel rock stays tappable; capped because an unmapped island of
@@ -209,12 +221,14 @@ export class MapView {
       ctx.fillStyle = color;
       // Islands are obstructions to route around, not point hazards to dodge --
       // drawn hollow so they read as "land here" rather than "rock here".
-      ctx.globalAlpha *= r.cls === "island" ? 0.12 : verdict === "confirmed" ? 0.9 : 0.55;
+      ctx.globalAlpha *= unconfirmed ? 0.0 : r.cls === "island" ? 0.12 : verdict === "confirmed" ? 0.9 : 0.75;
       ctx.fill();
       ctx.globalAlpha = verdict === "absent" ? 0.35 : 1;
-      ctx.lineWidth = verdict === "confirmed" ? 2.5 : 1.5;
+      ctx.lineWidth = verdict === "confirmed" ? 2.5 : unconfirmed ? 0.8 : 1.8;
+      if (unconfirmed) ctx.setLineDash([2, 3]);
       ctx.strokeStyle = color;
       ctx.stroke();
+      ctx.setLineDash([]);
 
       if (verdict === "confirmed") {
         ctx.beginPath();

@@ -100,13 +100,57 @@ features; all of them were noise wearing a hazard label.
 Re-enable only with a real stage source (Brookfield operating records) or
 winter/spring imagery with BRDF correction.
 
+## Automated verification against 0.3 m aerial imagery
+
+Candidates are checked by `verify_naip.py` against **NAIP aerial imagery at
+0.3 m** — a different sensor, platform and year from the Sentinel-2 detections.
+One Sentinel pixel covers ~1,100 NAIP pixels, so a rock that was sub-pixel in the
+source data is fully resolved here. No human confirmation required.
+
+| Sentinel class | n | rock confirmed | shoal confirmed | not confirmed |
+|---|---|---|---|---|
+| `island` | 17 | **100%** | 0% | 0% |
+| `exposed` | 47 | **96%** | 0% | 4% |
+| `rock` | 125 | 15% | 23% | 62% |
+| `shoal` | 60 | 0% | 3% | **97%** |
+
+**Read `exposed` and `island` first — they are the positive control.** If NAIP
+were misregistered against Sentinel, or the chip sampling were off target, those
+two would fail alongside everything else. They do not. That validates the method
+and the alignment, and it means the sub-pixel classes failing is a real result
+rather than a registration artifact.
+
+So: **the resolved classes are solid, the sub-pixel classes are mostly false
+positives** — glint and wave patterns that survived the persistence statistic
+because persistence cannot distinguish "recurring artefact" from "real object"
+when the object is smaller than a pixel.
+
+Net: **112 verified hazards** (81 rock, 31 shoal) out of 253 candidates.
+
+What this check cannot do: NAIP here is a **single date** (2023-09-01) against 29
+Sentinel dates, at a different lake level, with lower September sun. One flight
+cannot prove a hazard absent — something under a wave that morning reads as open
+water. So `open_water` **demotes** a candidate, it never deletes it. Unconfirmed
+candidates still render (faint, dashed) and still alert, they just never outrank
+a confirmed one of comparable urgency.
+
+### Ranking bug caught while wiring this in
+
+Making verified hazards sort first seemed obviously right and was a safety bug: a
+confirmed hazard 600 m away would outrank an unconfirmed one 20 m dead ahead, and
+since the banner reports the top hit, it would read "clear" while the boat closed
+on the near one. Time-to-contact dominates always; verification only breaks ties
+between hazards of comparable urgency. Regression test covers it.
+
 ## Getting truth
 
 Nothing here is verified. Ranked by what actually closes that gap:
 
+0. **Automated: 0.3 m NAIP aerial** (`verify_naip.py`, above). Runs unattended,
+   no human input, and already reclassified the whole candidate set.
 1. **The person who lives on the lake.** Tap any candidate → "It's there" /
-   "Not there". Dismissed rocks stop alerting immediately and are exported as
-   labels. This is the highest-value input by a wide margin.
+   "Not there". Optional now that NAIP does the bulk verification, but still the
+   only source that knows what is under the water rather than on it.
 2. **Passive track logging.** The app records breadcrumbs whenever the boat is
    moving. Water you have driven through at speed is proven clear — negative
    evidence that costs nothing to produce and accumulates every trip.

@@ -29,6 +29,13 @@ export function severityOf(cls) {
   return SEVERITY[cls] ?? 1;
 }
 
+// A candidate an independent 0.3 m sensor could not see is still worth showing,
+// but it must not outrank one that was confirmed. Verified hazards always sort
+// ahead of unverified ones at comparable range.
+export function isConfirmed(rock) {
+  return rock.verdict === "rock_confirmed" || rock.verdict === "shoal_confirmed";
+}
+
 /**
  * Scan for hazards in the projected path corridor.
  *
@@ -71,12 +78,23 @@ export function scan(pos, headingRad, speedMs, index, dismissed) {
     const range = Math.hypot(rock.x - ax, rock.y - ay);
     const ttc = moving && speedMs > 0 ? range / speedMs : Infinity;
 
-    hits.push({ rock, offTrack: d, range, ttc, severity: severityOf(rock.cls) });
+    hits.push({ rock, offTrack: d, range, ttc, severity: severityOf(rock.cls), confirmed: isConfirmed(rock) });
   }
 
   // Rank by time-to-contact first -- what you will hit soonest is what matters,
   // regardless of how bad it is in the abstract. Severity breaks ties.
-  hits.sort((a, b) => a.ttc - b.ttc || b.severity - a.severity || a.range - b.range);
+  // Time-to-contact dominates, ALWAYS. Sorting confirmed-first would let a
+  // verified hazard 600 m away outrank an unverified one 20 m dead ahead, and
+  // since the banner reports the top hit that would read "clear" while the boat
+  // is about to hit something. Verification is a tiebreaker between hazards of
+  // comparable urgency, never a reason to look past a closer one.
+  hits.sort(
+    (a, b) =>
+      a.ttc - b.ttc ||
+      b.severity - a.severity ||
+      Number(b.confirmed) - Number(a.confirmed) ||
+      a.range - b.range
+  );
 
   return { list: hits, worst: hits[0] ?? null, reach, moving };
 }

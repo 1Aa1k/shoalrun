@@ -127,6 +127,22 @@ test("severity ranks invisibility, not size", () => {
   assert.equal(severityOf("island"), severityOf("exposed"));
 });
 
+test("a close unconfirmed hazard outranks a distant confirmed one", () => {
+  // Regression guard. Ranking verified-first would report the far hazard and
+  // leave the banner clear while the boat closes on the near one.
+  const near = { ...rock("near", 60, 0, "rock"), verdict: "open_water" };
+  const far = { ...rock("far", 500, 0, "shoal"), verdict: "rock_confirmed" };
+  const { worst } = scan({ x: 0, y: 0 }, EAST, 25, indexOf(near, far), new Set());
+  assert.equal(worst.rock.id, "near", "closest in time must always win");
+});
+
+test("verification breaks ties between equally urgent hazards", () => {
+  const a = { ...rock("unconf", 200, 5, "rock"), verdict: "open_water" };
+  const b = { ...rock("conf", 200, -5, "rock"), verdict: "rock_confirmed" };
+  const { worst } = scan({ x: 0, y: 0 }, EAST, 10, indexOf(a, b), new Set());
+  assert.equal(worst.rock.id, "conf");
+});
+
 test("empty index is safe", () => {
   const { worst, list } = scan({ x: 0, y: 0 }, EAST, 10, new GridIndex(200), new Set());
   assert.equal(worst, null);
