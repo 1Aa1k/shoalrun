@@ -9,3 +9,8 @@ dist/annotate/chips/
 data/evidence/
 # Derived bathymetry grids: ~357 MB, regenerable from derive_bathymetry.py
 data/sdb/*.npy
+
+# Scratch preview builds. These are full 2.4 MB copies of dist/index.html with
+# a default flipped so a screenshot can reach a state that needs a click. They
+# are throwaway, and 4.8 MB of them once made it into a commit.
+dist/_*.html

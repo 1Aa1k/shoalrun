@@ -606,6 +606,25 @@ function updateHud() {
   hud.style.display = "block";
   const ft = depthAtWorld(boat.x, boat.z);
   el("hudDepth").textContent = ft == null ? "--" : String(ft);
+
+  // How far the nearest 1954 sounding is from where the boat actually is. The
+  // depth above is quoted to the foot, which is a confidence the surface has
+  // not earned everywhere: the survey ran twelve lines and between them the
+  // number is interpolation. This is the qualifier on that number, and it is
+  // the one thing worth knowing underway -- "18 ft" a metre off a transect and
+  // "18 ft" 600 m from anything are not the same claim.
+  const reach = grid.reachXY(boat.x + cx, -boat.z + cz);
+  const rEl = el("hudReach");
+  if (reach == null) {
+    rEl.textContent = "--";
+    rEl.style.color = "";
+  } else {
+    rEl.textContent = reach >= 1000 ? `${(reach / 1000).toFixed(1)} km` : `${Math.round(reach)} m`;
+    // Amber past the point where the surface is mostly interpolation rather
+    // than measurement. Not red: this is a caveat on the depth, not a hazard.
+    rEl.style.color = reach > 250 ? "#ffc043" : "";
+  }
+
   el("hudSpeed").textContent = (Math.abs(boat.speed) * 1.94384).toFixed(1);
   const near = nearestHazard(boat.x, boat.z);
   el("hudNear").textContent = near ? `${Math.round(near.d)} m` : "--";
