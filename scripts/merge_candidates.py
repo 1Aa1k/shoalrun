@@ -34,7 +34,10 @@ from shoalrun_config import lake_crs
 
 ROOT = Path(__file__).resolve().parent.parent
 NAIP = ROOT / "data" / "rocks_naip.geojson"
+NAIP03 = ROOT / "data" / "rocks_naip_03.geojson"
 SENT = ROOT / "data" / "verified.geojson"
+REFS = ROOT / "data" / "reference_rocks.geojson"
+BUOYS = ROOT / "data" / "buoy_candidates.geojson"
 OUT = ROOT / "data" / "hazards.geojson"
 
 MATCH_M = 15.0  # a bit over one Sentinel pixel
@@ -44,9 +47,17 @@ def main():
     crs = lake_crs()
     fwd = Transformer.from_crs("EPSG:4326", crs, always_xy=True)
 
-    naip = json.loads(NAIP.read_text())["features"]
-    sent = json.loads(SENT.read_text())["features"]
-    print(f"NAIP 1 m: {len(naip)}   Sentinel 10 m: {len(sent)}")
+    def load(path):
+        """Layers arrive at different times -- a long run must not block a merge."""
+        if not path.exists():
+            print(f"  (skipping {path.name}: not produced yet)")
+            return []
+        return json.loads(path.read_text())["features"]
+
+    # Prefer the finer NAIP pass when both exist; they detect the same population.
+    naip = load(NAIP03) or load(NAIP)
+    sent = load(SENT)
+    print(f"NAIP: {len(naip)}   Sentinel 10 m: {len(sent)}")
 
     def pt(f):
         p = f["properties"]
@@ -91,6 +102,53 @@ def main():
         p["confidence_rank"] = 2
         out.append({"type": "Feature", "properties": p, "geometry": None})
 
+    # Human-mapped rocks go in as FIRST-CLASS hazards, not as a scoring rubric.
+    # 25 of these 32 are statistically invisible in 0.3 m imagery -- no aerial
+    # method at any resolution will ever produce them, so if they are not carried
+    # through from human mapping they are simply absent from the map. They are the
+    # single most valuable population in the dataset and they are also the one the
+    # detector can never recover on its own.
+    if REFS.exists():
+        refs = json.loads(REFS.read_text())["features"]
+        added = 0
+        for f in refs:
+            p = f["properties"]
+            lon, lat = f["geometry"]["coordinates"]
+            rp = shp_transform(lambda x, y: fwd.transform(x, y),
+                               shape({"type": "Point", "coordinates": [lon, lat]}))
+            dup = any(
+                shp_transform(lambda x, y: fwd.transform(x, y),
+                              shape({"type": "Point", "coordinates":
+                                     [o["properties"]["lon"], o["properties"]["lat"]]})).distance(rp) <= MATCH_M
+                for o in out if o["properties"].get("lon") is not None
+            )
+            if dup:
+                continue
+            out.append({"type": "Feature", "properties": {
+                "class": "rock" if p.get("kind") != "reef" else "shoal",
+                "lat": lat, "lon": lon,
+                "area_m2": None,
+                "evidence": "human_mapped",
+                "confidence_rank": 3,
+                "source": p.get("source", "osm"),
+                "kind": p.get("kind"),
+                "verdict": "human_mapped",
+                "note": "mapped by a person; most of these are invisible to imagery",
+            }, "geometry": None})
+            added += 1
+        print(f"\nadded {added} human-mapped rocks not already covered by a detection")
+
+    if BUOYS.exists():
+        bs = json.loads(BUOYS.read_text())["features"]
+        for f in bs:
+            lon, lat = f["geometry"]["coordinates"]
+            out.append({"type": "Feature", "properties": {
+                **f["properties"], "lat": lat, "lon": lon,
+                "evidence": "buoy_proxy", "confidence_rank": 2,
+                "verdict": "buoy_candidate",
+            }, "geometry": None})
+        print(f"added {len(bs)} buoy candidates (floating-object proxies for unseen rock)")
+
     stats = defaultdict(int)
     cls = defaultdict(int)
     for f in out:
@@ -98,8 +156,9 @@ def main():
         cls[f["properties"]["class"]] += 1
 
     print("\nevidence:")
-    for k in ("both", "naip_only", "sentinel_only"):
-        print(f"  {k:14s} {stats.get(k,0):5d}")
+    for k in ("both", "naip_only", "sentinel_only", "human_mapped", "buoy_proxy"):
+        if stats.get(k):
+            print(f"  {k:14s} {stats[k]:5d}")
     print("\nclass:")
     for k, v in sorted(cls.items(), key=lambda kv: -kv[1]):
         print(f"  {k:10s} {v:5d}")
