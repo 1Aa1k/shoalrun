@@ -118,7 +118,16 @@ def main():
     assert "fetch(" not in js, "app must not fetch anything at runtime"
     assert "/*__DATA__*/" not in html and "/*__APP__*/" not in html, "placeholder left unreplaced"
 
+    # Ship the PWA shell alongside: the page needs HTTPS for geolocation, and a
+    # service worker so offline availability is deterministic rather than
+    # dependent on browser cache eviction.
+    for extra in ("sw.js", "manifest.json"):
+        src = WEB / extra
+        if src.exists():
+            (DIST / extra).write_text(src.read_text())
+
     print(f"wrote {out}  ({out.stat().st_size / 1024:.0f} KB, fully offline)")
+    print(f"  + sw.js, manifest.json (installable PWA)")
     print(f"  {payload['meta']['summary']}")
 
 

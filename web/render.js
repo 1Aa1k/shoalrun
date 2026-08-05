@@ -183,6 +183,7 @@ export class MapView {
   _drawRocks(state) {
     const ctx = this.ctx;
     for (const r of state.rocks) {
+      if (!state.showShore && !r.offshore) continue;
       const [sx, sy] = this.toScreen(r.x, r.y);
       if (sx < -30 || sy < -30 || sx > this.w + 30 || sy > this.h + 30) continue;
 

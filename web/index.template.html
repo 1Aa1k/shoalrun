@@ -5,6 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
 <meta name="theme-color" content="#0d1117">
 <title>shoalrun - Millinocket Lake</title>
+<link rel="manifest" href="./manifest.json">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <style>
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 html, body { margin: 0; height: 100%; overflow: hidden;
@@ -71,7 +74,7 @@ body.sim::after { content: "SIMULATION"; position: absolute; top: 50%; left: 0; 
   <div><span class="dot" style="background:#5a6b78"></span> unmapped island</div>
   <div><span class="dot" style="background:#ff2d1a"></span> you confirmed</div>
   <div style="margin-top:6px;border-top:1px solid #30363d;padding-top:5px;color:#7d8590">
-    depth contours 10 ft &mdash; MDIFW 1954</div>
+    depth contours 10 ft &mdash; MDIFW 1954<br>showing hazards &gt;50 m offshore</div>
 </div>
 
 <div class="disclaimer">
@@ -92,6 +95,7 @@ body.sim::after { content: "SIMULATION"; position: absolute; top: 50%; left: 0; 
 
 <div class="bar">
   <button id="btnFollow" class="on">Follow</button>
+  <button id="btnShore">Offshore only</button>
   <button id="btnExport">Export</button>
   <label class="chk"><input type="checkbox" id="sound" checked> alarm sound</label>
   <div id="status"></div>
@@ -101,5 +105,13 @@ body.sim::after { content: "SIMULATION"; position: absolute; top: 50%; left: 0; 
 
 <script>window.SHOALRUN_DATA = /*__DATA__*/;</script>
 <script type="module">/*__APP__*/</script>
+<script>
+// Register only over a secure context. From file:// there is no service worker
+// and no geolocation -- the page still renders, but it is not the way to use
+// this on the water. Installed from HTTPS once, it runs offline forever.
+if ('serviceWorker' in navigator && location.protocol === 'https:') {
+  navigator.serviceWorker.register('./sw.js').catch(() => {});
+}
+</script>
 </body>
 </html>

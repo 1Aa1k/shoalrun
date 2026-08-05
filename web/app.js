@@ -14,6 +14,7 @@ const state = {
   marks: new Map(),
   track: [],
   contours: [],
+  showShore: false,
   fix: null,
   heading: null,
   speed: 0,
@@ -58,6 +59,8 @@ ROCK_GEO.features.forEach((f, i) => {
     confidence: p.confidence,
     verdict: p.verdict || "unchecked",
     evidence: p.evidence || "sentinel_only",
+    shore_m: p.shore_m,
+    offshore: p.offshore !== false,
     x,
     y,
   };
@@ -240,8 +243,10 @@ function setStatus(msg, kind = "") {
 function refreshCounts() {
   const confirmed = [...state.marks.values()].filter((m) => m.verdict === "confirmed").length;
   const absent = [...state.marks.values()].filter((m) => m.verdict === "absent").length;
+  const shown = state.showShore ? state.rocks.length : state.rocks.filter((r) => r.offshore).length;
   el("counts").textContent =
-    `${state.rocks.length} candidates - ${confirmed} confirmed, ${absent} dismissed`;
+    `${shown} shown of ${state.rocks.length} - ${confirmed} confirmed, ${absent} dismissed` +
+    (state.showShore ? "" : " (offshore >50 m; all still alarm)");
 }
 
 let selected = null;
@@ -290,6 +295,17 @@ el("btnUnmark").onclick = async () => {
   showSheet(selected);
 };
 el("btnClose").onclick = () => el("sheet").classList.remove("open");
+
+// Shoreline toggle affects DRAWING ONLY. Every hazard stays in the alert index
+// regardless -- the known rocks sit a median 2 m from shore, so suppressing them
+// from the alarm to tidy the map would remove most of the real hazards on the
+// lake. Hidden from view is not the same as hidden from the alarm.
+el("btnShore").onclick = () => {
+  state.showShore = !state.showShore;
+  el("btnShore").classList.toggle("on", state.showShore);
+  el("btnShore").textContent = state.showShore ? "All rocks" : "Offshore only";
+  refreshCounts();
+};
 
 el("btnFollow").onclick = () => {
   view.follow = !view.follow;

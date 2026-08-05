@@ -43,6 +43,22 @@ OUT = ROOT / "data" / "hazards.geojson"
 MATCH_M = 15.0  # a bit over one Sentinel pixel
 MIN_AREA_M2 = 10.0  # see the measured tradeoff in main()
 
+# Default display cut. Hazards closer than this to shore are hidden from the map
+# by default, NOT from the alerting index -- see hazard.js. A boater heading at
+# the shoreline must still be warned about shoreline rock.
+OFFSHORE_M = 50.0
+
+
+def lake_boundary():
+    from shoalrun_config import lake_crs as _lc
+    crs = _lc()
+    fwd = Transformer.from_crs("EPSG:4326", crs, always_xy=True)
+    lake = shp_transform(
+        lambda x, y: fwd.transform(x, y),
+        shape(json.loads((ROOT / "data" / "lake.geojson").read_text())["geometry"]),
+    )
+    return lake.boundary
+
 
 def main():
     crs = lake_crs()
@@ -161,6 +177,25 @@ def main():
                 "verdict": "buoy_candidate",
             }, "geometry": None})
         print(f"added {len(bs)} buoy candidates (floating-object proxies for unseen rock)")
+
+    # Distance from shore, stamped on every hazard. The known rocks sit a median
+    # 2 m from shore, so a map showing everything is a solid band of markers
+    # around the whole lake -- true (MDIFW 1954: "rockiness is the outstanding
+    # feature") but useless, because a boater already knows to stay off the
+    # shore. The offshore subset is the part that surprises you.
+    shore = lake_boundary()
+    for f in out:
+        pr = f["properties"]
+        if pr.get("lon") is None:
+            continue
+        g = shp_transform(lambda x, y: fwd.transform(x, y),
+                          shape({"type": "Point", "coordinates": [pr["lon"], pr["lat"]]}))
+        d = shore.distance(g)
+        pr["shore_m"] = round(float(d), 1)
+        pr["offshore"] = bool(d > OFFSHORE_M)
+
+    n_off = sum(1 for f in out if f["properties"].get("offshore"))
+    print(f"\noffshore (> {OFFSHORE_M:g} m from shore): {n_off} of {len(out)}")
 
     stats = defaultdict(int)
     cls = defaultdict(int)
