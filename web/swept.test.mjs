@@ -105,3 +105,47 @@ test("coverage reports driving distance, not just area", () => {
   assert.ok(s.pctOfLake < 1, "one 100 m run is a rounding error on this lake");
   assert.ok(s.kmToFinish > 1000, "the honest number is thousands of km");
 });
+
+// --- sharing between boats -------------------------------------------------
+// The case Nate is worried about is a guest at the helm. The friend who lives
+// on the lake has driven water the guest never will, so folding his coverage in
+// is what makes the tool useful to someone who does not know the lake.
+
+test("merging is a union of coverage", () => {
+  const mine = new SweptGrid();
+  mine.addFix(0, 0, 5, 2, 1000);
+  const theirs = new SweptGrid();
+  theirs.addFix(500, 500, 5, 2, 1000);
+  const gained = mine.merge(theirs);
+  assert.equal(gained, 1);
+  assert.ok(mine.has(0, 0), "must keep my own coverage");
+  assert.ok(mine.has(500, 500), "must gain theirs");
+});
+
+test("merging keeps the stronger claim, not the newer one", () => {
+  const mine = new SweptGrid();
+  mine.addFix(0, 0, 5, 1.0, 1000); // slow: proves more depth
+  const theirs = new SweptGrid();
+  theirs.addFix(0, 0, 5, PLANING_MS + 5, 9000); // fast but later
+  mine.merge(theirs);
+  assert.equal(mine.get(0, 0).planing, false, "a later fast pass must not weaken a slow one");
+});
+
+test("merging upgrades a planing cell when someone drove it slowly", () => {
+  const mine = new SweptGrid();
+  mine.addFix(0, 0, 5, PLANING_MS + 5, 9000);
+  const theirs = new SweptGrid();
+  theirs.addFix(0, 0, 5, 1.0, 1000);
+  mine.merge(theirs);
+  assert.equal(mine.get(0, 0).planing, false, "the slow pass is the better evidence");
+});
+
+test("merging is idempotent", () => {
+  const mine = new SweptGrid();
+  mine.addLeg(0, 0, 50, 0, 5, 3, 1000);
+  const theirs = SweptGrid.fromJSON(JSON.parse(JSON.stringify(mine)));
+  const before = mine.size;
+  mine.merge(theirs);
+  mine.merge(theirs);
+  assert.equal(mine.size, before, "re-importing the same file must not change anything");
+});

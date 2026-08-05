@@ -121,6 +121,37 @@ export class SweptGrid {
     return n;
   }
 
+  /**
+   * Fold another boat's coverage into this one.
+   *
+   * The whole point of sharing: the friend who lives on the lake has driven
+   * water a guest never will, and a guest at the helm is the case Nate is
+   * actually worried about. Merging is a union, because coverage is positive
+   * evidence -- nobody's absence of a track disproves anyone else's presence.
+   *
+   * Where two boats crossed the same cell, the STRONGER claim wins, on the same
+   * rule used within one boat: a slow pass proves more depth than a planing
+   * one. Deliberately not "most recent wins", which would let a fast pass
+   * overwrite a slow one and quietly weaken a claim already earned.
+   *
+   * Returns the number of cells this grid gained.
+   */
+  merge(other) {
+    let gained = 0;
+    for (const [k, v] of other.cells) {
+      const prev = this.cells.get(k);
+      if (!prev) {
+        this.cells.set(k, v);
+        gained++;
+      } else if (prev.planing && !v.planing) {
+        this.cells.set(k, v);
+      } else if (prev.planing === v.planing && v.t > prev.t) {
+        this.cells.set(k, v);
+      }
+    }
+    return gained;
+  }
+
   toJSON() {
     return { cell: this.cell, cells: [...this.cells.entries()] };
   }

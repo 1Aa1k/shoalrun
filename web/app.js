@@ -42,6 +42,8 @@ const state = {
   speed: 0,
   corridor: null,
   alert: "clear",
+  guest: false,
+  showSwept: true,
   trip: `trip-${Date.now()}`,
   logged: 0,
 };
@@ -482,6 +484,85 @@ el("btnCamps").onclick = () => {
 // Label stays fixed and the lit state carries the meaning. The old button
 // swapped its own label on press, so what it said and what it did were never
 // the same thing at the same time.
+el("btnSwept").onclick = () => {
+  state.showSwept = state.showSwept === false;
+  el("btnSwept").classList.toggle("on", state.showSwept !== false);
+  view.draw(state);
+};
+
+// Guest mode. The case that actually motivated all of this: somebody else at
+// the helm who does not know the lake.
+//
+// A guest cannot use 4,908 markers. 3,549 of them are unverified -- the imagery
+// cannot see depth on this lake -- and a stranger has no way to weigh that, so
+// the honest markers drown in the doubtful ones and every alert looks the same.
+// What a guest can use is "stay on the water we have driven", which is the one
+// claim in the whole tool backed by direct evidence.
+//
+// So this hides the unverified layer, keeps the hazards that hold up, and
+// leans on the driven-water layer. It shows LESS, on purpose.
+el("btnGuest").onclick = () => {
+  state.guest = !state.guest;
+  el("btnGuest").classList.toggle("on", state.guest);
+  if (state.guest) {
+    state.showSwept = true;
+    el("btnSwept").classList.add("on");
+    setStatus(
+      "Guest mode: unverified marks hidden. Stay on the green water - that is " +
+        "water this boat has actually driven. White water is unknown, not " +
+        "necessarily bad.",
+      "ok",
+    );
+  } else {
+    setStatus("All candidates shown, including unverified ones.", "warn");
+  }
+  view.draw(state);
+};
+
+// Share coverage between boats. Deliberately a FILE, not a server: it works
+// with no signal at the landing, over AirDrop, a text, or a USB cable, and
+// there is no account to make or service to keep running.
+el("btnShare").onclick = async () => {
+  const blob = new Blob(
+    [JSON.stringify({ kind: "shoalrun-swept", v: 1, swept: state.swept })],
+    { type: "application/json" },
+  );
+  const name = `shoalrun-driven-${new Date().toISOString().slice(0, 10)}.json`;
+  const file = new File([blob], name, { type: "application/json" });
+  if (navigator.canShare && navigator.canShare({ files: [file] })) {
+    try {
+      await navigator.share({ files: [file], title: "Driven water" });
+      return;
+    } catch (e) {
+      if (e.name === "AbortError") return;
+    }
+  }
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = name;
+  a.click();
+};
+
+el("fileImport").onchange = async (e) => {
+  const f = e.target.files[0];
+  if (!f) return;
+  try {
+    const o = JSON.parse(await f.text());
+    if (o.kind !== "shoalrun-swept") throw new Error("not a driven-water file");
+    const gained = state.swept.merge(SweptGrid.fromJSON(o.swept));
+    const st = coverageStats(state.swept, LAKE_AREA_M2);
+    setStatus(
+      `Added ${gained} new cells. Now ${(st.provenM2 / 1e6).toFixed(2)} km2 driven ` +
+        `water on this device.`,
+      "ok",
+    );
+    view.draw(state);
+  } catch (err) {
+    setStatus(`Could not read that file: ${err.message}`, "warn");
+  }
+  e.target.value = "";
+};
+
 el("btnShore").onclick = () => {
   state.showShore = !state.showShore;
   el("btnShore").classList.toggle("on", state.showShore);

@@ -259,10 +259,18 @@ body.sim::after { content: "SIMULATION"; position: absolute; top: 50%; left: 0; 
     <button id="btnSoundings" class="on">Soundings</button>
     <button id="btnCamps" class="on">Camps</button>
     <button id="btnShore">All rocks</button>
+    <button id="btnSwept" class="on">Driven water</button>
+  </div>
+
+  <div class="toggles" style="margin-top:7px">
+    <button id="btnGuest" style="flex:1 1 100%">Guest mode - follow driven water</button>
   </div>
 
   <div class="toggles" style="margin-top:7px">
     <button id="btnExport">Export track</button>
+    <button id="btnShare">Share driven water</button>
+    <label class="btn" for="fileImport">Load from someone</label>
+    <input id="fileImport" type="file" accept="application/json" style="display:none">
     <button id="btnPanelClose" class="ghost">Done</button>
   </div>
 

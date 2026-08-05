@@ -549,6 +549,11 @@ export class MapView {
     const T = this.t;
     for (const r of state.rocks) {
       if (!state.showShore && !r.offshore) continue;
+      // Guest mode shows only what the evidence supports. A stranger to the
+      // lake cannot weigh 3,549 unverified marks against 48 confirmed ones, so
+      // showing all of them makes every alert look identical and teaches them
+      // to ignore all of it.
+      if (state.guest && r.tier === "unverified") continue;
       const [sx, sy] = this.toScreen(r.x, r.y);
       if (sx < -30 || sy < -30 || sx > this.w + 30 || sy > this.h + 30) continue;
 
