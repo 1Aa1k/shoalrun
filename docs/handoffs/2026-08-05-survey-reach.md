@@ -82,11 +82,12 @@ output, not by tests.
 
 - **Working tree is clean.** `git status --short` returns nothing.
 - **Branch:** `master`. One worktree only (`/home/nate/Projects/shoalrun`).
-- **22 commits unpushed.** See the push gotcha below — this is the one blocking item.
+- **Pushed.** `origin/master` is at `4b43313`, matching local. Was a plain
+  fast-forward, `7d306c0..4b43313`, no force. See the gotcha below for why.
 
 ## Known issues & gotchas
 
-### Push is blocked and needs a human, and NOT with --force
+### The push did NOT need --force (already done, recorded so nobody redoes it wrong)
 
 A `git filter-repo` run (someone else, this session) rewrote history to drop
 `data/ratio.npy` / `data/water.npy`. The note handed to me said to push with `--force`
@@ -99,13 +100,17 @@ because "nothing was ever pushed" and "every SHA changed". **Both are wrong:**
 - `git push --dry-run origin master` shows `7d306c0..<tip>` with no `+` — a plain
   fast-forward.
 
-So force is unnecessary here, and the stated reason it was "safe" was false. Push
-normally. My own push attempt was refused by the permission classifier, so it needs to
-be run by hand:
+So force was unnecessary, and the stated reason it was "safe" was false. Pushed
+normally instead:
 
 ```
-! git -C /home/nate/Projects/shoalrun push origin master
+$ git push origin master
+   7d306c0..4b43313  master -> master
 ```
+
+If history is ever rewritten here again, check `merge-base --is-ancestor` and
+`push --dry-run` before reaching for `--force`. Force would have worked this time by
+luck; on a real divergence it would have destroyed the 13 published commits.
 
 ### A parallel session is live in this repo
 
@@ -142,18 +147,16 @@ survived at **`data/sdb/`** (not `data/`), so the fit results are still on disk.
 
 ## Next session's first 3 steps
 
-1. **Push.** Run the `!` command above. Nothing else should happen until origin matches.
-2. **Verify the night-theme veil.** It is the one thing shipped unlooked-at. Open the
+1. **Verify the night-theme veil.** It is the one thing shipped unlooked-at. Open the
    map, switch theme to Night, enable **Survey reach**, and confirm the near-black veil
    (`depth.js`, `[4, 7, 10, 0.7]`) reads against dark water the way the warm grey reads
    against the chart. Five minutes.
+2. **Tint the 3D bottom mesh by reach**, the way the 2D map does — the cheap one left.
 3. **Decide on anisotropic interpolation.** `make_contours.py:build_surface()` runs
    `griddata` isotropically, which interpolates across the 530 m north-south gaps with
    exactly the confidence it uses along a transect. That is the actual defect; the reach
    layer only describes it. It moves the surface that contours, the 3D mesh, and
    `validate_depth.py` all read from, so it wants its own session and a before/after.
-
-Not urgent: tint the 3D bottom mesh by reach, the way the 2D map does.
 
 ## Relevant file paths
 
