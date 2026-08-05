@@ -244,6 +244,40 @@ function onGpsError(err) {
   setStatus(`GPS: ${err.message}`, "warn");
 }
 
+// Keep the screen awake while the GPS is running.
+//
+// Without this the phone blanks after ~30 s and the app goes on tracking and
+// alerting to nobody -- which is the worst possible failure for this tool,
+// because it looks like it is working right up until you need it. A hazard
+// warning behind a dark screen is not a warning.
+//
+// The lock is dropped whenever the page is hidden and retaken on return; the
+// browser revokes it anyway on backgrounding, and holding it while the app is
+// not on screen would drain the battery for nothing.
+let wakeLock = null;
+
+async function holdScreenAwake() {
+  if (!("wakeLock" in navigator)) return; // iOS < 16.4, older Android
+  try {
+    wakeLock = await navigator.wakeLock.request("screen");
+    wakeLock.addEventListener("release", () => {
+      wakeLock = null;
+    });
+  } catch {
+    // Denied or unsupported. Not worth a banner -- the user can do nothing
+    // about it, and a warning they cannot act on is noise competing with the
+    // hazard alerts.
+  }
+}
+
+if (typeof document !== "undefined") {
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible" && watchId != null && !wakeLock) {
+      holdScreenAwake();
+    }
+  });
+}
+
 function startGps() {
   if (!navigator.geolocation) return setStatus("no geolocation on this device", "warn");
   watchId = navigator.geolocation.watchPosition(onFix, onGpsError, {
@@ -251,7 +285,13 @@ function startGps() {
     maximumAge: 1000,
     timeout: 15000,
   });
-  setStatus("GPS active", "ok");
+  holdScreenAwake();
+  setStatus(
+    "wakeLock" in navigator
+      ? "GPS active, screen will stay on"
+      : "GPS active - set your screen timeout to Never, this phone cannot hold it awake",
+    "ok",
+  );
 }
 
 // --- hazard evaluation -----------------------------------------------------
