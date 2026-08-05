@@ -602,10 +602,27 @@ const { lake: LAKE_GEO, rocks: ROCK_GEO, depth: DEPTH_RAW } = window.SHOALRUN_DA
 
 const el = (id) => document.getElementById(id);
 const canvas = el("gl");
+
+// Anything thrown during setup used to leave a black canvas and no explanation,
+// which is indistinguishable from "the GPU cannot do this" and sent the last
+// shader bug hunting in entirely the wrong place. Put the real message on the
+// screen instead -- a driver-specific shader failure is exactly the class of bug
+// that only ever reproduces on someone else's machine.
+function fatal(msg) {
+  const box = el("nogl");
+  box.style.display = "grid";
+  box.innerHTML =
+    `<div><p style="color:#f2b0a6;font-weight:700">3D view failed to start</p>` +
+    `<p style="font-family:ui-monospace,Menlo,monospace;font-size:12px;white-space:pre-wrap">${
+      String(msg).replace(/[<&]/g, (c) => (c === "<" ? "&lt;" : "&amp;"))
+    }</p><p><a href="./index.html" style="color:#3d9be9">Back to the map</a></p></div>`;
+}
+window.addEventListener("error", (e) => fatal(e.message));
+
 const gl = canvas.getContext("webgl", { antialias: true, alpha: false });
 
 if (!gl) {
-  el("nogl").style.display = "grid";
+  fatal("This device has no WebGL.");
   throw new Error("WebGL unavailable");
 }
 
@@ -620,18 +637,37 @@ const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 // a soft ramp. Without the extension the mesh still draws, just smooth-shaded.
 const derivExt = gl.getExtension("OES_standard_derivatives");
 
+// Shared precision, chosen once and substituted into BOTH stages, because the
+// only way a cross-stage precision mismatch cannot happen is if there is one
+// source of truth for it.
+//
+// It has to be highp wherever the flat-shading path runs. That path is
+// normalize(cross(dFdx(vWorld), dFdy(vWorld))), and vWorld carries a world
+// position: at magnitude ~5 a mediump (fp16) ULP is about 0.005, which is the
+// entire per-pixel derivative. The subtraction then returns 0 or 1 ULP of pure
+// noise, and the terraces render as blown-out white speckle.
+const HIGHP_FRAG = gl.getShaderPrecisionFormat(gl.FRAGMENT_SHADER, gl.HIGH_FLOAT).precision > 0;
+const P = HIGHP_FRAG ? "highp" : "mediump";
+
 // --- shaders ---------------------------------------------------------------
 
+// Precision is stated explicitly on every uniform and varying that crosses the
+// stage boundary. A vertex shader defaults to highp and a fragment shader here
+// declares mediump, so anything shared silently disagrees -- which links fine on
+// SwiftShader and hard-fails on AMD/ANGLE with "declared as type float16_t and
+// type float". That failure surfaced as a black screen, because a throw during
+// program setup leaves nothing on the canvas.
 const VERT = `
+precision highp float;
 attribute vec3 aPos;
 attribute vec3 aNormal;
 attribute float aDepth;
 uniform mat4 uMVP;
 uniform float uExag;
-uniform float uTerrace;
-varying float vDepth;
-varying vec3 vNormal;
-varying vec3 vWorld;
+uniform ${P} float uTerrace;
+varying ${P} float vDepth;
+varying ${P} vec3 vNormal;
+varying ${P} vec3 vWorld;
 void main() {
   // Depth is quantised here, not in the buffer, so the terrace slider does not
   // have to rebuild the mesh. Snapping to the NEAR side (floor) keeps every
@@ -649,12 +685,11 @@ void main() {
 
 const FRAG = `
 #extension GL_OES_standard_derivatives : enable
-precision mediump float;
-varying float vDepth;
-varying vec3 vNormal;
-varying vec3 vWorld;
+precision ${P} float;
+varying ${P} float vDepth;
+varying ${P} vec3 vNormal;
+varying ${P} vec3 vWorld;
 uniform float uShallow;
-uniform float uTerrace;
 uniform float uFlat;
 
 // Same ramp as the 2D map, so the two views agree about what 15 ft looks like.
@@ -694,14 +729,12 @@ void main() {
 // Without it those cells were simply absent, and a lake full of holes onto the
 // background reads as broken geometry rather than as islands.
 const LAND_VERT = `
+precision highp float;
 attribute vec3 aPos;
 uniform mat4 uMVP;
 uniform float uY;
-varying vec3 vWorld;
 void main() {
-  vec3 p = vec3(aPos.x, aPos.y + uY, aPos.z);
-  vWorld = p;
-  gl_Position = uMVP * vec4(p, 1.0);
+  gl_Position = uMVP * vec4(vec3(aPos.x, aPos.y + uY, aPos.z), 1.0);
 }`;
 
 // Translucent water surface, drawn only in boat mode. Sitting 1.8 m off the
@@ -711,20 +744,20 @@ void main() {
 // seeing what is under you is the entire reason to be in boat mode.
 const WATER_FRAG = `
 precision mediump float;
-varying vec3 vWorld;
 void main() { gl_FragColor = vec4(0.184, 0.404, 0.510, 0.34); }`;
 
 // Sky gradient, drawn as a screen-space pass before anything else. A flat black
 // background made the far shore look like the edge of the world, and in boat
 // mode there was no horizon at all to judge attitude against.
 const SKY_VERT = `
+precision highp float;
 attribute vec2 aXY;
-varying float vY;
+varying mediump float vY;
 void main() { vY = aXY.y * 0.5 + 0.5; gl_Position = vec4(aXY, 0.0, 1.0); }`;
 
 const SKY_FRAG = `
 precision mediump float;
-varying float vY;
+varying mediump float vY;
 void main() {
   // Light band held low and wide: the horizon sits near the middle of the
   // screen at boat pitch, and that is exactly where it has to be readable.
@@ -735,7 +768,6 @@ void main() {
 
 const LAND_FRAG = `
 precision mediump float;
-varying vec3 vWorld;
 void main() {
   // Flat, and deliberately so: there is no terrain elevation data for this
   // lake, so any relief here would be invented. Light enough to read as
@@ -745,6 +777,7 @@ void main() {
 }`;
 
 const LINE_VERT = `
+precision highp float;
 attribute vec3 aPos;
 uniform mat4 uMVP;
 uniform float uExag;
@@ -1189,9 +1222,12 @@ function draw(now) {
   gl.uniform1f(gl.getUniformLocation(meshProg, "uExag"), exag);
   gl.uniform1f(gl.getUniformLocation(meshProg, "uShallow"), opts.shallow);
   gl.uniform1f(gl.getUniformLocation(meshProg, "uTerrace"), opts.terrace);
+  // Flat shading needs both the derivative extension and highp in the fragment
+  // stage. Without highp the derivative is precision noise, which renders as
+  // white speckle -- smooth-shaded terraces are the better failure.
   gl.uniform1f(
     gl.getUniformLocation(meshProg, "uFlat"),
-    opts.terrace > 0 && derivExt ? 1 : 0
+    opts.terrace > 0 && derivExt && HIGHP_FRAG ? 1 : 0
   );
 
   bindAttr(meshProg, "aPos", bufPos, 3);
