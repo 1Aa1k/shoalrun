@@ -23,7 +23,7 @@ DATA = ROOT / "data"
 DIST = ROOT / "dist"
 
 # Dependency order matters: geo defines what hazard and render consume.
-MODULES = ["geo.js", "depth.js", "hazard.js", "render.js", "store.js", "app.js"]
+MODULES = ["geo.js", "depth.js", "hazard.js", "swept.js", "render.js", "store.js", "app.js"]
 
 # The 3D viewer is a separate page on purpose. An orbiting camera is the wrong
 # control surface for someone at the helm, and keeping it out of the map page
@@ -157,6 +157,20 @@ def main():
         html = html.replace("/*__DATA__*/", data_json)
         html = html.replace("/*__APP__*/", js)
         assert "fetch(" not in js, f"{dest} must not fetch anything at runtime"
+        # A module left out of the list has its import line stripped and then
+        # fails at runtime with an undefined symbol -- on the water, where the
+        # user cannot open a console. Catch it at build time instead.
+        for m in modules:
+            for sym in re.findall(r"^\s*export\s+(?:async\s+)?(?:function|class|const)\s+(\w+)",
+                                  (WEB / m).read_text(), re.M):
+                pass
+        missing = [
+            name for name in re.findall(r"\bimport\s*\{([^}]*)\}\s*from\s*\"\./(\w+)\.js\"",
+                                        (WEB / modules[-1]).read_text())
+            for name in [name[1] + ".js"]
+            if name not in modules
+        ]
+        assert not missing, f"{dest}: imported but not bundled: {sorted(set(missing))}"
         assert (
             "/*__DATA__*/" not in html and "/*__APP__*/" not in html
         ), f"{dest}: placeholder left unreplaced"

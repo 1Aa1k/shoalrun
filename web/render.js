@@ -33,6 +33,7 @@ const THEMES = {
     shoreWidth: 1.2,
     shoreGlow: "rgba(127, 196, 232, 0.18)",
     track: [126, 214, 255],
+    swept: [86, 196, 138],
     boat: "#ffffff",
     boatEdge: "#06121f",
     corridor: [255, 208, 92],
@@ -60,6 +61,7 @@ const THEMES = {
     shoreWidth: 1.6,
     shoreGlow: null,
     track: [40, 90, 150],
+    swept: [46, 132, 90],
     boat: "#111111",
     boatEdge: "#ffffff",
     corridor: [190, 40, 150],
@@ -229,6 +231,9 @@ export class MapView {
     // and with 260 points over 34 km2 that distinction is the whole story.
     if (T.chartMode && state.soundings && state.showSoundings) this._drawSoundings(state.soundings);
     if (state.structures && state.showCamps) this._drawStructures(state.structures);
+    // Proven water goes UNDER everything else. It is context for reading the
+    // hazards, not a hazard itself, and it must never obscure a marker.
+    if (state.swept && state.showSwept !== false) this._drawSwept(state.swept);
     if (state.track && state.track.length > 1) this._drawTrack(state.track);
     if (state.corridor) this._drawCorridor(state.corridor);
     this._drawRocks(state);
@@ -417,6 +422,38 @@ export class MapView {
   // Track fades with age. Water you drove through an hour ago is weaker
   // evidence than water you drove through a minute ago, and the fade says so
   // without needing a legend.
+  // Water the boat has driven through, accumulated over every trip.
+  //
+  // Drawn as a positive statement -- "this has been proven" -- and never as an
+  // absence. Unswept water is left exactly as it is rather than fogged or
+  // greyed, because unknown is not the same as dangerous, and shading it would
+  // tell the user the opposite. That distinction is the whole point of the
+  // layer: on this lake the imagery cannot see depth at all, so a driven track
+  // is the only direct evidence there is.
+  _drawSwept(swept) {
+    const ctx = this.ctx;
+    const cell = swept.cell;
+    // Below this the cells are sub-pixel and the layer becomes a smear, which
+    // would read as a solid claim over water that was never driven.
+    const px = cell * this.scale;
+    if (px < 1.2) return;
+    const T = this.theme;
+    const col = T.swept || [86, 196, 138];
+    ctx.save();
+    for (const [k, v] of swept.cells) {
+      const [cx, cy] = k.split(",");
+      const x = (+cx + 0.5) * cell;
+      const y = (+cy + 0.5) * cell;
+      const [sx, sy] = this.toScreen(x, y);
+      if (sx < -px || sy < -px || sx > this.w + px || sy > this.h + px) continue;
+      // A planing pass proves less depth than a slow one, so it is drawn
+      // fainter rather than being counted the same.
+      ctx.fillStyle = `rgba(${col[0]},${col[1]},${col[2]},${v.planing ? 0.16 : 0.3})`;
+      ctx.fillRect(sx - px / 2, sy - px / 2, px, px);
+    }
+    ctx.restore();
+  }
+
   _drawTrack(track) {
     const ctx = this.ctx;
     ctx.lineWidth = 3;
