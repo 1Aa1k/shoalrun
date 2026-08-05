@@ -120,12 +120,32 @@ void main() {
 
 // Translucent water surface, drawn only in boat mode. Sitting 1.8 m off the
 // water and seeing the bare bottom is disorienting -- you cannot tell where the
-// waterline is, which is the one reference a boat view needs. With the surface
-// in, the bottom shows through it and the depth reads.
+// waterline is, which is the one reference a boat view needs. Thin enough to
+// see the bottom through: an opaque surface makes boat mode a blue plane, and
+// seeing what is under you is the entire reason to be in boat mode.
 const WATER_FRAG = `
 precision mediump float;
 varying vec3 vWorld;
-void main() { gl_FragColor = vec4(0.055, 0.196, 0.310, 0.74); }`;
+void main() { gl_FragColor = vec4(0.184, 0.404, 0.510, 0.34); }`;
+
+// Sky gradient, drawn as a screen-space pass before anything else. A flat black
+// background made the far shore look like the edge of the world, and in boat
+// mode there was no horizon at all to judge attitude against.
+const SKY_VERT = `
+attribute vec2 aXY;
+varying float vY;
+void main() { vY = aXY.y * 0.5 + 0.5; gl_Position = vec4(aXY, 0.0, 1.0); }`;
+
+const SKY_FRAG = `
+precision mediump float;
+varying float vY;
+void main() {
+  // Light band held low and wide: the horizon sits near the middle of the
+  // screen at boat pitch, and that is exactly where it has to be readable.
+  vec3 low  = vec3(0.322, 0.388, 0.443);
+  vec3 high = vec3(0.075, 0.110, 0.169);
+  gl_FragColor = vec4(mix(low, high, smoothstep(0.30, 1.0, vY)), 1.0);
+}`;
 
 const LAND_FRAG = `
 precision mediump float;
@@ -142,9 +162,10 @@ const LINE_VERT = `
 attribute vec3 aPos;
 uniform mat4 uMVP;
 uniform float uExag;
+uniform float uPointSize;
 void main() {
   gl_Position = uMVP * vec4(aPos.x, aPos.y * uExag, aPos.z, 1.0);
-  gl_PointSize = 7.0;
+  gl_PointSize = uPointSize;
 }`;
 
 const LINE_FRAG = `
@@ -176,7 +197,15 @@ function program(vsrc, fsrc) {
 const meshProg = program(VERT, FRAG);
 const landProg = program(LAND_VERT, LAND_FRAG);
 const waterProg = program(LAND_VERT, WATER_FRAG);
+const skyProg = program(SKY_VERT, SKY_FRAG);
 const lineProg = program(LINE_VERT, LINE_FRAG);
+
+const bufSky = (() => {
+  const b = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, b);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
+  return b;
+})();
 
 // --- mesh ------------------------------------------------------------------
 
@@ -535,10 +564,18 @@ function draw(now) {
   const { eye, target } = cameraFor(dt);
 
   gl.viewport(0, 0, canvas.width, canvas.height);
-  // Lifted off black so the horizon reads as a horizon. In boat mode a pure
-  // black sky made the far shore look like the edge of the world.
-  gl.clearColor(0.063, 0.086, 0.114, 1);
   gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+
+  // Sky first, with depth writes off so it never occludes the scene.
+  gl.disable(gl.DEPTH_TEST);
+  gl.depthMask(false);
+  gl.useProgram(skyProg);
+  const skyLoc = gl.getAttribLocation(skyProg, "aXY");
+  gl.bindBuffer(gl.ARRAY_BUFFER, bufSky);
+  gl.enableVertexAttribArray(skyLoc);
+  gl.vertexAttribPointer(skyLoc, 2, gl.FLOAT, false, 0, 0);
+  gl.drawArrays(gl.TRIANGLES, 0, 3);
+  gl.depthMask(true);
   gl.enable(gl.DEPTH_TEST);
 
   const view = lookAt(eye, target, [0, 1, 0]);
@@ -611,6 +648,9 @@ function draw(now) {
 
     gl.uniform1f(exagLoc, 1.0);
     gl.uniform4f(colorLoc, 1.0, 0.35, 0.28, 1.0);
+    // Bigger marks in boat mode: from the helm a hazard has to be findable at a
+    // glance, not hunted for among 7 px dots.
+    gl.uniform1f(gl.getUniformLocation(lineProg, "uPointSize"), mode === "boat" ? 11 : 7);
     bindAttr(lineProg, "aPos", bufHeads, 3);
     gl.drawArrays(gl.POINTS, 0, hz.heads.length / 3);
   }
@@ -794,6 +834,12 @@ el("sldTerrace").addEventListener("input", (e) => {
   opts.terrace = +e.target.value;
   el("valTerrace").textContent = opts.terrace === 0 ? "smooth" : `${opts.terrace} ft`;
 });
+el("btnGear").onclick = () => {
+  const open = document.body.classList.toggle("open");
+  el("btnGear").classList.toggle("on", open);
+};
+el("caveat").onclick = () => el("caveat").classList.toggle("open");
+
 el("btnReset").onclick = () => {
   orbit.yaw = 0;
   orbit.pitch = 0.62;

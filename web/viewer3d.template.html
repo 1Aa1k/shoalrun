@@ -39,11 +39,17 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: var(--bg); c
   border-radius: 8px; padding: 8px 12px; font-size: 13px; font-weight: 600;
   font-family: inherit; text-decoration: none; cursor: pointer; white-space: nowrap; }
 
-.controls { left: 10px; right: 10px; bottom: calc(10px + var(--pad-b)); padding: 12px 16px 14px;
-  max-width: 560px; margin: 0 auto; }
-.modes { display: flex; gap: 6px; margin-bottom: 12px; }
+/* Controls collapse to just the mode row. The full panel is 240 px of the
+   screen, and on a phone that was most of the lake -- the sliders are set once
+   and then you want to look at the water, not at the sliders. */
+.controls { left: 10px; right: 10px; bottom: calc(10px + var(--pad-b)); padding: 10px 14px 12px;
+  max-width: 520px; margin: 0 auto; }
+.modes { display: flex; gap: 6px; }
 .modes button { flex: 1; }
 button.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+#sliders { display: none; margin-top: 4px; }
+body.open #sliders { display: block; }
+#btnGear { flex: 0 0 44px; }
 
 /* Boat HUD. Depth, speed and range to the nearest hazard, which is the whole
    question boat mode exists to answer. */
@@ -92,8 +98,17 @@ input[type=range]::-moz-range-thumb { width: 20px; height: 20px; border-radius: 
 .caveat { position: absolute; z-index: 3; left: 10px; top: calc(70px + var(--pad-t));
   max-width: 260px; font-size: 11px; line-height: 1.45; color: #f2b0a6;
   background: rgba(216,50,28,.13); border: 1px solid rgba(216,50,28,.42);
-  border-radius: 10px; padding: 8px 10px; }
+  border-radius: 10px; padding: 8px 10px; cursor: pointer; }
 .caveat b { color: #ffd9d2; }
+/* Collapsed to one line by default. It still has to be on screen -- a smooth
+   shaded basin reads as survey-grade and this is 260 soundings from 1954 -- but
+   a five-line block parked over the lake is the thing you stop reading. */
+.caveat .more { display: none; }
+.caveat.open .more { display: inline; }
+.caveat.open { max-width: 280px; }
+
+/* Touch pad sits above the collapsed control bar. */
+.pad { bottom: calc(84px + var(--pad-b)) !important; }
 
 #nogl { display: none; position: absolute; inset: 0; place-content: center;
   padding: 40px; text-align: center; color: var(--ink-dim); }
@@ -115,10 +130,11 @@ input[type=range]::-moz-range-thumb { width: 20px; height: 20px; border-radius: 
   <a class="btn" href="./index.html">Map</a>
 </div>
 
-<div class="caveat">
-  Interpolated from <b>260 MDIFW soundings, Aug 1954</b> &mdash; roughly one
-  measurement per 13 hectares. Between transects this surface is an educated
-  guess. It shows basin shape, <b>not</b> rocks. Not a chart.
+<div class="caveat" id="caveat">
+  <b>1954 survey, interpolated</b> &mdash; not a chart.<span class="more">
+  260 MDIFW soundings, roughly one measurement per 13 hectares. Between
+  transects this surface is an educated guess. It shows basin shape,
+  <b>not</b> rocks.</span>
 </div>
 
 <div class="hud" id="hud">
@@ -142,22 +158,25 @@ input[type=range]::-moz-range-thumb { width: 20px; height: 20px; border-radius: 
     <button id="mode_orbit" class="btn">Orbit</button>
     <button id="mode_fly" class="btn">Fly</button>
     <button id="mode_boat" class="btn">Boat</button>
+    <button id="btnGear" class="btn">&#9881;</button>
   </div>
-  <div class="slider">
-    <div class="lab"><span>Vertical exaggeration</span><b id="valExag">8x</b></div>
-    <input type="range" id="sldExag" min="1" max="30" step="1" value="8">
-  </div>
-  <div class="slider">
-    <div class="lab"><span>Depth steps</span><b id="valTerrace">3 ft</b></div>
-    <input type="range" id="sldTerrace" min="0" max="10" step="1" value="3">
-  </div>
-  <div class="slider">
-    <div class="lab"><span>Highlight shallower than</span><b id="valShallow3d">off</b></div>
-    <input type="range" id="sldShallow3d" min="0" max="30" step="1" value="0">
-  </div>
-  <div class="foot">
-    <span id="hint">Drag to orbit &middot; pinch or scroll to zoom</span>
-    <button class="btn" id="btnReset">Reset view</button>
+  <div id="sliders">
+    <div class="slider">
+      <div class="lab"><span>Vertical exaggeration</span><b id="valExag">8x</b></div>
+      <input type="range" id="sldExag" min="1" max="30" step="1" value="8">
+    </div>
+    <div class="slider">
+      <div class="lab"><span>Depth steps</span><b id="valTerrace">3 ft</b></div>
+      <input type="range" id="sldTerrace" min="0" max="10" step="1" value="3">
+    </div>
+    <div class="slider">
+      <div class="lab"><span>Highlight shallower than</span><b id="valShallow3d">off</b></div>
+      <input type="range" id="sldShallow3d" min="0" max="30" step="1" value="0">
+    </div>
+    <div class="foot">
+      <span id="hint">Drag to orbit &middot; pinch or scroll to zoom</span>
+      <button class="btn" id="btnReset">Reset view</button>
+    </div>
   </div>
 </div>
 
