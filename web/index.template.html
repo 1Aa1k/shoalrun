@@ -3,83 +3,228 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
-<meta name="theme-color" content="#0d1117">
+<meta name="theme-color" content="#080d13">
 <title>shoalrun - Millinocket Lake</title>
 <link rel="manifest" href="./manifest.json">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <style>
+:root {
+  --bg: #080d13;
+  --panel: rgba(14, 20, 28, .92);
+  --panel-solid: #0e141c;
+  --line: #1e2a36;
+  --line-soft: #172029;
+  --ink: #dbe6f0;
+  --ink-dim: #7d8f9f;
+  --ink-faint: #56656f;
+  --accent: #3d9be9;
+  --warn: #d8961f;
+  --danger: #d8321c;
+  --ok: #43b96b;
+  --r: 10px;
+  --pad-b: env(safe-area-inset-bottom, 0px);
+  --pad-t: env(safe-area-inset-top, 0px);
+}
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 html, body { margin: 0; height: 100%; overflow: hidden;
-  background: #0d1117; color: #c9d1d9;
-  font: 15px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+  background: var(--bg); color: var(--ink);
+  font: 15px/1.45 ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased; }
 #map { position: absolute; inset: 0; width: 100%; height: 100%; touch-action: none; }
 
-.alert { position: absolute; top: env(safe-area-inset-top, 0); left: 0; right: 0;
-  padding: 14px 16px; font-size: 20px; font-weight: 700; letter-spacing: .02em;
-  text-align: center; transition: background .15s; }
-.alert.clear   { background: rgba(22,27,34,.82); color: #7d8590; font-weight: 600; font-size: 15px; }
-.alert.caution { background: #b26a00; color: #fff; }
-.alert.danger  { background: #c92a1c; color: #fff; animation: pulse .7s infinite alternate; }
+.mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-variant-numeric: tabular-nums; }
+
+/* --- alert banner ------------------------------------------------------- */
+/* Sized for a glance from the helm, not for reading. The clear state is
+   deliberately quiet so that the loud states mean something. */
+.alert { position: absolute; top: 0; left: 0; right: 0; z-index: 5;
+  padding: calc(12px + var(--pad-t)) 16px 12px;
+  font-size: 21px; font-weight: 700; letter-spacing: -.01em;
+  text-align: center; transition: background .15s, color .15s;
+  backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); }
+.alert.clear   { background: rgba(10,15,21,.72); color: var(--ink-dim);
+  font-weight: 600; font-size: 14px; letter-spacing: .04em; text-transform: uppercase;
+  border-bottom: 1px solid var(--line-soft); }
+.alert.caution { background: #a05f00; color: #fff; box-shadow: 0 6px 24px rgba(160,95,0,.4); }
+.alert.danger  { background: var(--danger); color: #fff;
+  animation: pulse .7s infinite alternate; box-shadow: 0 6px 30px rgba(216,50,28,.5); }
 @keyframes pulse { to { background: #ff3b26; } }
 
-.bar { position: absolute; left: 0; right: 0; bottom: 0;
-  padding: 10px 12px calc(10px + env(safe-area-inset-bottom, 0));
-  background: rgba(13,17,23,.9); border-top: 1px solid #21262d;
-  display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-button { background: #21262d; color: #c9d1d9; border: 1px solid #30363d;
-  border-radius: 8px; padding: 9px 13px; font-size: 14px; font-weight: 600; }
-button.on { background: #1f6feb; border-color: #1f6feb; color: #fff; }
-label.chk { display: flex; align-items: center; gap: 6px; font-size: 13px; color: #7d8590; }
-#status, #counts, #meta { font-size: 12px; color: #7d8590; width: 100%; }
-#status.ok { color: #3fb950; } #status.warn { color: #d29922; }
+/* --- floating cards ------------------------------------------------------ */
+.card { position: absolute; z-index: 3;
+  background: var(--panel); border: 1px solid var(--line); border-radius: var(--r);
+  backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+  box-shadow: 0 8px 28px rgba(0,0,0,.45); }
 
-.legend { position: absolute; top: 74px; left: 12px;
-  background: rgba(22,27,34,.85); border: 1px solid #30363d; border-radius: 8px;
-  padding: 8px 10px; font-size: 12px; }
-.legend div { display: flex; align-items: center; gap: 7px; margin: 3px 0; }
-.dot { width: 10px; height: 10px; border-radius: 50%; }
+.legend { top: calc(58px + var(--pad-t)); left: 10px; padding: 9px 11px; font-size: 12px;
+  max-width: 46vw; }
+.legend .row { display: flex; align-items: center; gap: 8px; margin: 4px 0; color: var(--ink-dim); }
+.legend .row b { color: var(--ink); font-weight: 600; }
+.dot { width: 9px; height: 9px; border-radius: 50%; flex: none; }
+.legend .note { margin-top: 7px; border-top: 1px solid var(--line-soft); padding-top: 6px;
+  color: var(--ink-faint); font-size: 11px; line-height: 1.4; }
+/* Gradient is set from JS off the same ramp the map draws with, so the legend
+   cannot drift out of sync with the water. */
+.legend .ramp { height: 7px; border-radius: 4px; margin: 7px 0 3px; background: #2e76a2; }
+.legend .ramplab { display: flex; justify-content: space-between;
+  font-size: 10px; color: var(--ink-faint); }
 
-.sheet { position: absolute; left: 0; right: 0; bottom: -100%;
-  background: #161b22; border-top: 1px solid #30363d;
-  border-radius: 14px 14px 0 0; padding: 16px;
-  transition: bottom .18s ease-out; z-index: 10; }
-.sheet.open { bottom: 0; }
-.sheet h3 { margin: 0 0 10px; font-size: 17px; }
-.kv { display: flex; justify-content: space-between; padding: 5px 0;
-  border-bottom: 1px solid #21262d; font-size: 13px; color: #7d8590; }
-.kv b { color: #c9d1d9; font-weight: 600; }
-.sheet .row { display: flex; gap: 8px; margin-top: 12px; }
+.disclaimer { top: calc(58px + var(--pad-t)); right: 10px; max-width: 42vw;
+  background: rgba(216,50,28,.13); border-color: rgba(216,50,28,.42);
+  color: #f2b0a6; padding: 8px 10px; font-size: 11px; line-height: 1.4; }
+.disclaimer b { color: #ffd9d2; }
+
+/* Depth under the boat. Its own card because it is the one number that changes
+   continuously, and burying it in the status line makes it unreadable. */
+.depthnow { right: 10px; bottom: calc(76px + var(--pad-b)); padding: 8px 12px;
+  text-align: right; min-width: 92px; }
+.depthnow .v { font-size: 26px; font-weight: 700; line-height: 1; }
+.depthnow .u { font-size: 10px; color: var(--ink-faint); letter-spacing: .09em;
+  text-transform: uppercase; margin-top: 4px; }
+
+/* --- bottom bar ---------------------------------------------------------- */
+.bar { position: absolute; left: 0; right: 0; bottom: 0; z-index: 6;
+  padding: 9px 10px calc(9px + var(--pad-b));
+  background: var(--panel); border-top: 1px solid var(--line);
+  backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+  display: flex; gap: 7px; align-items: center; }
+.bar .grow { flex: 1; min-width: 0; }
+
+button, .btn { background: #18212b; color: var(--ink); border: 1px solid var(--line);
+  border-radius: 8px; padding: 9px 12px; font-size: 13.5px; font-weight: 600;
+  font-family: inherit; cursor: pointer; transition: background .12s, border-color .12s;
+  white-space: nowrap; text-decoration: none; display: inline-block; }
+button:active { transform: translateY(1px); }
+button.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+button.ghost { background: transparent; color: var(--ink-dim); }
+
+#status, #counts, #meta { font-size: 11.5px; color: var(--ink-faint);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#status.ok { color: var(--ok); } #status.warn { color: var(--warn); }
+
+/* --- layers panel -------------------------------------------------------- */
+/* Slides up over the bar. The old build put every control in one wrapping row,
+   which on a phone became three rows of buttons eating a third of the map. */
+.panel { position: absolute; left: 0; right: 0; bottom: 0; z-index: 7;
+  background: var(--panel-solid); border-top: 1px solid var(--line);
+  border-radius: 14px 14px 0 0; padding: 14px 16px calc(16px + var(--pad-b));
+  transform: translateY(105%); transition: transform .2s cubic-bezier(.3,.8,.4,1);
+  box-shadow: 0 -10px 40px rgba(0,0,0,.5); }
+.panel.open { transform: translateY(0); }
+.panel h4 { margin: 0 0 12px; font-size: 11px; letter-spacing: .1em;
+  text-transform: uppercase; color: var(--ink-faint); font-weight: 700; }
+.panel .grip { width: 34px; height: 4px; border-radius: 2px; background: var(--line);
+  margin: -6px auto 12px; }
+
+.slider { margin: 14px 0; }
+.slider .lab { display: flex; justify-content: space-between; align-items: baseline;
+  font-size: 12.5px; color: var(--ink-dim); margin-bottom: 7px; }
+.slider .lab b { color: var(--ink); font-size: 14px; font-weight: 700; }
+input[type=range] { width: 100%; -webkit-appearance: none; appearance: none;
+  background: transparent; height: 22px; margin: 0; }
+input[type=range]::-webkit-slider-runnable-track { height: 4px; border-radius: 2px;
+  background: var(--line); }
+input[type=range]::-moz-range-track { height: 4px; border-radius: 2px; background: var(--line); }
+input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; appearance: none;
+  width: 20px; height: 20px; border-radius: 50%; background: var(--accent);
+  border: 2px solid #fff; margin-top: -8px; box-shadow: 0 2px 6px rgba(0,0,0,.5); }
+input[type=range]::-moz-range-thumb { width: 20px; height: 20px; border-radius: 50%;
+  background: var(--accent); border: 2px solid #fff; box-shadow: 0 2px 6px rgba(0,0,0,.5); }
+input[type=range]:disabled { opacity: .4; }
+
+.toggles { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 4px; }
+.toggles button { flex: 1 1 auto; }
+.panel .foot { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line-soft);
+  font-size: 11px; color: var(--ink-faint); line-height: 1.45; }
+
+/* --- detail sheet -------------------------------------------------------- */
+.sheet { position: absolute; left: 0; right: 0; bottom: 0; z-index: 10;
+  background: var(--panel-solid); border-top: 1px solid var(--line);
+  border-radius: 14px 14px 0 0; padding: 16px 16px calc(16px + var(--pad-b));
+  transform: translateY(105%); transition: transform .2s cubic-bezier(.3,.8,.4,1);
+  box-shadow: 0 -10px 40px rgba(0,0,0,.5); }
+.sheet.open { transform: translateY(0); }
+.sheet h3 { margin: 0 0 12px; font-size: 17px; font-weight: 700; letter-spacing: -.01em; }
+.kv { display: flex; justify-content: space-between; gap: 12px; padding: 7px 0;
+  border-bottom: 1px solid var(--line-soft); font-size: 13px; color: var(--ink-dim); }
+.kv:last-child { border-bottom: 0; }
+.kv b { color: var(--ink); font-weight: 600; text-align: right; }
+.sheet .row { display: flex; gap: 7px; margin-top: 14px; }
 .sheet .row button { flex: 1; }
-#btnConfirm { background: #8b1a10; border-color: #a52a1a; color: #fff; }
-#btnAbsent  { background: #21262d; }
+#btnConfirm { background: #7d1a10; border-color: #a52a1a; color: #fff; }
+
+/* --- chart theme --------------------------------------------------------- */
+/* When the map goes to paper, the chrome has to follow. Dark glass panels
+   floating over a buff chart read as a different app bolted on top, and in the
+   sunlight the chart mode exists for they are the unreadable part. */
+body.chart {
+  --bg: #e3d5ac;
+  --panel: rgba(252, 249, 240, .94);
+  --panel-solid: #fbf7ec;
+  --line: #c3b48c;
+  --line-soft: #d8cdb0;
+  --ink: #1e2833;
+  --ink-dim: #4c5a66;
+  --ink-faint: #6f7c86;
+  --accent: #1d5f96;
+}
+body.chart .alert.clear { background: rgba(252,249,240,.86); color: #4c5a66;
+  border-bottom: 1px solid #c3b48c; }
+body.chart button, body.chart .btn { background: #efe7d3; color: var(--ink); border-color: #c3b48c; }
+body.chart button.on, body.chart .btn.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+body.chart .disclaimer { background: rgba(190,20,20,.10); border-color: rgba(160,20,20,.45); color: #7d1a10; }
+body.chart .disclaimer b { color: #4d0d06; }
+body.chart .legend .note, body.chart .foot { color: #6f7c86; }
+body.chart #btnConfirm { background: #a3006b; border-color: #7d0052; }
+body.chart .card, body.chart .panel, body.chart .sheet { box-shadow: 0 6px 22px rgba(90,72,32,.28); }
+body.chart .sym { filter: none; }
+
+/* Legend swaps with the theme, because the two themes say the same things with
+   different marks: colour-coded dots on the dark map, NOAA symbols on paper. */
+.legend .forChart { display: none; }
+body.chart .legend .forNight { display: none; }
+body.chart .legend .forChart { display: flex; }
+body.chart .legend .note.forChart { display: block; }
+.sym { width: 15px; flex: none; text-align: center;
+  font: 700 13px/1 ui-monospace, SFMono-Regular, Menlo, monospace; color: #c8188c; }
 
 body.sim::after { content: "SIMULATION"; position: absolute; top: 50%; left: 0; right: 0;
   text-align: center; font-size: 42px; font-weight: 800; color: rgba(255,255,255,.07);
-  pointer-events: none; letter-spacing: .1em; }
-
-.disclaimer { position: absolute; top: 74px; right: 12px; max-width: 190px;
-  background: rgba(201,42,28,.14); border: 1px solid rgba(201,42,28,.5);
-  color: #f0a89f; border-radius: 8px; padding: 8px 10px; font-size: 11px; line-height: 1.35; }
+  pointer-events: none; letter-spacing: .12em; z-index: 2; }
 </style>
 </head>
 <body>
 <canvas id="map"></canvas>
 <div id="alert" class="alert clear">waiting for GPS</div>
 
-<div class="legend">
-  <div><span class="dot" style="background:#ffb02e"></span> shoal &mdash; submerged, unseen</div>
-  <div><span class="dot" style="background:#e0574a"></span> rock &mdash; breaks surface</div>
-  <div><span class="dot" style="background:#c3d0da"></span> exposed ledge</div>
-  <div><span class="dot" style="background:#5a6b78"></span> unmapped island</div>
-  <div><span class="dot" style="background:#ff2d1a"></span> you confirmed</div>
-  <div style="margin-top:6px;border-top:1px solid #30363d;padding-top:5px;color:#7d8590">
-    depth contours 10 ft &mdash; MDIFW 1954<br>camps &amp; piers from OSM<br>showing hazards &gt;50 m offshore</div>
+<div class="card legend" id="legend">
+  <div class="row forNight"><span class="dot" style="background:#ffc043"></span> <b>shoal</b> &mdash; submerged</div>
+  <div class="row forNight"><span class="dot" style="background:#ff6a5a"></span> <b>rock</b> &mdash; breaks surface</div>
+  <div class="row forNight"><span class="dot" style="background:#9fb1bf"></span> exposed ledge</div>
+  <div class="row forNight"><span class="dot" style="background:#63788a"></span> unmapped island</div>
+  <div class="row forNight"><span class="dot" style="background:#ff3521"></span> you confirmed</div>
+
+  <div class="row forChart"><span class="sym">&#43;</span> <b>shoal</b> &mdash; submerged rock</div>
+  <div class="row forChart"><span class="sym">&#42;</span> <b>rock</b> &mdash; breaks surface</div>
+  <div class="row forChart"><span class="sym" style="color:#33556b">18</span> sounding, ft (1954)</div>
+  <div class="row forChart"><span class="sym" style="color:#a3006b">&#43;</span> you confirmed</div>
+
+  <div class="ramp" id="legendRamp"></div>
+  <div class="ramplab"><span>0 ft</span><span id="rampMax">76 ft</span></div>
+  <div class="note">Depth interpolated from MDIFW soundings, Aug 1954.
+    Camps &amp; piers from OSM.</div>
 </div>
 
-<div class="disclaimer">
+<div class="card disclaimer">
   Satellite-derived and <b>unverified</b>. An aid, not a chart. Absence of a
   marker is not evidence of clear water.
+</div>
+
+<div class="card depthnow" id="depthNow" style="display:none">
+  <div class="v mono" id="depthVal">--</div>
+  <div class="u">ft under boat</div>
 </div>
 
 <div class="sheet" id="sheet">
@@ -88,20 +233,53 @@ body.sim::after { content: "SIMULATION"; position: absolute; top: 50%; left: 0; 
   <div class="row">
     <button id="btnConfirm">It's there</button>
     <button id="btnAbsent">Not there</button>
-    <button id="btnUnmark">Clear</button>
-    <button id="btnClose">Close</button>
+    <button id="btnUnmark" class="ghost">Clear</button>
+    <button id="btnClose" class="ghost">Close</button>
   </div>
+</div>
+
+<div class="panel" id="panel">
+  <div class="grip"></div>
+  <h4>Depth lines</h4>
+
+  <div class="slider">
+    <div class="lab"><span>Contour interval</span><b id="valInterval">10 ft</b></div>
+    <input type="range" id="sldInterval" min="0" max="5" step="1" value="2">
+  </div>
+
+  <div class="slider">
+    <div class="lab"><span>Highlight shallower than</span><b id="valShallow">off</b></div>
+    <input type="range" id="sldShallow" min="0" max="30" step="1" value="0">
+  </div>
+
+  <div class="toggles">
+    <button id="btnTheme">Chart</button>
+    <button id="btnDepth" class="on">Depth shading</button>
+    <button id="btnLines" class="on">Contour lines</button>
+    <button id="btnSoundings" class="on">Soundings</button>
+    <button id="btnCamps" class="on">Camps</button>
+    <button id="btnShore">All rocks</button>
+  </div>
+
+  <div class="toggles" style="margin-top:7px">
+    <button id="btnExport">Export track</button>
+    <a class="btn" id="btn3d" href="./3d.html">3D view</a>
+    <button id="btnPanelClose" class="ghost">Done</button>
+  </div>
+
+  <div class="foot" id="meta"></div>
 </div>
 
 <div class="bar">
   <button id="btnFollow" class="on">Follow</button>
-  <button id="btnShore">Offshore only</button>
-  <button id="btnCamps" class="on">Camps</button>
-  <button id="btnExport">Export</button>
-  <label class="chk"><input type="checkbox" id="sound" checked> alarm sound</label>
-  <div id="status"></div>
-  <div id="counts"></div>
-  <div id="meta"></div>
+  <button id="btnLayers">Layers</button>
+  <label class="btn ghost" style="display:flex;align-items:center;gap:6px;font-weight:600">
+    <input type="checkbox" id="sound" checked style="accent-color:var(--accent)"> Alarm
+  </label>
+  <div class="grow">
+    <div id="status"></div>
+    <div id="counts"></div>
+  </div>
 </div>
 
 <script>window.SHOALRUN_DATA = /*__DATA__*/;</script>

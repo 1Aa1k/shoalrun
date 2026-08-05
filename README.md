@@ -68,7 +68,8 @@ single image; they separate only across dates.
    10 m grid. Identical grid is non-negotiable: sub-pixel drift between dates would
    read as a rock.
 3. `detect_rocks.py` — water mask per scene, then persistence across scenes.
-4. `build_app.py` — inline everything into one offline HTML file.
+4. `export_depth_grid.py` — the interpolated depth surface as a compact grid.
+5. `build_app.py` — inline everything into two offline HTML files (map + 3D).
 
 ### Three things that had to be fixed, and are worth knowing
 
@@ -169,17 +170,68 @@ python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
 .venv/bin/python scripts/fetch_scenes.py   # ~15 min, 200 MB
 .venv/bin/python scripts/detect_rocks.py   # candidates
 .venv/bin/python scripts/verify.py         # stats + overview.png
-.venv/bin/python scripts/build_app.py      # dist/index.html
+.venv/bin/python scripts/export_depth_grid.py  # depth surface for the app
+.venv/bin/python scripts/build_app.py      # dist/index.html + dist/3d.html
 node --test web/hazard.test.mjs            # alerting logic
 ```
 
-`dist/index.html` is one 168 KB self-contained file — data, code, styles inlined,
+`dist/index.html` is one self-contained file — data, code, styles inlined,
 zero network calls at runtime. Open it from the phone's local storage or add it to
 the home screen. There is no cell service on that lake; anything that fetches at
 runtime works in the driveway and fails on the water.
 
 Append `?sim=1` to drive a synthetic boat through the eastern arm and watch the
-alerting without leaving the dock.
+alerting without leaving the dock. `?theme=night` opens in the dark palette.
+
+### Two themes, and why the light one is the default
+
+`chart` reproduces a NOAA paper chart — buff land, black shoreline, discrete blue
+shoal tints over white, magenta danger symbols (cross-in-dotted-circle for a
+submerged rock, asterisk for one that breaks the surface), and the measured 1954
+soundings printed as numbers. `night` is the dark screen-native palette with a
+continuous depth ramp.
+
+Chart is the default because this gets used outdoors in daylight, where a dark
+screen is unreadable and a light one is not. The conventions are borrowed on
+purpose: anyone who has read a chart already knows magenta means danger and that
+the number on the water is a measurement, not an interpolation. Which is exactly
+the distinction that matters here — **the printed soundings are the 260 real
+1954 measurements; every contour between them is inference.**
+
+### The depth surface ships as a grid, not as contours
+
+Contours used to be cut at build time at a fixed 10 ft interval, so seeing a
+different interval meant a rebuild. `export_depth_grid.py` ships the interpolated
+surface itself as a 404×299 uint8 grid at 25 m (158 KB base64, less than the
+253 KB the 10 ft contours alone cost), and the app runs marching squares on it.
+The interval became a slider, the depth shading and the contour lines now come
+from the same numbers, and the 3D viewer reads the identical surface — so the
+mesh and the lines cannot disagree about where 20 ft is.
+
+### 3D viewer — `dist/3d.html`
+
+Hand-rolled WebGL, no library, because a CDN script tag is a runtime network
+dependency wearing a hat. Three camera modes:
+
+| mode | what it is for |
+|---|---|
+| `orbit` | the whole basin, spun around its centre — reading overall shape |
+| `fly` | free camera, WASD + mouse look — getting in close to one shoal |
+| `boat` | eye height above the waterline, driving, with depth/speed/nearest-hazard HUD |
+
+Hazards draw as vertical stems from the bottom to the surface: a dot floating at
+depth gives you no sense of distance, while a stem shows both where it sits and
+how much water is over it.
+
+Two deliberate choices. **Depth is quantised to 3 ft steps by default** rather
+than rendered as a smooth surface — a smooth shaded basin looks far more
+authoritative than 260 soundings from 1954 deserve, and the terracing is a
+standing reminder of how coarse the input is. Snapping uses `floor`, so every
+terrace is at or *shallower* than the interpolated depth; on a boat, that is the
+only direction it is safe to round. **Boat mode ignores the exaggeration
+slider** and renders at true 1x — from 1.8 m above the water, 8x turns a 20 ft
+bottom into a canyon and puts every shallow at eye level, and the one view that
+pretends you are on the lake is the one where the geometry has to be honest.
 
 ### Alerting
 

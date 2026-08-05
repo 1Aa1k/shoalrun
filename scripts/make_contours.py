@@ -49,7 +49,17 @@ def densify(line, step):
     return [line.interpolate(i / n, normalized=True) for i in range(n + 1)]
 
 
-def main():
+def build_surface(grid_m=GRID_M, verbose=True):
+    """Interpolate the soundings onto a regular grid, masked to the lake.
+
+    Split out of main() because the depth grid now has two consumers: these
+    contours, and the browser (slider + 3D viewer), which reads the surface
+    directly. Both must come from one interpolation or the 3D mesh and the
+    contour lines would disagree about where the same 20 ft line sits.
+
+    Returns (grid, gx, gy, lake, fwd, back). `grid` is depth in feet, NaN
+    outside the lake, indexed [row=y][col=x] with y ascending (south-up).
+    """
     lake_ll = shape(json.loads(LAKE.read_text())["geometry"])
     fwd = Transformer.from_crs("EPSG:4326", LAKE_CRS, always_xy=True)
     back = Transformer.from_crs(LAKE_CRS, "EPSG:4326", always_xy=True)
@@ -63,7 +73,8 @@ def main():
         sx.append(x)
         sy.append(y)
         sd.append(f["properties"]["depth_ft"])
-    print(f"{len(sd)} soundings, {min(sd):.0f}-{max(sd):.0f} ft")
+    if verbose:
+        print(f"{len(sd)} soundings, {min(sd):.0f}-{max(sd):.0f} ft")
 
     # Shoreline and island edges as depth-0 control points.
     polys = list(lake.geoms) if hasattr(lake, "geoms") else [lake]
@@ -71,15 +82,16 @@ def main():
     for p in polys:
         for ring in [p.exterior, *p.interiors]:
             shore_pts.extend(densify(LineString(ring.coords), SHORE_STEP_M))
-    print(f"{len(shore_pts)} synthetic zero-depth shoreline points")
+    if verbose:
+        print(f"{len(shore_pts)} synthetic zero-depth shoreline points")
 
     X = np.array(sx + [p.x for p in shore_pts])
     Y = np.array(sy + [p.y for p in shore_pts])
     D = np.array(sd + [0.0] * len(shore_pts))
 
     minx, miny, maxx, maxy = lake.bounds
-    gx = np.arange(minx, maxx + GRID_M, GRID_M)
-    gy = np.arange(miny, maxy + GRID_M, GRID_M)
+    gx = np.arange(minx, maxx + grid_m, grid_m)
+    gy = np.arange(miny, maxy + grid_m, grid_m)
     GX, GY = np.meshgrid(gx, gy)
 
     # Linear on the Delaunay triangulation, then nearest to fill the convex-hull
@@ -97,15 +109,23 @@ def main():
     from rasterio.features import rasterize
     from rasterio.transform import from_origin
 
-    transform = from_origin(gx[0], gy[-1], GRID_M, GRID_M)
+    transform = from_origin(gx[0], gy[-1], grid_m, grid_m)
     mask = rasterize(
         [(mapping(lake), 1)], out_shape=(len(gy), len(gx)), transform=transform, dtype="uint8"
     ).astype(bool)
     mask = mask[::-1]  # rasterize writes north-up; our grid is south-up
     grid = np.where(mask, grid, np.nan)
 
-    inside = grid[np.isfinite(grid)]
-    print(f"interpolated surface: 0-{inside.max():.0f} ft (survey max 86 ft)")
+    if verbose:
+        inside = grid[np.isfinite(grid)]
+        print(f"interpolated surface: 0-{inside.max():.0f} ft (survey max 86 ft)")
+
+    return grid, gx, gy, lake, fwd, back
+
+
+def main():
+    grid, gx, gy, lake, fwd, back = build_surface()
+    GX, GY = np.meshgrid(gx, gy)
 
     levels = np.arange(INTERVAL_FT, np.nanmax(grid) + INTERVAL_FT, INTERVAL_FT)
     cs = plt.contour(GX, GY, grid, levels=levels)

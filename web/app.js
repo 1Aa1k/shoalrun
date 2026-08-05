@@ -1,11 +1,18 @@
 import { makeProjection, GridIndex } from "./geo.js";
 import { scan, alertLevel, CORRIDOR_HALF_W } from "./hazard.js";
 import { MapView } from "./render.js";
+import { DepthGrid, contoursAt, contoursAtLevels, rampCss, CHART_BAND_EDGES } from "./depth.js";
 import { logFix, allMarks, setMark, clearMark, exportAll, trackCount } from "./store.js";
 
 // DATA is injected at build time so the app is one self-contained file with no
 // network dependency of any kind. There is no cell service on this lake.
-const { lake: LAKE_GEO, rocks: ROCK_GEO, contours: CONTOUR_GEO, structures: STRUCT_GEO, meta: DATA_META } = window.SHOALRUN_DATA;
+const { lake: LAKE_GEO, rocks: ROCK_GEO, depth: DEPTH_RAW, soundings: SOUNDING_RAW, structures: STRUCT_GEO, meta: DATA_META } = window.SHOALRUN_DATA;
+
+// Contour intervals the slider steps through. Discrete rather than continuous
+// because a 7 ft contour interval is not a thing anyone wants -- the useful
+// choices are "every couple of feet in the shallows" through "just show me the
+// basin", and snapping to them makes the slider land on a sane value every time.
+const INTERVALS = [2, 5, 10, 15, 20, 30];
 
 const el = (id) => document.getElementById(id);
 const state = {
@@ -13,7 +20,15 @@ const state = {
   rocks: [],
   marks: new Map(),
   track: [],
+  grid: null,
   contours: [],
+  soundings: [],
+  contourInterval: 10,
+  shallowFt: 0,
+  theme: "night",
+  showDepth: true,
+  showContours: true,
+  showSoundings: true,
   showShore: false,
   showCamps: true,
   structures: [],
@@ -41,11 +56,19 @@ for (const poly of ringsOf(LAKE_GEO.geometry)) {
   state.lake.push(poly.map((ring) => ring.map(([lon, lat]) => proj.fwd(lon, lat))));
 }
 
-for (const f of (CONTOUR_GEO ? CONTOUR_GEO.features : [])) {
-  state.contours.push({
-    depth: f.properties.depth_ft,
-    pts: f.geometry.coordinates.map(([lon, lat]) => proj.fwd(lon, lat)),
-  });
+// The depth surface ships as a grid, not as pre-cut lines, so the contour
+// interval is a runtime choice. Contours are derived on demand and cached per
+// interval inside the grid.
+if (DEPTH_RAW) {
+  state.grid = new DepthGrid(DEPTH_RAW, proj);
+  state.contours = contoursAt(state.grid, state.contourInterval);
+}
+
+// The measured 1954 soundings, projected once. The chart theme prints these as
+// numbers on the water the way a paper chart does.
+for (const [lon, lat, ft] of SOUNDING_RAW || []) {
+  const [x, y] = proj.fwd(lon, lat);
+  state.soundings.push({ x, y, ft });
 }
 
 // Camps, buildings and piers as orientation landmarks. A hazard cloud on a bare
@@ -156,6 +179,7 @@ function onFix(pos) {
   });
 
   evaluate();
+  showDepthUnder(x, y);
 
   if (view.follow) {
     view.center = { x, y };
@@ -163,6 +187,17 @@ function onFix(pos) {
       view.rotation = headingRad - Math.PI / 2;
     }
   }
+}
+
+// Interpolated depth beneath the boat. Shown to one foot because that is the
+// quantum the grid is stored at -- adding a decimal would imply the 1954
+// transects support a precision they do not.
+function showDepthUnder(x, y) {
+  const card = el("depthNow");
+  if (!state.grid) return;
+  const ft = state.grid.sampleXY(x, y);
+  card.style.display = "block";
+  el("depthVal").textContent = ft == null ? "--" : String(ft);
 }
 
 function onGpsError(err) {
@@ -268,6 +303,8 @@ function refreshCounts() {
 let selected = null;
 
 el("map").addEventListener("click", (e) => {
+  el("panel").classList.remove("open");
+  el("btnLayers").classList.remove("on");
   const r = el("map").getBoundingClientRect();
   const hit = view.hitTest(e.clientX - r.left, e.clientY - r.top, state.rocks);
   selected = hit;
@@ -279,9 +316,15 @@ function showSheet(rock) {
   if (!rock) return sheet.classList.remove("open");
   const m = state.marks.get(rock.id);
   el("sheetTitle").textContent = rock.cls === "shoal" ? "Submerged shoal" : "Exposed rock";
+  const depth = state.grid ? state.grid.sampleXY(rock.x, rock.y) : null;
   el("sheetBody").innerHTML =
     `<div class="kv"><span>position</span><b>${rock.lat.toFixed(5)}, ${rock.lon.toFixed(5)}</b></div>` +
     `<div class="kv"><span>footprint</span><b>${rock.area_m2} m&sup2;</b></div>` +
+    // Surrounding depth, not the rock's own depth -- the interpolated surface
+    // is 25 m cells off 1954 transects and knows nothing about this rock.
+    `<div class="kv"><span>surrounding depth</span><b>${
+      depth == null ? "outside survey" : `~${depth} ft (1954)`
+    }</b></div>` +
     `<div class="kv"><span>detector confidence</span><b>${rock.confidence}</b></div>` +
     `<div class="kv"><span>0.3 m aerial check</span><b>${
       { rock_confirmed: "rock confirmed", shoal_confirmed: "shoal confirmed",
@@ -312,6 +355,91 @@ el("btnUnmark").onclick = async () => {
 };
 el("btnClose").onclick = () => el("sheet").classList.remove("open");
 
+// --- depth controls --------------------------------------------------------
+
+// Recontouring the whole grid is ~100 ms, which is fine on release but awful if
+// it runs on every pixel of slider travel. The label updates immediately so the
+// slider still feels live; the lines catch up when the finger settles.
+let contourTimer = null;
+
+// Chart mode adds the depth-tint band edges to whatever the slider asked for.
+// On a paper chart the tint boundary IS a contour, and drawing it also hides
+// the soft edge the upscaled raster shows where one band meets the next.
+function contourSet(ft) {
+  if (!state.grid) return [];
+  if (state.theme !== "chart") return contoursAt(state.grid, ft);
+
+  const levels = new Set(CHART_BAND_EDGES);
+  for (let d = ft; d <= state.grid.maxFt; d += ft) levels.add(d);
+  const sorted = [...levels].sort((a, b) => a - b);
+  const bandEdge = new Set(CHART_BAND_EDGES);
+  return contoursAtLevels(state.grid, sorted).map((c) =>
+    bandEdge.has(c.depth) ? { ...c, major: true } : c
+  );
+}
+
+function setInterval_(ft) {
+  state.contourInterval = ft;
+  el("valInterval").textContent = `${ft} ft`;
+  clearTimeout(contourTimer);
+  contourTimer = setTimeout(() => {
+    state.contours = contourSet(ft);
+  }, 90);
+}
+
+// Two looks for two conditions: dark for dusk and night, NOAA chart for direct
+// sun. Chart mode is not a skin -- the discrete shoal tints, printed soundings
+// and magenta danger symbols are the conventions anyone who reads a chart
+// already knows, and they survive glare that a dark screen does not.
+function setTheme(name) {
+  state.theme = name;
+  view.theme = name;
+  const chart = name === "chart";
+  document.body.classList.toggle("chart", chart);
+  el("btnTheme").textContent = chart ? "Chart" : "Night";
+  el("btnSoundings").style.display = chart ? "" : "none";
+  state.contours = contourSet(state.contourInterval);
+  if (state.grid) el("legendRamp").style.background = rampCss(state.grid.maxFt, name);
+}
+
+el("btnTheme").onclick = () => setTheme(state.theme === "chart" ? "night" : "chart");
+
+el("btnSoundings").onclick = () => {
+  state.showSoundings = !state.showSoundings;
+  el("btnSoundings").classList.toggle("on", state.showSoundings);
+};
+
+el("sldInterval").addEventListener("input", (e) => {
+  setInterval_(INTERVALS[+e.target.value]);
+});
+
+el("sldShallow").addEventListener("input", (e) => {
+  state.shallowFt = +e.target.value;
+  el("valShallow").textContent = state.shallowFt === 0 ? "off" : `${state.shallowFt} ft`;
+});
+
+el("btnDepth").onclick = () => {
+  state.showDepth = !state.showDepth;
+  el("btnDepth").classList.toggle("on", state.showDepth);
+  el("sldShallow").disabled = !state.showDepth;
+};
+
+el("btnLines").onclick = () => {
+  state.showContours = !state.showContours;
+  el("btnLines").classList.toggle("on", state.showContours);
+  el("sldInterval").disabled = !state.showContours;
+};
+
+el("btnLayers").onclick = () => {
+  const open = el("panel").classList.toggle("open");
+  el("btnLayers").classList.toggle("on", open);
+  el("sheet").classList.remove("open");
+};
+el("btnPanelClose").onclick = () => {
+  el("panel").classList.remove("open");
+  el("btnLayers").classList.remove("on");
+};
+
 // Shoreline toggle affects DRAWING ONLY. Every hazard stays in the alert index
 // regardless -- the known rocks sit a median 2 m from shore, so suppressing them
 // from the alarm to tidy the map would remove most of the real hazards on the
@@ -321,10 +449,12 @@ el("btnCamps").onclick = () => {
   el("btnCamps").classList.toggle("on", state.showCamps);
 };
 
+// Label stays fixed and the lit state carries the meaning. The old button
+// swapped its own label on press, so what it said and what it did were never
+// the same thing at the same time.
 el("btnShore").onclick = () => {
   state.showShore = !state.showShore;
   el("btnShore").classList.toggle("on", state.showShore);
-  el("btnShore").textContent = state.showShore ? "All rocks" : "Offshore only";
   refreshCounts();
 };
 
@@ -344,12 +474,39 @@ el("btnExport").onclick = async () => {
 };
 
 // pan / zoom
+// Pointers are tracked in a map rather than as a single drag, because the
+// target device is a phone: wheel zoom does not exist there, and without pinch
+// the map is stuck at whatever zoom it loaded at.
 let drag = null;
+const pointers = new Map();
+let pinchDist = 0;
 const map = el("map");
+
+function zoomBy(factor) {
+  view.scale = Math.max(0.01, Math.min(4, view.scale * factor));
+}
+
 map.addEventListener("pointerdown", (e) => {
-  drag = { x: e.clientX, y: e.clientY, moved: 0 };
+  pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  if (pointers.size === 1) drag = { x: e.clientX, y: e.clientY, moved: 0 };
+  else if (pointers.size === 2) {
+    drag = null;
+    const [a, b] = [...pointers.values()];
+    pinchDist = Math.hypot(a.x - b.x, a.y - b.y);
+  }
 });
+
 map.addEventListener("pointermove", (e) => {
+  if (pointers.has(e.pointerId)) pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+
+  if (pointers.size >= 2) {
+    const [a, b] = [...pointers.values()];
+    const d = Math.hypot(a.x - b.x, a.y - b.y);
+    if (pinchDist > 0 && d > 0) zoomBy(d / pinchDist);
+    pinchDist = d;
+    return;
+  }
+
   if (!drag) return;
   const dx = e.clientX - drag.x;
   const dy = e.clientY - drag.y;
@@ -363,11 +520,18 @@ map.addEventListener("pointermove", (e) => {
   view.follow = false;
   el("btnFollow").classList.remove("on");
 });
-map.addEventListener("pointerup", () => (drag = null));
+
+function endPointer(e) {
+  pointers.delete(e.pointerId);
+  if (pointers.size < 2) pinchDist = 0;
+  if (pointers.size === 0) drag = null;
+}
+map.addEventListener("pointerup", endPointer);
+map.addEventListener("pointercancel", endPointer);
+
 map.addEventListener("wheel", (e) => {
   e.preventDefault();
-  view.scale *= e.deltaY < 0 ? 1.12 : 0.89;
-  view.scale = Math.max(0.01, Math.min(4, view.scale));
+  zoomBy(e.deltaY < 0 ? 1.12 : 0.89);
 }, { passive: false });
 
 // --- simulation ------------------------------------------------------------
@@ -436,6 +600,10 @@ function frame(now) {
 }
 
 el("meta").textContent = DATA_META.summary;
+el("valInterval").textContent = `${state.contourInterval} ft`;
+if (state.grid) el("rampMax").textContent = `${state.grid.maxFt} ft`;
+// Chart is the default: this gets used outdoors, in daylight, most of the time.
+setTheme(new URLSearchParams(location.search).get("theme") === "night" ? "night" : "chart");
 loadMarks().then(() => {
   trackCount().then((n) => {
     if (n) setStatus(`${n} logged track points on this device`, "ok");

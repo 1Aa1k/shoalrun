@@ -23,7 +23,13 @@ DATA = ROOT / "data"
 DIST = ROOT / "dist"
 
 # Dependency order matters: geo defines what hazard and render consume.
-MODULES = ["geo.js", "hazard.js", "render.js", "store.js", "app.js"]
+MODULES = ["geo.js", "depth.js", "hazard.js", "render.js", "store.js", "app.js"]
+
+# The 3D viewer is a separate page on purpose. An orbiting camera is the wrong
+# control surface for someone at the helm, and keeping it out of the map page
+# means it cannot be reached by accident under way. It shares geo and depth so
+# both views read the same surface.
+VIEWER_MODULES = ["geo.js", "depth.js", "viewer3d.js"]
 
 IMPORT_RE = re.compile(r"^\s*import\s+.*?;\s*$", re.M | re.S)
 EXPORT_RE = re.compile(r"^\s*export\s+(?=(const|let|var|function|class|async))", re.M)
@@ -61,7 +67,12 @@ def main():
         if path.exists():
             rocks = json.loads(path.read_text())
             break
-    contours = json.loads((DATA / "contours.geojson").read_text())
+    # The depth surface ships as a grid, not as pre-cut contour lines. That puts
+    # the contour interval on a slider instead of in this script, feeds the 3D
+    # viewer the identical surface the 2D lines come from, and is smaller than
+    # the 10 ft contours alone were.
+    depth = json.loads((DATA / "depth_grid.json").read_text())
+    soundings = json.loads((DATA / "soundings.geojson").read_text())
     sp = DATA / "structures.geojson"
     structures = json.loads(sp.read_text()) if sp.exists() else {"features": []}
 
@@ -93,33 +104,52 @@ def main():
     for f in rocks["features"]:
         counts[f["properties"].get("class", "?")] = counts.get(f["properties"].get("class", "?"), 0) + 1
 
+    # Spot soundings as the chart theme draws them -- the actual 1954 numbers,
+    # not the interpolated surface. On a real chart the printed sounding is the
+    # measurement and the contour is the inference, and keeping that distinction
+    # visible is the honest way to show data this sparse.
+    spot = [
+        [round(f["geometry"]["coordinates"][0], 5),
+         round(f["geometry"]["coordinates"][1], 5),
+         int(f["properties"]["depth_ft"])]
+        for f in soundings["features"]
+    ]
+
     payload = {
         "lake": round_coords(lake),
         "rocks": round_coords(slim),
-        "contours": round_coords(contours),
+        "depth": depth,
+        "soundings": spot,
         "structures": round_coords(structures),
         "meta": {
             "summary": (
                 f"{LAKE_NAME}: {sum(counts.values())} candidates "
                 f"({', '.join(f'{v} {k}' for k, v in sorted(counts.items()))}) "
-                "from Sentinel-2 persistence. Unverified - aid, not a chart."
+                "from NAIP aerial persistence (6 flights 2011-2023, quality-weighted) "
+                "plus Sentinel-2 and hand-mapped rock. Unverified - aid, not a chart."
             ),
             "counts": counts,
         },
     }
 
-    js = "\n".join(strip_module_syntax((WEB / m).read_text()) for m in MODULES)
-
-    html = (WEB / "index.template.html").read_text()
-    html = html.replace("/*__DATA__*/", json.dumps(payload, separators=(",", ":")))
-    html = html.replace("/*__APP__*/", js)
-
+    data_json = json.dumps(payload, separators=(",", ":"))
     DIST.mkdir(exist_ok=True)
-    out = DIST / "index.html"
-    out.write_text(html)
 
-    assert "fetch(" not in js, "app must not fetch anything at runtime"
-    assert "/*__DATA__*/" not in html and "/*__APP__*/" not in html, "placeholder left unreplaced"
+    def bundle(template, modules, dest):
+        js = "\n".join(strip_module_syntax((WEB / m).read_text()) for m in modules)
+        html = (WEB / template).read_text()
+        html = html.replace("/*__DATA__*/", data_json)
+        html = html.replace("/*__APP__*/", js)
+        assert "fetch(" not in js, f"{dest} must not fetch anything at runtime"
+        assert (
+            "/*__DATA__*/" not in html and "/*__APP__*/" not in html
+        ), f"{dest}: placeholder left unreplaced"
+        path = DIST / dest
+        path.write_text(html)
+        return path
+
+    out = bundle("index.template.html", MODULES, "index.html")
+    out3d = bundle("viewer3d.template.html", VIEWER_MODULES, "3d.html")
 
     # Ship the PWA shell alongside: the page needs HTTPS for geolocation, and a
     # service worker so offline availability is deterministic rather than
@@ -130,6 +160,7 @@ def main():
             (DIST / extra).write_text(src.read_text())
 
     print(f"wrote {out}  ({out.stat().st_size / 1024:.0f} KB, fully offline)")
+    print(f"wrote {out3d}  ({out3d.stat().st_size / 1024:.0f} KB, 3D depth viewer)")
     print(f"  + sw.js, manifest.json (installable PWA)")
     print(f"  {payload['meta']['summary']}")
 

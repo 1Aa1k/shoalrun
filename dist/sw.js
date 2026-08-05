@@ -9,8 +9,10 @@
 // Cache-first, unconditionally: a stale hazard map that opens beats a fresh one
 // that cannot load. Updates land on the next visit with signal.
 
-const CACHE = 'shoalrun-v1';
-const SHELL = ['./', './index.html', './manifest.json'];
+// Bumped when the shell list changes, so the activate handler drops the old
+// cache instead of serving a version that has never heard of 3d.html.
+const CACHE = 'shoalrun-v2';
+const SHELL = ['./', './index.html', './3d.html', './manifest.json'];
 
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));

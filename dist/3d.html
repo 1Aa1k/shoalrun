@@ -4,281 +4,160 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
 <meta name="theme-color" content="#080d13">
-<title>shoalrun - Millinocket Lake</title>
-<link rel="manifest" href="./manifest.json">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>shoalrun 3D - Millinocket Lake</title>
 <style>
 :root {
   --bg: #080d13;
   --panel: rgba(14, 20, 28, .92);
-  --panel-solid: #0e141c;
   --line: #1e2a36;
   --line-soft: #172029;
   --ink: #dbe6f0;
   --ink-dim: #7d8f9f;
   --ink-faint: #56656f;
   --accent: #3d9be9;
-  --warn: #d8961f;
-  --danger: #d8321c;
-  --ok: #43b96b;
-  --r: 10px;
   --pad-b: env(safe-area-inset-bottom, 0px);
   --pad-t: env(safe-area-inset-top, 0px);
 }
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-html, body { margin: 0; height: 100%; overflow: hidden;
-  background: var(--bg); color: var(--ink);
+html, body { margin: 0; height: 100%; overflow: hidden; background: var(--bg); color: var(--ink);
   font: 15px/1.45 ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   -webkit-font-smoothing: antialiased; }
-#map { position: absolute; inset: 0; width: 100%; height: 100%; touch-action: none; }
+#gl { position: absolute; inset: 0; width: 100%; height: 100%; touch-action: none; display: block; }
 
-.mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-variant-numeric: tabular-nums; }
-
-/* --- alert banner ------------------------------------------------------- */
-/* Sized for a glance from the helm, not for reading. The clear state is
-   deliberately quiet so that the loud states mean something. */
-.alert { position: absolute; top: 0; left: 0; right: 0; z-index: 5;
-  padding: calc(12px + var(--pad-t)) 16px 12px;
-  font-size: 21px; font-weight: 700; letter-spacing: -.01em;
-  text-align: center; transition: background .15s, color .15s;
-  backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); }
-.alert.clear   { background: rgba(10,15,21,.72); color: var(--ink-dim);
-  font-weight: 600; font-size: 14px; letter-spacing: .04em; text-transform: uppercase;
-  border-bottom: 1px solid var(--line-soft); }
-.alert.caution { background: #a05f00; color: #fff; box-shadow: 0 6px 24px rgba(160,95,0,.4); }
-.alert.danger  { background: var(--danger); color: #fff;
-  animation: pulse .7s infinite alternate; box-shadow: 0 6px 30px rgba(216,50,28,.5); }
-@keyframes pulse { to { background: #ff3b26; } }
-
-/* --- floating cards ------------------------------------------------------ */
-.card { position: absolute; z-index: 3;
-  background: var(--panel); border: 1px solid var(--line); border-radius: var(--r);
+.card { position: absolute; z-index: 3; background: var(--panel);
+  border: 1px solid var(--line); border-radius: 10px;
   backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
   box-shadow: 0 8px 28px rgba(0,0,0,.45); }
 
-.legend { top: calc(58px + var(--pad-t)); left: 10px; padding: 9px 11px; font-size: 12px;
-  max-width: 46vw; }
-.legend .row { display: flex; align-items: center; gap: 8px; margin: 4px 0; color: var(--ink-dim); }
-.legend .row b { color: var(--ink); font-weight: 600; }
-.dot { width: 9px; height: 9px; border-radius: 50%; flex: none; }
-.legend .note { margin-top: 7px; border-top: 1px solid var(--line-soft); padding-top: 6px;
-  color: var(--ink-faint); font-size: 11px; line-height: 1.4; }
-/* Gradient is set from JS off the same ramp the map draws with, so the legend
-   cannot drift out of sync with the water. */
-.legend .ramp { height: 7px; border-radius: 4px; margin: 7px 0 3px; background: #2e76a2; }
-.legend .ramplab { display: flex; justify-content: space-between;
-  font-size: 10px; color: var(--ink-faint); }
+.top { top: calc(10px + var(--pad-t)); left: 10px; right: 10px; padding: 10px 13px;
+  display: flex; align-items: center; gap: 12px; }
+.top h1 { margin: 0; font-size: 15px; font-weight: 700; letter-spacing: -.01em; }
+.top .sub { font-size: 11px; color: var(--ink-faint); }
+.top a { margin-left: auto; }
 
-.disclaimer { top: calc(58px + var(--pad-t)); right: 10px; max-width: 42vw;
-  background: rgba(216,50,28,.13); border-color: rgba(216,50,28,.42);
-  color: #f2b0a6; padding: 8px 10px; font-size: 11px; line-height: 1.4; }
-.disclaimer b { color: #ffd9d2; }
+.btn { background: #18212b; color: var(--ink); border: 1px solid var(--line);
+  border-radius: 8px; padding: 8px 12px; font-size: 13px; font-weight: 600;
+  font-family: inherit; text-decoration: none; cursor: pointer; white-space: nowrap; }
 
-/* Depth under the boat. Its own card because it is the one number that changes
-   continuously, and burying it in the status line makes it unreadable. */
-.depthnow { right: 10px; bottom: calc(76px + var(--pad-b)); padding: 8px 12px;
-  text-align: right; min-width: 92px; }
-.depthnow .v { font-size: 26px; font-weight: 700; line-height: 1; }
-.depthnow .u { font-size: 10px; color: var(--ink-faint); letter-spacing: .09em;
-  text-transform: uppercase; margin-top: 4px; }
-
-/* --- bottom bar ---------------------------------------------------------- */
-.bar { position: absolute; left: 0; right: 0; bottom: 0; z-index: 6;
-  padding: 9px 10px calc(9px + var(--pad-b));
-  background: var(--panel); border-top: 1px solid var(--line);
-  backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
-  display: flex; gap: 7px; align-items: center; }
-.bar .grow { flex: 1; min-width: 0; }
-
-button, .btn { background: #18212b; color: var(--ink); border: 1px solid var(--line);
-  border-radius: 8px; padding: 9px 12px; font-size: 13.5px; font-weight: 600;
-  font-family: inherit; cursor: pointer; transition: background .12s, border-color .12s;
-  white-space: nowrap; text-decoration: none; display: inline-block; }
-button:active { transform: translateY(1px); }
+.controls { left: 10px; right: 10px; bottom: calc(10px + var(--pad-b)); padding: 12px 16px 14px;
+  max-width: 560px; margin: 0 auto; }
+.modes { display: flex; gap: 6px; margin-bottom: 12px; }
+.modes button { flex: 1; }
 button.on { background: var(--accent); border-color: var(--accent); color: #fff; }
-button.ghost { background: transparent; color: var(--ink-dim); }
 
-#status, #counts, #meta { font-size: 11.5px; color: var(--ink-faint);
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-#status.ok { color: var(--ok); } #status.warn { color: var(--warn); }
+/* Boat HUD. Depth, speed and range to the nearest hazard, which is the whole
+   question boat mode exists to answer. */
+.hud { position: absolute; z-index: 3; right: 10px; top: calc(70px + var(--pad-t));
+  display: none; text-align: right;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+  padding: 10px 14px; backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); }
+.hud .n { font-size: 24px; font-weight: 700; line-height: 1.05;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+.hud .u { font-size: 9.5px; color: var(--ink-faint); letter-spacing: .09em;
+  text-transform: uppercase; margin-bottom: 8px; }
+.hud .u:last-child { margin-bottom: 0; }
 
-/* --- layers panel -------------------------------------------------------- */
-/* Slides up over the bar. The old build put every control in one wrapping row,
-   which on a phone became three rows of buttons eating a third of the map. */
-.panel { position: absolute; left: 0; right: 0; bottom: 0; z-index: 7;
-  background: var(--panel-solid); border-top: 1px solid var(--line);
-  border-radius: 14px 14px 0 0; padding: 14px 16px calc(16px + var(--pad-b));
-  transform: translateY(105%); transition: transform .2s cubic-bezier(.3,.8,.4,1);
-  box-shadow: 0 -10px 40px rgba(0,0,0,.5); }
-.panel.open { transform: translateY(0); }
-.panel h4 { margin: 0 0 12px; font-size: 11px; letter-spacing: .1em;
-  text-transform: uppercase; color: var(--ink-faint); font-weight: 700; }
-.panel .grip { width: 34px; height: 4px; border-radius: 2px; background: var(--line);
-  margin: -6px auto 12px; }
-
-.slider { margin: 14px 0; }
+/* Touch throttle. Boat and fly modes are unusable on a phone without it. */
+.pad { position: absolute; z-index: 4; left: 12px; bottom: calc(210px + var(--pad-b));
+  display: none; grid-template-columns: repeat(3, 46px); grid-template-rows: repeat(2, 46px);
+  gap: 6px; }
+.pad button { padding: 0; font-size: 17px; opacity: .9; }
+.pad #padFwd { grid-column: 2; grid-row: 1; }
+.pad #padLeft { grid-column: 1; grid-row: 2; }
+.pad #padBack { grid-column: 2; grid-row: 2; }
+.pad #padRight { grid-column: 3; grid-row: 2; }
+.slider { margin: 10px 0; }
 .slider .lab { display: flex; justify-content: space-between; align-items: baseline;
-  font-size: 12.5px; color: var(--ink-dim); margin-bottom: 7px; }
-.slider .lab b { color: var(--ink); font-size: 14px; font-weight: 700; }
+  font-size: 12.5px; color: var(--ink-dim); margin-bottom: 6px; }
+.slider .lab b { color: var(--ink); font-size: 14px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
 input[type=range] { width: 100%; -webkit-appearance: none; appearance: none;
   background: transparent; height: 22px; margin: 0; }
-input[type=range]::-webkit-slider-runnable-track { height: 4px; border-radius: 2px;
-  background: var(--line); }
+input[type=range]::-webkit-slider-runnable-track { height: 4px; border-radius: 2px; background: var(--line); }
 input[type=range]::-moz-range-track { height: 4px; border-radius: 2px; background: var(--line); }
 input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; appearance: none;
   width: 20px; height: 20px; border-radius: 50%; background: var(--accent);
   border: 2px solid #fff; margin-top: -8px; box-shadow: 0 2px 6px rgba(0,0,0,.5); }
 input[type=range]::-moz-range-thumb { width: 20px; height: 20px; border-radius: 50%;
   background: var(--accent); border: 2px solid #fff; box-shadow: 0 2px 6px rgba(0,0,0,.5); }
-input[type=range]:disabled { opacity: .4; }
 
-.toggles { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 4px; }
-.toggles button { flex: 1 1 auto; }
-.panel .foot { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line-soft);
-  font-size: 11px; color: var(--ink-faint); line-height: 1.45; }
+.foot { display: flex; align-items: center; gap: 10px; margin-top: 10px;
+  padding-top: 10px; border-top: 1px solid var(--line-soft);
+  font-size: 11px; color: var(--ink-faint); line-height: 1.4; }
+.foot .btn { margin-left: auto; }
 
-/* --- detail sheet -------------------------------------------------------- */
-.sheet { position: absolute; left: 0; right: 0; bottom: 0; z-index: 10;
-  background: var(--panel-solid); border-top: 1px solid var(--line);
-  border-radius: 14px 14px 0 0; padding: 16px 16px calc(16px + var(--pad-b));
-  transform: translateY(105%); transition: transform .2s cubic-bezier(.3,.8,.4,1);
-  box-shadow: 0 -10px 40px rgba(0,0,0,.5); }
-.sheet.open { transform: translateY(0); }
-.sheet h3 { margin: 0 0 12px; font-size: 17px; font-weight: 700; letter-spacing: -.01em; }
-.kv { display: flex; justify-content: space-between; gap: 12px; padding: 7px 0;
-  border-bottom: 1px solid var(--line-soft); font-size: 13px; color: var(--ink-dim); }
-.kv:last-child { border-bottom: 0; }
-.kv b { color: var(--ink); font-weight: 600; text-align: right; }
-.sheet .row { display: flex; gap: 7px; margin-top: 14px; }
-.sheet .row button { flex: 1; }
-#btnConfirm { background: #7d1a10; border-color: #a52a1a; color: #fff; }
+/* The caveat is fixed on screen, not tucked in a README. A smooth shaded basin
+   reads as survey-grade, and this is 260 soundings from 1954 stretched over a
+   34 km2 lake. It has to say so where it is being looked at. */
+.caveat { position: absolute; z-index: 3; left: 10px; top: calc(70px + var(--pad-t));
+  max-width: 260px; font-size: 11px; line-height: 1.45; color: #f2b0a6;
+  background: rgba(216,50,28,.13); border: 1px solid rgba(216,50,28,.42);
+  border-radius: 10px; padding: 8px 10px; }
+.caveat b { color: #ffd9d2; }
 
-/* --- chart theme --------------------------------------------------------- */
-/* When the map goes to paper, the chrome has to follow. Dark glass panels
-   floating over a buff chart read as a different app bolted on top, and in the
-   sunlight the chart mode exists for they are the unreadable part. */
-body.chart {
-  --bg: #e3d5ac;
-  --panel: rgba(252, 249, 240, .94);
-  --panel-solid: #fbf7ec;
-  --line: #c3b48c;
-  --line-soft: #d8cdb0;
-  --ink: #1e2833;
-  --ink-dim: #4c5a66;
-  --ink-faint: #6f7c86;
-  --accent: #1d5f96;
-}
-body.chart .alert.clear { background: rgba(252,249,240,.86); color: #4c5a66;
-  border-bottom: 1px solid #c3b48c; }
-body.chart button, body.chart .btn { background: #efe7d3; color: var(--ink); border-color: #c3b48c; }
-body.chart button.on, body.chart .btn.on { background: var(--accent); border-color: var(--accent); color: #fff; }
-body.chart .disclaimer { background: rgba(190,20,20,.10); border-color: rgba(160,20,20,.45); color: #7d1a10; }
-body.chart .disclaimer b { color: #4d0d06; }
-body.chart .legend .note, body.chart .foot { color: #6f7c86; }
-body.chart #btnConfirm { background: #a3006b; border-color: #7d0052; }
-body.chart .card, body.chart .panel, body.chart .sheet { box-shadow: 0 6px 22px rgba(90,72,32,.28); }
-body.chart .sym { filter: none; }
-
-/* Legend swaps with the theme, because the two themes say the same things with
-   different marks: colour-coded dots on the dark map, NOAA symbols on paper. */
-.legend .forChart { display: none; }
-body.chart .legend .forNight { display: none; }
-body.chart .legend .forChart { display: flex; }
-body.chart .legend .note.forChart { display: block; }
-.sym { width: 15px; flex: none; text-align: center;
-  font: 700 13px/1 ui-monospace, SFMono-Regular, Menlo, monospace; color: #c8188c; }
-
-body.sim::after { content: "SIMULATION"; position: absolute; top: 50%; left: 0; right: 0;
-  text-align: center; font-size: 42px; font-weight: 800; color: rgba(255,255,255,.07);
-  pointer-events: none; letter-spacing: .12em; z-index: 2; }
+#nogl { display: none; position: absolute; inset: 0; place-content: center;
+  padding: 40px; text-align: center; color: var(--ink-dim); }
 </style>
 </head>
 <body>
-<canvas id="map"></canvas>
-<div id="alert" class="alert clear">waiting for GPS</div>
+<canvas id="gl"></canvas>
 
-<div class="card legend" id="legend">
-  <div class="row forNight"><span class="dot" style="background:#ffc043"></span> <b>shoal</b> &mdash; submerged</div>
-  <div class="row forNight"><span class="dot" style="background:#ff6a5a"></span> <b>rock</b> &mdash; breaks surface</div>
-  <div class="row forNight"><span class="dot" style="background:#9fb1bf"></span> exposed ledge</div>
-  <div class="row forNight"><span class="dot" style="background:#63788a"></span> unmapped island</div>
-  <div class="row forNight"><span class="dot" style="background:#ff3521"></span> you confirmed</div>
-
-  <div class="row forChart"><span class="sym">&#43;</span> <b>shoal</b> &mdash; submerged rock</div>
-  <div class="row forChart"><span class="sym">&#42;</span> <b>rock</b> &mdash; breaks surface</div>
-  <div class="row forChart"><span class="sym" style="color:#33556b">18</span> sounding, ft (1954)</div>
-  <div class="row forChart"><span class="sym" style="color:#a3006b">&#43;</span> you confirmed</div>
-
-  <div class="ramp" id="legendRamp"></div>
-  <div class="ramplab"><span>0 ft</span><span id="rampMax">76 ft</span></div>
-  <div class="note">Depth interpolated from MDIFW soundings, Aug 1954.
-    Camps &amp; piers from OSM.</div>
+<div id="nogl">
+  <p>This device has no WebGL, so the 3D view cannot run.<br>
+  <a href="./index.html" style="color:#3d9be9">Back to the map</a></p>
 </div>
 
-<div class="card disclaimer">
-  Satellite-derived and <b>unverified</b>. An aid, not a chart. Absence of a
-  marker is not evidence of clear water.
+<div class="card top">
+  <div>
+    <h1>Lake bottom &mdash; 3D</h1>
+    <div class="sub" id="stats"></div>
+  </div>
+  <a class="btn" href="./index.html">Map</a>
 </div>
 
-<div class="card depthnow" id="depthNow" style="display:none">
-  <div class="v mono" id="depthVal">--</div>
+<div class="caveat">
+  Interpolated from <b>260 MDIFW soundings, Aug 1954</b> &mdash; roughly one
+  measurement per 13 hectares. Between transects this surface is an educated
+  guess. It shows basin shape, <b>not</b> rocks. Not a chart.
+</div>
+
+<div class="hud" id="hud">
+  <div class="n" id="hudDepth">--</div>
   <div class="u">ft under boat</div>
+  <div class="n" id="hudSpeed">0.0</div>
+  <div class="u">knots</div>
+  <div class="n" id="hudNear">--</div>
+  <div class="u">to nearest hazard</div>
 </div>
 
-<div class="sheet" id="sheet">
-  <h3 id="sheetTitle">Rock</h3>
-  <div id="sheetBody"></div>
-  <div class="row">
-    <button id="btnConfirm">It's there</button>
-    <button id="btnAbsent">Not there</button>
-    <button id="btnUnmark" class="ghost">Clear</button>
-    <button id="btnClose" class="ghost">Close</button>
+<div class="pad" id="pad">
+  <button id="padFwd">&#9650;</button>
+  <button id="padLeft">&#9664;</button>
+  <button id="padBack">&#9660;</button>
+  <button id="padRight">&#9654;</button>
+</div>
+
+<div class="card controls">
+  <div class="modes">
+    <button id="mode_orbit" class="btn">Orbit</button>
+    <button id="mode_fly" class="btn">Fly</button>
+    <button id="mode_boat" class="btn">Boat</button>
   </div>
-</div>
-
-<div class="panel" id="panel">
-  <div class="grip"></div>
-  <h4>Depth lines</h4>
-
   <div class="slider">
-    <div class="lab"><span>Contour interval</span><b id="valInterval">10 ft</b></div>
-    <input type="range" id="sldInterval" min="0" max="5" step="1" value="2">
+    <div class="lab"><span>Vertical exaggeration</span><b id="valExag">8x</b></div>
+    <input type="range" id="sldExag" min="1" max="30" step="1" value="8">
   </div>
-
   <div class="slider">
-    <div class="lab"><span>Highlight shallower than</span><b id="valShallow">off</b></div>
-    <input type="range" id="sldShallow" min="0" max="30" step="1" value="0">
+    <div class="lab"><span>Depth steps</span><b id="valTerrace">3 ft</b></div>
+    <input type="range" id="sldTerrace" min="0" max="10" step="1" value="3">
   </div>
-
-  <div class="toggles">
-    <button id="btnTheme">Chart</button>
-    <button id="btnDepth" class="on">Depth shading</button>
-    <button id="btnLines" class="on">Contour lines</button>
-    <button id="btnSoundings" class="on">Soundings</button>
-    <button id="btnCamps" class="on">Camps</button>
-    <button id="btnShore">All rocks</button>
+  <div class="slider">
+    <div class="lab"><span>Highlight shallower than</span><b id="valShallow3d">off</b></div>
+    <input type="range" id="sldShallow3d" min="0" max="30" step="1" value="0">
   </div>
-
-  <div class="toggles" style="margin-top:7px">
-    <button id="btnExport">Export track</button>
-    <a class="btn" id="btn3d" href="./3d.html">3D view</a>
-    <button id="btnPanelClose" class="ghost">Done</button>
-  </div>
-
-  <div class="foot" id="meta"></div>
-</div>
-
-<div class="bar">
-  <button id="btnFollow" class="on">Follow</button>
-  <button id="btnLayers">Layers</button>
-  <label class="btn ghost" style="display:flex;align-items:center;gap:6px;font-weight:600">
-    <input type="checkbox" id="sound" checked style="accent-color:var(--accent)"> Alarm
-  </label>
-  <div class="grow">
-    <div id="status"></div>
-    <div id="counts"></div>
+  <div class="foot">
+    <span id="hint">Drag to orbit &middot; pinch or scroll to zoom</span>
+    <button class="btn" id="btnReset">Reset view</button>
   </div>
 </div>
 
@@ -688,1524 +567,820 @@ function shadeCanvas(g, shallowFt, theme = "night") {
   return cv;
 }
 
-// Hazard scanning: given a GPS fix, decide what is worth interrupting a boater
-// for. The hard constraint is that a false alarm costs more than nothing -- a
-// tool that cries wolf gets switched off, and then it protects nobody.
-
-// How far ahead to look, as seconds of travel at current speed. Below a floor
-// speed we stop projecting entirely, because course over ground from GPS is
-// meaningless when drifting and would swing the corridor wildly.
-const LOOKAHEAD_S = 20;
-const MIN_SPEED_MS = 1.5; // ~3 kn; below this, moored/drifting
-const MIN_CORRIDOR_M = 60; // never look less than this far ahead
-const MAX_CORRIDOR_M = 600; // cap the projection at ~35 kn * 20 s
-
-// Half-width of the danger corridor. Wider than the boat because GPS is good to
-// a few metres, the rock centroid is good to ~10 m (one Sentinel pixel), and a
-// boat does not turn on a dime.
-const CORRIDOR_HALF_W = 35;
-
-// Alert tiers by class, ranked by how INVISIBLE the hazard is rather than how
-// big it is. A shoal is a shallow bottom that never breaks the surface -- it
-// looks like open water right up to the moment it stops being open water, so it
-// outranks everything. `rock` is a sub-pixel rock that does break the surface;
-// often visible, but too small for 10 m imagery to resolve as land. `exposed`
-// and `island` are things you can see out the windshield.
-const SEVERITY = { shoal: 4, drawdown: 3, rock: 2, exposed: 1, island: 1 };
-function severityOf(cls) {
-  return SEVERITY[cls] ?? 1;
-}
-
-// A candidate an independent 0.3 m sensor could not see is still worth showing,
-// but it must not outrank one that was confirmed. Verified hazards always sort
-// ahead of unverified ones at comparable range.
-function isConfirmed(rock) {
-  return rock.verdict === "rock_confirmed" || rock.verdict === "shoal_confirmed";
-}
-
-/**
- * Scan for hazards in the projected path corridor.
- *
- * @param {{x:number,y:number}} pos     boat position, projected metres
- * @param {number} headingRad           course over ground, radians (0 = east)
- * @param {number} speedMs              speed over ground, m/s
- * @param {GridIndex} index             spatial index of rock candidates
- * @param {Set<string>} dismissed       ids the user marked "not there"
- * @returns {{list:Array, worst:object|null}}
- */
-function scan(pos, headingRad, speedMs, index, dismissed) {
-  const moving = speedMs >= MIN_SPEED_MS && Number.isFinite(headingRad);
-
-  const reach = moving
-    ? Math.min(MAX_CORRIDOR_M, Math.max(MIN_CORRIDOR_M, speedMs * LOOKAHEAD_S))
-    : MIN_CORRIDOR_M;
-
-  // When stopped or drifting we fall back to a plain radius, because there is
-  // no trustworthy direction to project along.
-  const ax = pos.x;
-  const ay = pos.y;
-  const bx = moving ? ax + Math.cos(headingRad) * reach : ax;
-  const by = moving ? ay + Math.sin(headingRad) * reach : ay;
-
-  const searchR = reach + CORRIDOR_HALF_W;
-  const near = index.query(ax, ay, searchR);
-
-  const hits = [];
-  for (const rock of near) {
-    if (dismissed.has(rock.id)) continue;
-
-    const d = moving
-      ? distToSegment(rock.x, rock.y, ax, ay, bx, by)
-      : Math.hypot(rock.x - ax, rock.y - ay);
-
-    const limit = moving ? CORRIDOR_HALF_W : MIN_CORRIDOR_M;
-    if (d > limit) continue;
-
-    // Straight-line range to the rock, and time to reach it at current speed.
-    const range = Math.hypot(rock.x - ax, rock.y - ay);
-    const ttc = moving && speedMs > 0 ? range / speedMs : Infinity;
-
-    hits.push({ rock, offTrack: d, range, ttc, severity: severityOf(rock.cls), confirmed: isConfirmed(rock) });
-  }
-
-  // Rank by time-to-contact first -- what you will hit soonest is what matters,
-  // regardless of how bad it is in the abstract. Severity breaks ties.
-  // Time-to-contact dominates, ALWAYS. Sorting confirmed-first would let a
-  // verified hazard 600 m away outrank an unverified one 20 m dead ahead, and
-  // since the banner reports the top hit that would read "clear" while the boat
-  // is about to hit something. Verification is a tiebreaker between hazards of
-  // comparable urgency, never a reason to look past a closer one.
-  hits.sort(
-    (a, b) =>
-      a.ttc - b.ttc ||
-      b.severity - a.severity ||
-      Number(b.confirmed) - Number(a.confirmed) ||
-      a.range - b.range
-  );
-
-  return { list: hits, worst: hits[0] ?? null, reach, moving };
-}
-
-// Alert level from the top hit. Hysteresis lives in the caller; this is a pure
-// function of the current scan so it is trivially testable.
-function alertLevel(worst) {
-  if (!worst) return "clear";
-  if (worst.ttc <= 6 || worst.range <= 40) return "danger";
-  if (worst.ttc <= 15 || worst.range <= 120) return "caution";
-  return "clear";
-}
-
-// Canvas renderer. Deliberately no map tiles: the lake has no cell service, so
-// the shoreline is drawn from the vector polygon that ships inside the app.
-// That makes the map work at full fidelity offline with nothing cached.
+// 3D view of the lake bottom. Hand-rolled WebGL, no library: the whole point of
+// this project is that it works on a phone with no signal, and a CDN script tag
+// is a runtime network dependency wearing a hat.
 //
-// Water is shaded from the interpolated depth grid rather than filled flat. On
-// a lake whose whole hazard story is "the south end is shallow and rocky, the
-// north end is a 70 ft basin", a single blue fill was throwing away the one
-// piece of context that makes the hazard cloud legible at a glance.
-
-// Two themes, because a boat display has two jobs that want opposite things.
-//
-// `night` is the dark screen-native look: low light output, glowing shoreline,
-// good at dusk and after dark when the phone is the brightest thing in the boat.
-//
-// `chart` reproduces a NOAA paper chart -- buff land, black shoreline, discrete
-// blue shoal tints over white water, magenta hazards, printed spot soundings.
-// It is not decoration. In direct sun a dark screen is unreadable and a light
-// one is not, and the conventions themselves are worth borrowing: anyone who
-// has read a chart already knows that magenta means danger and that the number
-// on the water is a measured depth.
-const THEMES = {
-  night: {
-    chartMode: false,
-    background: "#10161c",
-    water: "#0e2f4a",       // fallback fill where the depth grid has no coverage
-    land: "#10161c",
-    landHatch: null,
-    building: "#7c8b98",
-    pier: "#9a815c",
-    shore: "#7fc4e8",
-    shoreWidth: 1.2,
-    shoreGlow: "rgba(127, 196, 232, 0.18)",
-    track: [126, 214, 255],
-    boat: "#ffffff",
-    boatEdge: "#06121f",
-    corridor: [255, 208, 92],
-    contour: (t, major) =>
-      `rgba(${140 + t * 60}, ${190 + t * 40}, ${225 + t * 25}, ${(0.16 + t * 0.26) * (major ? 1.6 : 1)})`,
-    label: "rgba(190, 214, 232, 0.9)",
-    labelKnockout: true,
-    sounding: null,          // night theme does not print soundings
-    exposed: "#9fb1bf",
-    island: "#63788a",
-    rock: "#ff6a5a",
-    drawdown: "#ff5b4a",
-    shoal: "#ffc043",
-    confirmed: "#ff3521",
-  },
-  chart: {
-    chartMode: true,
-    background: "#e3d5ac",
-    water: "#f6fbfe",
-    land: "#e8dab0",         // NOAA buff
-    landHatch: "rgba(158, 138, 96, 0.30)",
-    building: "#5d4a2e",
-    pier: "#4a3a22",
-    shore: "#1c1c1c",
-    shoreWidth: 1.6,
-    shoreGlow: null,
-    track: [40, 90, 150],
-    boat: "#111111",
-    boatEdge: "#ffffff",
-    corridor: [190, 40, 150],
-    // Chart contours are a single restrained blue-grey at every depth. Depth is
-    // carried by the tint bands and the printed numbers, so making the lines
-    // fight for it too just makes the sheet noisy.
-    contour: (t, major) => `rgba(56, 104, 140, ${major ? 0.75 : 0.42})`,
-    label: "#2b5f80",
-    labelKnockout: false,
-    sounding: "#33556b",
-    // Magenta is the chart convention for danger, and holding to it means the
-    // classes read by shape rather than by inventing a second colour language.
-    exposed: "#7a6440",
-    island: "#8a7346",
-    rock: "#c8188c",
-    drawdown: "#c8188c",
-    shoal: "#c8188c",
-    confirmed: "#a3006b",
-  },
-};
-
-const MAX_MARKER_PX = 18;
-
-const CLASS_KEY = {
-  island: "island",
-  exposed: "exposed",
-  rock: "rock",
-  drawdown: "drawdown",
-  shoal: "shoal",
-};
-
-// Kept for the legend, which needs the night palette's hazard colours.
-const COLORS = THEMES.night;
-const CLASS_COLOR = {
-  island: THEMES.night.island,
-  exposed: THEMES.night.exposed,
-  rock: THEMES.night.rock,
-  drawdown: THEMES.night.drawdown,
-  shoal: THEMES.night.shoal,
-};
-
-// Depth lines are labelled only past this zoom. Below it the labels collide
-// with each other and with the hazard markers, and the markers win.
-const LABEL_MIN_SCALE = 0.18;
-class MapView {
-  constructor(canvas, proj) {
-    this.canvas = canvas;
-    this.ctx = canvas.getContext("2d");
-    this.proj = proj;
-    this.scale = 0.08; // px per metre
-    this.center = { x: 0, y: 0 };
-    this.rotation = 0; // radians; course-up when following
-    this.follow = true;
-    this.courseUp = true;
-    this.theme = "night";
-    this._resize();
-    window.addEventListener("resize", () => this._resize());
-  }
-
-  _resize() {
-    const dpr = window.devicePixelRatio || 1;
-    const r = this.canvas.getBoundingClientRect();
-    this.canvas.width = Math.round(r.width * dpr);
-    this.canvas.height = Math.round(r.height * dpr);
-    this.w = r.width;
-    this.h = r.height;
-    this.dpr = dpr;
-  }
-
-  // Projected metres -> screen px, honouring pan/zoom/rotation.
-  toScreen(x, y) {
-    const dx = (x - this.center.x) * this.scale;
-    const dy = (y - this.center.y) * this.scale;
-    const c = Math.cos(this.rotation);
-    const s = Math.sin(this.rotation);
-    // Screen y grows downward, so north (+y) must be negated.
-    return [this.w / 2 + (dx * c - dy * s), this.h / 2 - (dx * s + dy * c)];
-  }
-
-  toWorld(sx, sy) {
-    const px = (sx - this.w / 2) / this.scale;
-    const py = -(sy - this.h / 2) / this.scale;
-    const c = Math.cos(-this.rotation);
-    const s = Math.sin(-this.rotation);
-    return { x: this.center.x + (px * c - py * s), y: this.center.y + (px * s + py * c) };
-  }
-
-  _ring(ring) {
-    const ctx = this.ctx;
-    ctx.beginPath();
-    for (let i = 0; i < ring.length; i++) {
-      const [sx, sy] = this.toScreen(ring[i][0], ring[i][1]);
-      if (i === 0) ctx.moveTo(sx, sy);
-      else ctx.lineTo(sx, sy);
-    }
-    ctx.closePath();
-  }
-
-  // The whole lake as one screen-space path. Built once per frame and reused as
-  // fill, clip and stroke -- the depth raster is clipped to it so the water
-  // edge stays as crisp as the vector shoreline instead of showing the 25 m
-  // stair-step of the grid.
-  _lakePath(lake) {
-    const p = new Path2D();
-    for (const poly of lake) {
-      for (const ring of poly) {
-        for (let i = 0; i < ring.length; i++) {
-          const [sx, sy] = this.toScreen(ring[i][0], ring[i][1]);
-          if (i === 0) p.moveTo(sx, sy);
-          else p.lineTo(sx, sy);
-        }
-        p.closePath();
-      }
-    }
-    return p;
-  }
-
-  get t() {
-    return THEMES[this.theme] || THEMES.night;
-  }
-
-  draw(state) {
-    const ctx = this.ctx;
-    const T = this.t;
-    ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
-    ctx.clearRect(0, 0, this.w, this.h);
-
-    // Land background, then water punched out. Drawing it this way means the
-    // 74 islands come free as polygon holes instead of needing a second pass.
-    ctx.fillStyle = T.land;
-    ctx.fillRect(0, 0, this.w, this.h);
-
-    const lakePath = this._lakePath(state.lake);
-
-    ctx.save();
-    ctx.fillStyle = T.water;
-    ctx.fill(lakePath, "evenodd");
-    ctx.restore();
-
-    if (state.grid && state.showDepth) {
-      ctx.save();
-      ctx.clip(lakePath, "evenodd");
-      this._drawDepthRaster(state.grid, state.shallowFt);
-      ctx.restore();
-    }
-
-    // Soft inner glow along the shore, then the crisp line on top. The glow is
-    // what stops a dark shoreline on dark land from disappearing in sunlight.
-    // A paper chart has no such thing, so the chart theme skips it.
-    if (T.shoreGlow) {
-      ctx.save();
-      ctx.clip(lakePath, "evenodd");
-      ctx.strokeStyle = T.shoreGlow;
-      ctx.lineWidth = 7;
-      ctx.stroke(lakePath);
-      ctx.restore();
-    }
-
-    ctx.strokeStyle = T.shore;
-    ctx.lineWidth = T.shoreWidth;
-    ctx.stroke(lakePath);
-
-    if (state.contours && state.showContours) this._drawContours(state.contours, state.contourInterval);
-    // Printed soundings are the measured 1954 numbers, not the interpolated
-    // surface -- on a chart the sounding is data and the contour is inference,
-    // and with 260 points over 34 km2 that distinction is the whole story.
-    if (T.chartMode && state.soundings && state.showSoundings) this._drawSoundings(state.soundings);
-    if (state.structures && state.showCamps) this._drawStructures(state.structures);
-    if (state.track && state.track.length > 1) this._drawTrack(state.track);
-    if (state.corridor) this._drawCorridor(state.corridor);
-    this._drawRocks(state);
-    if (state.fix) this._drawBoat(state);
-  }
-
-  // NOAA prints soundings as bare numbers on the water. They are decluttered by
-  // zoom rather than all drawn at once, because 260 numbers on a phone screen
-  // is not a chart, it is a wall.
-  _drawSoundings(pts) {
-    const ctx = this.ctx;
-    const T = this.t;
-    if (this.scale < 0.12) return;
-    const stride = this.scale > 0.4 ? 1 : this.scale > 0.22 ? 2 : 4;
-
-    ctx.font = "600 10px ui-monospace, SFMono-Regular, Menlo, monospace";
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.fillStyle = T.sounding;
-    for (let i = 0; i < pts.length; i += stride) {
-      const p = pts[i];
-      const [sx, sy] = this.toScreen(p.x, p.y);
-      if (sx < 8 || sy < 8 || sx > this.w - 8 || sy > this.h - 8) continue;
-      ctx.fillText(String(p.ft), sx, sy);
-    }
-    ctx.textAlign = "start";
-    ctx.textBaseline = "alphabetic";
-  }
-
-  // The depth surface as an image. It is an axis-aligned grid in world space,
-  // so the view transform reduces to translate/rotate/scale rather than a
-  // per-pixel resample -- which is what makes this affordable every frame.
-  _drawDepthRaster(grid, shallowFt) {
-    const ctx = this.ctx;
-    const img = shadeCanvas(grid, shallowFt, this.theme);
-
-    // North-west corner of the raster, since the image's first row is north.
-    const [sx, sy] = this.toScreen(grid.worldX(0), grid.worldY(grid.ny - 1));
-    const wMetres = grid.stepX * (grid.nx - 1);
-    const hMetres = grid.stepY * (grid.ny - 1);
-
-    ctx.save();
-    ctx.globalAlpha = this.t.chartMode ? 1 : 0.92;
-    // Chart tints are flat areas with hard edges. Smoothing turns each band
-    // boundary into an airbrushed halo, which is the one thing that stops the
-    // result reading as a chart -- so the chart theme takes the 25 m blocks.
-    ctx.imageSmoothingEnabled = !this.t.chartMode;
-    ctx.imageSmoothingQuality = "high";
-    ctx.translate(sx, sy);
-    ctx.rotate(-this.rotation);
-    ctx.scale((wMetres * this.scale) / img.width, (hMetres * this.scale) / img.height);
-    ctx.drawImage(img, 0, 0);
-    ctx.restore();
-  }
-
-  // Depth contours, generated at runtime from the grid so the interval is a
-  // slider rather than a build-time constant. Deeper lines are brighter so the
-  // deep basin reads at a glance without needing every line labelled.
-  _drawContours(contours, interval) {
-    const ctx = this.ctx;
-    const T = this.t;
-    ctx.lineWidth = 1;
-    ctx.lineJoin = "round";
-
-    const labelled = [];
-    // Label every other line when they are close together, so a 2 ft interval
-    // does not paper the lake in numbers.
-    const labelEvery = interval <= 5 ? 2 : 1;
-    let idx = 0;
-
-    for (const c of contours) {
-      const t = Math.min(1, c.depth / 70);
-      // Major lines every 5 intervals get more weight, the way a paper chart
-      // does it -- it gives the eye a ladder to count by.
-      const major = c.major || Math.round(c.depth / interval) % 5 === 0;
-      ctx.strokeStyle = T.contour(t, major);
-      ctx.lineWidth = major ? 1.4 : 0.9;
-
-      ctx.beginPath();
-      let onScreen = false;
-      let mid = null;
-      for (let i = 0; i < c.pts.length; i++) {
-        const [sx, sy] = this.toScreen(c.pts[i][0], c.pts[i][1]);
-        if (sx > 0 && sy > 0 && sx < this.w && sy < this.h) {
-          onScreen = true;
-          if (!mid && i > 0) mid = [sx, sy, this.toScreen(c.pts[i - 1][0], c.pts[i - 1][1])];
-        }
-        if (i === 0) ctx.moveTo(sx, sy);
-        else ctx.lineTo(sx, sy);
-      }
-      ctx.stroke();
-
-      if (onScreen && mid && major && this.scale > LABEL_MIN_SCALE && idx++ % labelEvery === 0) {
-        labelled.push({ depth: c.depth, at: mid });
-      }
-    }
-
-    if (!labelled.length) return;
-
-    // Labels last, so no line is drawn through a number.
-    ctx.font = "600 10px ui-monospace, SFMono-Regular, Menlo, monospace";
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    for (const l of labelled) {
-      const [sx, sy, prev] = l.at;
-      const text = `${l.depth}`;
-      // Rotate the label to sit along the line, flipped when it would read
-      // upside down.
-      let ang = Math.atan2(sy - prev[1], sx - prev[0]);
-      if (ang > Math.PI / 2 || ang < -Math.PI / 2) ang += Math.PI;
-
-      ctx.save();
-      ctx.translate(sx, sy);
-      ctx.rotate(ang);
-      const wpx = ctx.measureText(text).width;
-      // Knock a hole in the line behind the text rather than drawing a box.
-      // Only safe on the dark theme: on the chart theme, punching through
-      // exposes whatever is beneath the canvas rather than the buff paper.
-      if (T.labelKnockout) {
-        ctx.globalCompositeOperation = "destination-out";
-        ctx.fillStyle = "#000";
-        ctx.fillRect(-wpx / 2 - 3, -6, wpx + 6, 12);
-        ctx.globalCompositeOperation = "source-over";
-      } else {
-        ctx.fillStyle = "rgba(255,255,255,0.82)";
-        ctx.fillRect(-wpx / 2 - 3, -6, wpx + 6, 12);
-      }
-      ctx.fillStyle = T.label;
-      ctx.fillText(text, 0, 0);
-      ctx.restore();
-    }
-    ctx.textAlign = "start";
-    ctx.textBaseline = "alphabetic";
-  }
-
-  // Structures are drawn on the land side, under the hazards. Names appear only
-  // when zoomed in enough to read them without covering the water.
-  _drawStructures(items) {
-    const ctx = this.ctx;
-    const T = this.t;
-    const showNames = this.scale > 0.25;
-    ctx.font = "10px ui-sans-serif, system-ui, sans-serif";
-    for (const s of items) {
-      if (s.type === "Point") {
-        const [x, y] = this.toScreen(s.pts[0][0], s.pts[0][1]);
-        if (x < -20 || y < -20 || x > this.w + 20 || y > this.h + 20) continue;
-        ctx.fillStyle = T.building;
-        ctx.fillRect(x - 2, y - 2, 4, 4);
-        if (showNames && s.name) {
-          ctx.fillStyle = "rgba(200,210,220,0.75)";
-          ctx.fillText(s.name, x + 6, y + 3);
-        }
-        continue;
-      }
-      ctx.beginPath();
-      let vis = false;
-      for (let i = 0; i < s.pts.length; i++) {
-        const [x, y] = this.toScreen(s.pts[i][0], s.pts[i][1]);
-        if (x > -40 && y > -40 && x < this.w + 40 && y < this.h + 40) vis = true;
-        if (i === 0) ctx.moveTo(x, y);
-        else ctx.lineTo(x, y);
-      }
-      if (!vis) continue;
-      if (s.type === "Polygon") {
-        ctx.closePath();
-        ctx.fillStyle = T.building;
-        ctx.globalAlpha = 0.55;
-        ctx.fill();
-        ctx.globalAlpha = 1;
-        ctx.strokeStyle = T.building;
-        ctx.lineWidth = 1;
-        ctx.stroke();
-      } else {
-        ctx.strokeStyle = s.kind === "pier" ? T.pier : T.building;
-        ctx.lineWidth = 2;
-        ctx.stroke();
-      }
-      if (showNames && s.name) {
-        const [x, y] = this.toScreen(s.pts[0][0], s.pts[0][1]);
-        ctx.fillStyle = "rgba(200,210,220,0.8)";
-        ctx.fillText(s.name, x + 5, y - 4);
-      }
-    }
-  }
-
-  // Track fades with age. Water you drove through an hour ago is weaker
-  // evidence than water you drove through a minute ago, and the fade says so
-  // without needing a legend.
-  _drawTrack(track) {
-    const ctx = this.ctx;
-    ctx.lineWidth = 3;
-    ctx.lineJoin = "round";
-    ctx.lineCap = "round";
-    const n = track.length;
-    const step = Math.max(1, Math.floor(n / 400));
-    for (let i = step; i < n; i += step) {
-      const age = i / n; // 0 = oldest, 1 = newest
-      ctx.strokeStyle = `rgba(126, 214, 255, ${0.08 + age * 0.42})`;
-      const [ax, ay] = this.toScreen(track[i - step].x, track[i - step].y);
-      const [bx, by] = this.toScreen(track[i].x, track[i].y);
-      ctx.beginPath();
-      ctx.moveTo(ax, ay);
-      ctx.lineTo(bx, by);
-      ctx.stroke();
-    }
-    ctx.lineCap = "butt";
-  }
-
-  _drawCorridor(c) {
-    const ctx = this.ctx;
-    const [ax, ay] = this.toScreen(c.ax, c.ay);
-    const [bx, by] = this.toScreen(c.bx, c.by);
-    const w = c.halfW * this.scale;
-    const ang = Math.atan2(by - ay, bx - ax);
-    const nx = Math.cos(ang + Math.PI / 2) * w;
-    const ny = Math.sin(ang + Math.PI / 2) * w;
-
-    // Faded toward the far end: the corridor is a projection of where the boat
-    // will be in 20 s, and confidence in that falls off with distance.
-    const grad = ctx.createLinearGradient(ax, ay, bx, by);
-    grad.addColorStop(0, "rgba(255, 208, 92, 0.16)");
-    grad.addColorStop(1, "rgba(255, 208, 92, 0.02)");
-
-    ctx.fillStyle = grad;
-    ctx.strokeStyle = COLORS.corridorEdge;
-    ctx.lineWidth = 1;
-    ctx.setLineDash([6, 5]);
-    ctx.beginPath();
-    ctx.moveTo(ax + nx, ay + ny);
-    ctx.lineTo(bx + nx, by + ny);
-    ctx.lineTo(bx - nx, by - ny);
-    ctx.lineTo(ax - nx, ay - ny);
-    ctx.closePath();
-    ctx.fill();
-    ctx.stroke();
-    ctx.setLineDash([]);
-  }
-
-  // NOAA hazard symbols. A submerged rock is a cross inside a dotted danger
-  // circle; a rock that breaks the surface is an asterisk. Using the real
-  // symbols means anyone who reads charts already knows what these are, and
-  // the shape carries the class so magenta can mean one thing only: danger.
-  _drawChartSymbol(sx, sy, r, color, unconfirmed, radPx) {
-    const ctx = this.ctx;
-    const submerged = r.cls === "shoal" || r.cls === "drawdown";
-    const size = Math.max(5, Math.min(11, radPx));
-
-    ctx.strokeStyle = color;
-    ctx.lineWidth = unconfirmed ? 1 : 1.7;
-    ctx.lineCap = "round";
-
-    if (submerged) {
-      ctx.beginPath();
-      ctx.moveTo(sx - size * 0.55, sy);
-      ctx.lineTo(sx + size * 0.55, sy);
-      ctx.moveTo(sx, sy - size * 0.55);
-      ctx.lineTo(sx, sy + size * 0.55);
-      ctx.stroke();
-      // Dotted danger circle. On a chart this is what says "keep clear of the
-      // whole area", not merely "there is a point here".
-      ctx.setLineDash([2, 3]);
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      ctx.arc(sx, sy, size, 0, Math.PI * 2);
-      ctx.stroke();
-      ctx.setLineDash([]);
-    } else {
-      ctx.beginPath();
-      for (let i = 0; i < 3; i++) {
-        const a = (i * Math.PI) / 3;
-        ctx.moveTo(sx - Math.cos(a) * size * 0.8, sy - Math.sin(a) * size * 0.8);
-        ctx.lineTo(sx + Math.cos(a) * size * 0.8, sy + Math.sin(a) * size * 0.8);
-      }
-      ctx.stroke();
-    }
-    ctx.lineCap = "butt";
-  }
-
-  _drawRocks(state) {
-    const ctx = this.ctx;
-    const T = this.t;
-    for (const r of state.rocks) {
-      if (!state.showShore && !r.offshore) continue;
-      const [sx, sy] = this.toScreen(r.x, r.y);
-      if (sx < -30 || sy < -30 || sx > this.w + 30 || sy > this.h + 30) continue;
-
-      const mark = state.marks.get(r.id);
-      const verdict = mark && mark.verdict;
-      if (verdict === "absent") {
-        // Kept visible but greyed: the user said it is not there, and hiding it
-        // outright would make a mistaken dismissal permanent and invisible.
-        ctx.globalAlpha = 0.35;
-      }
-
-      // Appearance is driven by NAIP verification, not by the raw detector
-      // class. An unconfirmed candidate is drawn faint and hollow so the map
-      // never gives a 10 m inference the same visual weight as a 0.3 m
-      // confirmation -- but it is still drawn, because one September flight
-      // cannot prove a rock is absent.
-      const human = r.evidence === "human_mapped";
-      const unconfirmed = !human && (r.verdict === "open_water" || r.verdict === "unchecked");
-      const color =
-        human
-          ? T.confirmed
-          : verdict === "confirmed"
-          ? T.confirmed
-          : r.verdict === "shoal_confirmed"
-          ? T.shoal
-          : r.verdict === "rock_confirmed"
-          ? T.rock
-          : T[CLASS_KEY[r.cls]] || T.exposed;
-
-      // Radius from true footprint, but clamped at both ends. Floored so a
-      // single-pixel rock stays tappable; capped because an unmapped island of
-      // 96,700 m2 is a 175 m radius, which at any useful zoom renders as a disc
-      // that covers the screen and hides the hazards next to it. Beyond the cap
-      // the marker stops meaning "this big" and starts meaning "look here".
-      const rad = Math.min(MAX_MARKER_PX, Math.max(4, Math.sqrt(r.area_m2 / Math.PI) * this.scale));
-
-      if (T.chartMode) {
-        // Islands are landmasses, not point dangers; they are already drawn as
-        // land by the shoreline pass, so no symbol goes on top of them.
-        if (r.cls !== "island") {
-          ctx.globalAlpha *= unconfirmed ? 0.45 : 1;
-          this._drawChartSymbol(sx, sy, r, color, unconfirmed, rad);
-        }
-        ctx.globalAlpha = 1;
-        continue;
-      }
-
-      ctx.beginPath();
-      ctx.arc(sx, sy, rad, 0, Math.PI * 2);
-      ctx.fillStyle = color;
-      // Islands are obstructions to route around, not point hazards to dodge --
-      // drawn hollow so they read as "land here" rather than "rock here".
-      ctx.globalAlpha *= unconfirmed ? 0.0 : r.cls === "island" ? 0.12 : verdict === "confirmed" ? 0.9 : 0.75;
-      ctx.fill();
-      ctx.globalAlpha = verdict === "absent" ? 0.35 : 1;
-      ctx.lineWidth = verdict === "confirmed" ? 2.5 : unconfirmed ? 0.8 : 1.8;
-      if (unconfirmed) ctx.setLineDash([2, 3]);
-      ctx.strokeStyle = color;
-      ctx.stroke();
-      ctx.setLineDash([]);
-
-      if (verdict === "confirmed") {
-        // Halo, plus a hard centre dot. A confirmed hazard should be findable
-        // in peripheral vision without reading the map properly.
-        ctx.beginPath();
-        ctx.arc(sx, sy, rad + 4, 0, Math.PI * 2);
-        ctx.strokeStyle = color;
-        ctx.lineWidth = 1;
-        ctx.globalAlpha = 0.6;
-        ctx.stroke();
-        ctx.globalAlpha = 1;
-        ctx.beginPath();
-        ctx.arc(sx, sy, 1.6, 0, Math.PI * 2);
-        ctx.fillStyle = "#fff";
-        ctx.fill();
-      }
-      ctx.globalAlpha = 1;
-    }
-  }
-
-  _drawBoat(state) {
-    const ctx = this.ctx;
-    const [sx, sy] = this.toScreen(state.fix.x, state.fix.y);
-
-    // Accuracy circle, so the user can see when the fix itself is the problem.
-    if (state.fix.accuracy) {
-      const r = state.fix.accuracy * this.scale;
-      const g = ctx.createRadialGradient(sx, sy, 0, sx, sy, Math.max(r, 1));
-      g.addColorStop(0, "rgba(255,255,255,0.12)");
-      g.addColorStop(1, "rgba(255,255,255,0.0)");
-      ctx.beginPath();
-      ctx.arc(sx, sy, r, 0, Math.PI * 2);
-      ctx.fillStyle = g;
-      ctx.fill();
-      ctx.strokeStyle = "rgba(255,255,255,0.14)";
-      ctx.lineWidth = 1;
-      ctx.stroke();
-    }
-
-    ctx.save();
-    ctx.translate(sx, sy);
-    // Heading is a bearing in world space; the view may itself be rotated.
-    ctx.rotate(-(state.heading ?? Math.PI / 2) + Math.PI / 2 - this.rotation);
-    ctx.shadowColor = "rgba(0,0,0,0.55)";
-    ctx.shadowBlur = 6;
-    ctx.beginPath();
-    ctx.moveTo(0, -12);
-    ctx.lineTo(7.5, 9);
-    ctx.lineTo(0, 4.5);
-    ctx.lineTo(-7.5, 9);
-    ctx.closePath();
-    ctx.fillStyle = COLORS.boat;
-    ctx.fill();
-    ctx.shadowBlur = 0;
-    ctx.strokeStyle = COLORS.boatEdge;
-    ctx.lineWidth = 1.5;
-    ctx.stroke();
-    ctx.restore();
-  }
-
-  hitTest(sx, sy, rocks, radiusPx = 22) {
-    let best = null;
-    let bestD = radiusPx;
-    for (const r of rocks) {
-      const [x, y] = this.toScreen(r.x, r.y);
-      const d = Math.hypot(x - sx, y - sy);
-      if (d < bestD) {
-        bestD = d;
-        best = r;
-      }
-    }
-    return best;
-  }
-}
-
-// Local persistence. Everything lives on the phone: the lake has no signal, so
-// there is no server to sync to mid-trip, and a boating tool that needs a
-// network to work is a boating tool that fails exactly when it matters.
-//
-// Two stores, both feeding the ground-truth loop:
-//   tracks      GPS breadcrumbs. Water the boat has actually driven through is
-//               proof that water is clear -- passive negative evidence that
-//               costs the user nothing to produce.
-//   marks       Explicit human verdicts on candidates, plus rocks the user adds
-//               from their own knowledge. Positive evidence.
-
-const DB_NAME = "shoalrun";
-const DB_VERSION = 1;
-
-let dbp = null;
-
-function open() {
-  if (dbp) return dbp;
-  dbp = new Promise((resolve, reject) => {
-    const req = indexedDB.open(DB_NAME, DB_VERSION);
-    req.onupgradeneeded = () => {
-      const db = req.result;
-      if (!db.objectStoreNames.contains("tracks")) {
-        const s = db.createObjectStore("tracks", { keyPath: "t" });
-        s.createIndex("trip", "trip");
-      }
-      if (!db.objectStoreNames.contains("marks")) {
-        db.createObjectStore("marks", { keyPath: "id" });
-      }
-    };
-    req.onsuccess = () => resolve(req.result);
-    req.onerror = () => reject(req.error);
-  });
-  return dbp;
-}
-
-function tx(store, mode, fn) {
-  return open().then(
-    (db) =>
-      new Promise((resolve, reject) => {
-        const t = db.transaction(store, mode);
-        const req = fn(t.objectStore(store));
-        t.oncomplete = () => resolve(req && req.result);
-        t.onerror = () => reject(t.error);
-      })
-  );
-}
-
-// --- track logging ---------------------------------------------------------
-
-// Breadcrumbs are only worth keeping when the boat is actually moving and the
-// fix is decent. Logging a drifting boat at the dock all afternoon would bury
-// the useful data and imply "safe water" where the boat never really went.
-const TRACK_MIN_SPEED_MS = 1.0;
-const TRACK_MAX_ACC_M = 25;
-async function logFix(trip, fix) {
-  if (fix.speed == null || fix.speed < TRACK_MIN_SPEED_MS) return false;
-  if (fix.accuracy != null && fix.accuracy > TRACK_MAX_ACC_M) return false;
-  await tx("tracks", "readwrite", (s) =>
-    s.put({
-      t: fix.t,
-      trip,
-      lat: +fix.lat.toFixed(6),
-      lon: +fix.lon.toFixed(6),
-      spd: +fix.speed.toFixed(2),
-      acc: fix.accuracy == null ? null : Math.round(fix.accuracy),
-    })
-  );
-  return true;
-}
-function allTracks() {
-  return tx("tracks", "readonly", (s) => s.getAll());
-}
-function trackCount() {
-  return tx("tracks", "readonly", (s) => s.count());
-}
-
-// --- human verdicts --------------------------------------------------------
-
-// `verdict` is one of: confirmed | absent | unsure. `absent` is what suppresses
-// a candidate from alerting; it is the user overriding the detector, which is
-// the whole point of having a person who lives on the lake in the loop.
-async function setMark(id, verdict, note, extra = {}) {
-  await tx("marks", "readwrite", (s) =>
-    s.put({ id, verdict, note: note || "", t: Date.now(), ...extra })
-  );
-}
-function allMarks() {
-  return tx("marks", "readonly", (s) => s.getAll());
-}
-async function clearMark(id) {
-  await tx("marks", "readwrite", (s) => s.delete(id));
-}
-
-// --- export ----------------------------------------------------------------
-
-// The export is the handoff back into the offline pipeline: tracks retrain the
-// false-positive filter, marks become labels. Plain GeoJSON so it opens in
-// anything.
-async function exportAll() {
-  const [tracks, marks] = await Promise.all([allTracks(), allMarks()]);
-
-  const byTrip = new Map();
-  for (const p of tracks) {
-    if (!byTrip.has(p.trip)) byTrip.set(p.trip, []);
-    byTrip.get(p.trip).push(p);
-  }
-
-  const features = [];
-  for (const [trip, pts] of byTrip) {
-    pts.sort((a, b) => a.t - b.t);
-    if (pts.length < 2) continue;
-    features.push({
-      type: "Feature",
-      properties: {
-        kind: "track",
-        trip,
-        points: pts.length,
-        start: new Date(pts[0].t).toISOString(),
-        end: new Date(pts[pts.length - 1].t).toISOString(),
-      },
-      geometry: { type: "LineString", coordinates: pts.map((p) => [p.lon, p.lat]) },
-    });
-  }
-
-  for (const m of marks) {
-    features.push({
-      type: "Feature",
-      properties: {
-        kind: "mark",
-        id: m.id,
-        verdict: m.verdict,
-        note: m.note,
-        at: new Date(m.t).toISOString(),
-      },
-      geometry:
-        m.lat != null ? { type: "Point", coordinates: [m.lon, m.lat] } : null,
-    });
-  }
-
-  return { type: "FeatureCollection", features };
-}
-
-
-
-
-
-
-// DATA is injected at build time so the app is one self-contained file with no
-// network dependency of any kind. There is no cell service on this lake.
-const { lake: LAKE_GEO, rocks: ROCK_GEO, depth: DEPTH_RAW, soundings: SOUNDING_RAW, structures: STRUCT_GEO, meta: DATA_META } = window.SHOALRUN_DATA;
-
-// Contour intervals the slider steps through. Discrete rather than continuous
-// because a 7 ft contour interval is not a thing anyone wants -- the useful
-// choices are "every couple of feet in the shallows" through "just show me the
-// basin", and snapping to them makes the slider land on a sane value every time.
-const INTERVALS = [2, 5, 10, 15, 20, 30];
+// It renders the SAME interpolated grid the map contours come from, so the mesh
+// and the depth lines can never tell different stories. And it is the same 1954
+// survey underneath -- a smooth shaded 3D basin looks far more authoritative
+// than 260 soundings deserve, which is why the caveat is on the screen, the
+// terracing defaults on, and the depth is quantised rather than pretending to a
+// continuous surface nobody measured.
+
+
+const { lake: LAKE_GEO, rocks: ROCK_GEO, depth: DEPTH_RAW } = window.SHOALRUN_DATA;
 
 const el = (id) => document.getElementById(id);
-const state = {
-  lake: [],
-  rocks: [],
-  marks: new Map(),
-  track: [],
-  grid: null,
-  contours: [],
-  soundings: [],
-  contourInterval: 10,
-  shallowFt: 0,
-  theme: "night",
-  showDepth: true,
-  showContours: true,
-  showSoundings: true,
-  showShore: false,
-  showCamps: true,
-  structures: [],
-  fix: null,
-  heading: null,
-  speed: 0,
-  corridor: null,
-  alert: "clear",
-  trip: `trip-${Date.now()}`,
-  logged: 0,
-};
+const canvas = el("gl");
+const gl = canvas.getContext("webgl", { antialias: true, alpha: false });
 
-// --- geometry setup --------------------------------------------------------
+if (!gl) {
+  el("nogl").style.display = "grid";
+  throw new Error("WebGL unavailable");
+}
 
 const bounds = LAKE_GEO.bbox;
 const proj = makeProjection((bounds[1] + bounds[3]) / 2, (bounds[0] + bounds[2]) / 2);
+const grid = new DepthGrid(DEPTH_RAW, proj);
 
-function ringsOf(geom) {
-  if (geom.type === "Polygon") return [geom.coordinates];
-  if (geom.type === "MultiPolygon") return geom.coordinates;
-  return [];
+const FT_PER_M = 3.28084;
+const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+
+// Derivative-based normals are what make terracing read as steps rather than as
+// a soft ramp. Without the extension the mesh still draws, just smooth-shaded.
+const derivExt = gl.getExtension("OES_standard_derivatives");
+
+// --- shaders ---------------------------------------------------------------
+
+const VERT = `
+attribute vec3 aPos;
+attribute vec3 aNormal;
+attribute float aDepth;
+uniform mat4 uMVP;
+uniform float uExag;
+uniform float uTerrace;
+varying float vDepth;
+varying vec3 vNormal;
+varying vec3 vWorld;
+void main() {
+  // Depth is quantised here, not in the buffer, so the terrace slider does not
+  // have to rebuild the mesh. Snapping to the NEAR side (floor) keeps every
+  // terrace at or shallower than the interpolated depth -- on a boat, rounding
+  // depth the optimistic way is the one direction you must not round.
+  float d = uTerrace > 0.0 ? floor(aDepth / uTerrace) * uTerrace : aDepth;
+  vec3 p = vec3(aPos.x, -(d / 3.28084) * uExag, aPos.z);
+  vDepth = d;
+  vWorld = p;
+  // Exaggerating Y steepens the true slope, so the normal has to be corrected
+  // the opposite way or the lighting stays flat while the terrain gets sharper.
+  vNormal = normalize(vec3(aNormal.x * uExag, aNormal.y, aNormal.z * uExag));
+  gl_Position = uMVP * vec4(p, 1.0);
+}`;
+
+const FRAG = `
+#extension GL_OES_standard_derivatives : enable
+precision mediump float;
+varying float vDepth;
+varying vec3 vNormal;
+varying vec3 vWorld;
+uniform float uShallow;
+uniform float uTerrace;
+uniform float uFlat;
+
+// Same ramp as the 2D map, so the two views agree about what 15 ft looks like.
+vec3 ramp(float ft) {
+  vec3 c;
+  if (ft < 3.0)       c = mix(vec3(0.494,0.769,0.698), vec3(0.408,0.698,0.690), ft / 3.0);
+  else if (ft < 6.0)  c = mix(vec3(0.408,0.698,0.690), vec3(0.282,0.580,0.675), (ft-3.0)/3.0);
+  else if (ft < 10.0) c = mix(vec3(0.282,0.580,0.675), vec3(0.180,0.463,0.635), (ft-6.0)/4.0);
+  else if (ft < 15.0) c = mix(vec3(0.180,0.463,0.635), vec3(0.125,0.369,0.573), (ft-10.0)/5.0);
+  else if (ft < 25.0) c = mix(vec3(0.125,0.369,0.573), vec3(0.086,0.282,0.478), (ft-15.0)/10.0);
+  else if (ft < 40.0) c = mix(vec3(0.086,0.282,0.478), vec3(0.063,0.212,0.376), (ft-25.0)/15.0);
+  else if (ft < 60.0) c = mix(vec3(0.063,0.212,0.376), vec3(0.043,0.157,0.290), (ft-40.0)/20.0);
+  else                c = mix(vec3(0.043,0.157,0.290), vec3(0.031,0.118,0.227), min((ft-60.0)/20.0, 1.0));
+  return c;
 }
 
-for (const poly of ringsOf(LAKE_GEO.geometry)) {
-  state.lake.push(poly.map((ring) => ring.map(([lon, lat]) => proj.fwd(lon, lat))));
-}
+void main() {
+  vec3 base = ramp(vDepth);
+  if (uShallow > 0.0 && vDepth <= uShallow) base = mix(base, vec3(1.0, 0.72, 0.25), 0.55);
 
-// The depth surface ships as a grid, not as pre-cut lines, so the contour
-// interval is a runtime choice. Contours are derived on demand and cached per
-// interval inside the grid.
-if (DEPTH_RAW) {
-  state.grid = new DepthGrid(DEPTH_RAW, proj);
-  state.contours = contoursAt(state.grid, state.contourInterval);
-}
+  vec3 n = normalize(vNormal);
+#ifdef GL_OES_standard_derivatives
+  // Flat-shade off the true facet when terracing, so each step gets its own
+  // tone and the risers actually read as risers.
+  if (uFlat > 0.5) n = normalize(cross(dFdx(vWorld), dFdy(vWorld))) * sign(normalize(vNormal).y);
+#endif
 
-// The measured 1954 soundings, projected once. The chart theme prints these as
-// numbers on the water the way a paper chart does.
-for (const [lon, lat, ft] of SOUNDING_RAW || []) {
-  const [x, y] = proj.fwd(lon, lat);
-  state.soundings.push({ x, y, ft });
-}
+  vec3 lightDir = normalize(vec3(0.45, 0.8, 0.4));
+  float diff = max(dot(n, lightDir), 0.0);
+  // Ambient floor is high: this is a bottom surface being read for shape, and
+  // a physically honest light would put half the basin in unreadable shadow.
+  vec3 color = base * (0.5 + 0.7 * diff);
+  gl_FragColor = vec4(color, 1.0);
+}`;
 
-// Camps, buildings and piers as orientation landmarks. A hazard cloud on a bare
-// shoreline is hard to place; people read this lake by its camps.
-for (const f of (STRUCT_GEO ? STRUCT_GEO.features : [])) {
-  const g = f.geometry;
-  if (!g) continue;
-  const conv = (ring) => ring.map(([lon, lat]) => proj.fwd(lon, lat));
-  let pts = null;
-  let type = g.type;
-  if (g.type === "Polygon") pts = conv(g.coordinates[0]);
-  else if (g.type === "LineString") pts = conv(g.coordinates);
-  else if (g.type === "Point") pts = [proj.fwd(g.coordinates[0], g.coordinates[1])];
-  if (pts) state.structures.push({ type, pts, kind: f.properties.kind, name: f.properties.name });
-}
+// Land fills every cell the lake mask excludes -- the shore and all 74 islands.
+// Without it those cells were simply absent, and a lake full of holes onto the
+// background reads as broken geometry rather than as islands.
+const LAND_VERT = `
+attribute vec3 aPos;
+uniform mat4 uMVP;
+uniform float uY;
+varying vec3 vWorld;
+void main() {
+  vec3 p = vec3(aPos.x, aPos.y + uY, aPos.z);
+  vWorld = p;
+  gl_Position = uMVP * vec4(p, 1.0);
+}`;
 
-const index = new GridIndex(200);
-ROCK_GEO.features.forEach((f, i) => {
-  const p = f.properties;
-  const [x, y] = proj.fwd(p.lon, p.lat);
-  const rock = {
-    id: `r${i}`,
-    cls: p.class,
-    lat: p.lat,
-    lon: p.lon,
-    area_m2: p.area_m2,
-    confidence: p.confidence,
-    verdict: p.verdict || "unchecked",
-    evidence: p.evidence || "sentinel_only",
-    shore_m: p.shore_m,
-    offshore: p.offshore !== false,
-    x,
-    y,
-  };
-  state.rocks.push(rock);
-  index.insert(x, y, rock);
-});
+// Translucent water surface, drawn only in boat mode. Sitting 1.8 m off the
+// water and seeing the bare bottom is disorienting -- you cannot tell where the
+// waterline is, which is the one reference a boat view needs. With the surface
+// in, the bottom shows through it and the depth reads.
+const WATER_FRAG = `
+precision mediump float;
+varying vec3 vWorld;
+void main() { gl_FragColor = vec4(0.055, 0.196, 0.310, 0.74); }`;
 
-const view = new MapView(el("map"), proj);
-view.center = { x: 0, y: 0 };
-view.scale = Math.min(
-  view.w / ((bounds[2] - bounds[0]) * proj.mPerDegLon),
-  view.h / ((bounds[3] - bounds[1]) * proj.mPerDegLat)
-) * 0.92;
-view.rotation = 0;
-view.follow = false;
+const LAND_FRAG = `
+precision mediump float;
+varying vec3 vWorld;
+void main() {
+  // Flat, and deliberately so: there is no terrain elevation data for this
+  // lake, so any relief here would be invented. Light enough to read as
+  // ground -- at the first darker value the islands looked like holes punched
+  // in the mesh rather than like land.
+  gl_FragColor = vec4(0.294, 0.310, 0.243, 1.0);
+}`;
 
-// --- marks -----------------------------------------------------------------
+const LINE_VERT = `
+attribute vec3 aPos;
+uniform mat4 uMVP;
+uniform float uExag;
+void main() {
+  gl_Position = uMVP * vec4(aPos.x, aPos.y * uExag, aPos.z, 1.0);
+  gl_PointSize = 7.0;
+}`;
 
-async function loadMarks() {
-  const marks = await allMarks();
-  state.marks = new Map(marks.map((m) => [m.id, m]));
-  refreshCounts();
-}
+const LINE_FRAG = `
+precision mediump float;
+uniform vec4 uColor;
+void main() { gl_FragColor = uColor; }`;
 
-function dismissedSet() {
-  const s = new Set();
-  for (const [id, m] of state.marks) if (m.verdict === "absent") s.add(id);
+function compile(src, type) {
+  const s = gl.createShader(type);
+  gl.shaderSource(s, src);
+  gl.compileShader(s);
+  if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) {
+    throw new Error(`shader: ${gl.getShaderInfoLog(s)}`);
+  }
   return s;
 }
 
-// --- GPS -------------------------------------------------------------------
-
-let watchId = null;
-let lastFix = null;
-
-function onFix(pos) {
-  const c = pos.coords;
-  const [x, y] = proj.fwd(c.longitude, c.latitude);
-  const t = pos.timestamp;
-
-  // Prefer the device's own course/speed; fall back to differencing consecutive
-  // fixes, because iOS Safari reports heading as null far more often than not.
-  let speed = c.speed;
-  let headingDeg = c.heading;
-
-  if ((speed == null || Number.isNaN(speed)) && lastFix) {
-    const dt = (t - lastFix.t) / 1000;
-    if (dt > 0.5) speed = Math.hypot(x - lastFix.x, y - lastFix.y) / dt;
+function program(vsrc, fsrc) {
+  const p = gl.createProgram();
+  gl.attachShader(p, compile(vsrc, gl.VERTEX_SHADER));
+  gl.attachShader(p, compile(fsrc, gl.FRAGMENT_SHADER));
+  gl.linkProgram(p);
+  if (!gl.getProgramParameter(p, gl.LINK_STATUS)) {
+    throw new Error(`link: ${gl.getProgramInfoLog(p)}`);
   }
-  if ((headingDeg == null || Number.isNaN(headingDeg)) && lastFix) {
-    const dx = x - lastFix.x;
-    const dy = y - lastFix.y;
-    if (Math.hypot(dx, dy) > 3) headingDeg = (90 - (Math.atan2(dy, dx) * 180) / Math.PI + 360) % 360;
-  }
+  return p;
+}
 
-  speed = speed ?? 0;
-  // Device heading is a compass bearing; the maths works in standard maths
-  // angles (0 = +x = east, counter-clockwise).
-  const headingRad = headingDeg == null ? null : ((90 - headingDeg) * Math.PI) / 180;
+const meshProg = program(VERT, FRAG);
+const landProg = program(LAND_VERT, LAND_FRAG);
+const waterProg = program(LAND_VERT, WATER_FRAG);
+const lineProg = program(LINE_VERT, LINE_FRAG);
 
-  state.fix = { x, y, lat: c.latitude, lon: c.longitude, accuracy: c.accuracy, t };
-  state.heading = headingRad;
-  state.speed = speed;
-  lastFix = { x, y, t };
+// --- mesh ------------------------------------------------------------------
 
-  state.track.push({ x, y });
-  if (state.track.length > 5000) state.track.shift();
+const cx = (grid.worldX(0) + grid.worldX(grid.nx - 1)) / 2;
+const cz = (grid.worldY(0) + grid.worldY(grid.ny - 1)) / 2;
 
-  logFix(state.trip, {
-    t,
-    lat: c.latitude,
-    lon: c.longitude,
-    speed,
-    accuracy: c.accuracy,
-  }).then((ok) => {
-    if (ok) state.logged++;
-  });
-
-  evaluate();
-  showDepthUnder(x, y);
-
-  if (view.follow) {
-    view.center = { x, y };
-    if (view.courseUp && headingRad != null && speed > 1.5) {
-      view.rotation = headingRad - Math.PI / 2;
+// A cell just outside the lake still has a real depth: zero. Treating the first
+// ring of land cells as 0 ft closes the mesh right up to the waterline instead
+// of leaving the ragged fringe you get from requiring all four corners wet --
+// which is what made the shoreline look chewed.
+function depthForMesh(col, row) {
+  const v = grid.at(col, row);
+  if (v !== null) return { ft: v, wet: true };
+  for (let dr = -1; dr <= 1; dr++) {
+    for (let dc = -1; dc <= 1; dc++) {
+      if (grid.at(col + dc, row + dr) !== null) return { ft: 0, wet: false };
     }
   }
+  return null;
 }
 
-// Interpolated depth beneath the boat. Shown to one foot because that is the
-// quantum the grid is stored at -- adding a decimal would imply the 1954
-// transects support a precision they do not.
-function showDepthUnder(x, y) {
-  const card = el("depthNow");
-  if (!state.grid) return;
-  const ft = state.grid.sampleXY(x, y);
-  card.style.display = "block";
-  el("depthVal").textContent = ft == null ? "--" : String(ft);
-}
+function buildMesh() {
+  const pos = [];
+  const norm = [];
+  const dep = [];
+  const idx = [];
+  const vertIndex = new Int32Array(grid.nx * grid.ny).fill(-1);
+  const cell = new Array(grid.nx * grid.ny).fill(null);
 
-function onGpsError(err) {
-  setStatus(`GPS: ${err.message}`, "warn");
-}
-
-function startGps() {
-  if (!navigator.geolocation) return setStatus("no geolocation on this device", "warn");
-  watchId = navigator.geolocation.watchPosition(onFix, onGpsError, {
-    enableHighAccuracy: true,
-    maximumAge: 1000,
-    timeout: 15000,
-  });
-  setStatus("GPS active", "ok");
-}
-
-// --- hazard evaluation -----------------------------------------------------
-
-// Hysteresis: an alert must clear for this long before the banner drops, so a
-// hazard passing in and out of the corridor at the edge of tolerance does not
-// produce a strobing warning that the user learns to ignore.
-const CLEAR_HOLD_MS = 4000;
-let lastDangerAt = 0;
-
-function evaluate() {
-  if (!state.fix) return;
-  const result = scan(state.fix, state.heading, state.speed, index, dismissedSet());
-
-  state.corridor = result.moving
-    ? {
-        ax: state.fix.x,
-        ay: state.fix.y,
-        bx: state.fix.x + Math.cos(state.heading) * result.reach,
-        by: state.fix.y + Math.sin(state.heading) * result.reach,
-        halfW: CORRIDOR_HALF_W,
-      }
-    : null;
-
-  let level = alertLevel(result.worst);
-  const now = Date.now();
-  if (level !== "clear") lastDangerAt = now;
-  else if (now - lastDangerAt < CLEAR_HOLD_MS) level = state.alert === "clear" ? "clear" : "caution";
-
-  if (level !== state.alert) {
-    state.alert = level;
-    if (level === "danger") buzz([200, 80, 200]);
-    else if (level === "caution") buzz([120]);
+  for (let row = 0; row < grid.ny; row++) {
+    for (let col = 0; col < grid.nx; col++) {
+      cell[row * grid.nx + col] = depthForMesh(col, row);
+    }
   }
-  renderAlert(result);
+  const ftAt = (col, row) => {
+    if (col < 0 || row < 0 || col >= grid.nx || row >= grid.ny) return null;
+    const c = cell[row * grid.nx + col];
+    return c ? c.ft : null;
+  };
+
+  for (let row = 0; row < grid.ny; row++) {
+    for (let col = 0; col < grid.nx; col++) {
+      const c = cell[row * grid.nx + col];
+      if (!c) continue;
+      vertIndex[row * grid.nx + col] = pos.length / 3;
+
+      // +north maps to -Z so the default camera looks north up the lake, which
+      // is how the survey map is drawn and how people describe this lake. Y is
+      // filled by the vertex shader from the depth attribute.
+      pos.push(grid.worldX(col) - cx, 0, -(grid.worldY(row) - cz));
+      dep.push(c.ft);
+
+      const l = ftAt(col - 1, row) ?? c.ft;
+      const r = ftAt(col + 1, row) ?? c.ft;
+      const d = ftAt(col, row - 1) ?? c.ft;
+      const u = ftAt(col, row + 1) ?? c.ft;
+      const sx = ((l - r) / FT_PER_M) / (2 * grid.gridM);
+      const sz = ((d - u) / FT_PER_M) / (2 * grid.gridM);
+      const len = Math.hypot(sx, 1, sz);
+      norm.push(sx / len, 1 / len, sz / len);
+    }
+  }
+
+  // A quad needs four corners, and at least one of them genuinely wet -- that
+  // last condition is what stops the mesh sheeting across an island whose whole
+  // footprint is dry. `covered` records which cells the water mesh claimed, so
+  // the land pass can fill exactly the complement and nothing overlaps.
+  const covered = new Uint8Array((grid.nx - 1) * (grid.ny - 1));
+  for (let row = 0; row < grid.ny - 1; row++) {
+    for (let col = 0; col < grid.nx - 1; col++) {
+      const ia = vertIndex[row * grid.nx + col];
+      const ib = vertIndex[row * grid.nx + col + 1];
+      const ic = vertIndex[(row + 1) * grid.nx + col + 1];
+      const ie = vertIndex[(row + 1) * grid.nx + col];
+      if (ia < 0 || ib < 0 || ic < 0 || ie < 0) continue;
+      const anyWet =
+        cell[row * grid.nx + col].wet ||
+        cell[row * grid.nx + col + 1].wet ||
+        cell[(row + 1) * grid.nx + col + 1].wet ||
+        cell[(row + 1) * grid.nx + col].wet;
+      if (!anyWet) continue;
+      idx.push(ia, ib, ic, ia, ic, ie);
+      covered[row * (grid.nx - 1) + col] = 1;
+    }
+  }
+
+  return {
+    pos: new Float32Array(pos),
+    norm: new Float32Array(norm),
+    dep: new Float32Array(dep),
+    idx: new Uint32Array(idx),
+    count: idx.length,
+    covered,
+  };
 }
 
-function buzz(pattern) {
-  if (navigator.vibrate) navigator.vibrate(pattern);
-  if (el("sound").checked && state.alert === "danger") beep();
+// Land fills exactly the cells the water mesh did not claim -- the shore and
+// every one of the 74 islands -- plus a skirt out to the horizon. Cutting it
+// per-cell rather than laying one slab over everything is the whole trick: a
+// slab hides the lake, and no slab leaves the islands as holes onto the
+// background, which is what made the geometry look broken.
+function buildLand(covered, wantWater = false) {
+  const v = [];
+  const y = 0;
+  const quad = (ax, az, bx, bz) => {
+    v.push(ax, y, az, bx, y, az, bx, y, bz, ax, y, az, bx, y, bz, ax, y, bz);
+  };
+
+  for (let row = 0; row < grid.ny - 1; row++) {
+    for (let col = 0; col < grid.nx - 1; col++) {
+      if (!!covered[row * (grid.nx - 1) + col] !== wantWater) continue;
+      quad(
+        grid.worldX(col) - cx,
+        -(grid.worldY(row) - cz),
+        grid.worldX(col + 1) - cx,
+        -(grid.worldY(row + 1) - cz)
+      );
+    }
+  }
+
+  // Skirt beyond the grid, so the horizon is ground rather than a cut edge.
+  if (!wantWater) {
+    const x0 = grid.worldX(0) - cx;
+    const x1 = grid.worldX(grid.nx - 1) - cx;
+    const z0 = -(grid.worldY(0) - cz);
+    const z1 = -(grid.worldY(grid.ny - 1) - cz);
+    const pad = 15000;
+    quad(x0 - pad, z0 + pad, x1 + pad, z0);
+    quad(x0 - pad, z1, x1 + pad, z1 - pad);
+    quad(x0 - pad, z0, x0, z1);
+    quad(x1, z0, x1 + pad, z1);
+  }
+
+  return new Float32Array(v);
 }
 
-let audioCtx = null;
-function beep() {
-  try {
-    audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
-    const o = audioCtx.createOscillator();
-    const g = audioCtx.createGain();
-    o.frequency.value = 880;
-    g.gain.value = 0.25;
-    o.connect(g).connect(audioCtx.destination);
-    o.start();
-    o.stop(audioCtx.currentTime + 0.18);
-  } catch (_) {}
+// Index counts here run past 65535, so 32-bit indices are required. Every
+// target browser has the extension, but failing loudly beats rendering a
+// scrambled lake.
+if (!gl.getExtension("OES_element_index_uint")) throw new Error("OES_element_index_uint unavailable");
+
+const mesh = buildMesh();
+
+function bufferOf(data, target = gl.ARRAY_BUFFER) {
+  const b = gl.createBuffer();
+  gl.bindBuffer(target, b);
+  gl.bufferData(target, data, gl.STATIC_DRAW);
+  return b;
 }
 
-function renderAlert(result) {
-  const banner = el("alert");
-  banner.className = `alert ${state.alert}`;
-  const w = result.worst;
-  if (!w) {
-    banner.textContent = result.moving ? "clear ahead" : "clear";
+const bufPos = bufferOf(mesh.pos);
+const bufNorm = bufferOf(mesh.norm);
+const bufDep = bufferOf(mesh.dep);
+const bufIdx = bufferOf(mesh.idx, gl.ELEMENT_ARRAY_BUFFER);
+const land = buildLand(mesh.covered);
+const bufLand = bufferOf(land);
+const water = buildLand(mesh.covered, true);
+const bufWater = bufferOf(water);
+
+// --- shoreline + hazards ---------------------------------------------------
+
+function buildShore() {
+  const segs = [];
+  const push = (ring) => {
+    for (let i = 0; i < ring.length - 1; i++) {
+      segs.push(ring[i][0] - cx, 0, -(ring[i][1] - cz));
+      segs.push(ring[i + 1][0] - cx, 0, -(ring[i + 1][1] - cz));
+    }
+  };
+  const geom = LAKE_GEO.geometry;
+  const polys = geom.type === "Polygon" ? [geom.coordinates] : geom.coordinates;
+  for (const poly of polys) {
+    for (const ring of poly) push(ring.map(([lon, lat]) => proj.fwd(lon, lat)));
+  }
+  return new Float32Array(segs);
+}
+
+// Hazards as vertical stems from the bottom to the surface. A dot floating at
+// depth is unreadable in 3D -- you cannot tell how far away it is. A stem tells
+// you where it is on the bottom and how much water is over it in one mark.
+function buildHazards() {
+  const stems = [];
+  const heads = [];
+  const list = [];
+  for (const f of ROCK_GEO.features) {
+    const p = f.properties;
+    if (p.offshore === false) continue;
+    const [x, y] = proj.fwd(p.lon, p.lat);
+    const ft = grid.sampleXY(x, y);
+    if (ft === null) continue;
+    const wx = x - cx;
+    const wz = -(y - cz);
+    stems.push(wx, -ft / FT_PER_M, wz, wx, 0, wz);
+    heads.push(wx, 0, wz);
+    list.push({ x: wx, z: wz, ft, cls: p.class });
+  }
+  return { stems: new Float32Array(stems), heads: new Float32Array(heads), list };
+}
+
+const shore = buildShore();
+const hz = buildHazards();
+const bufShore = bufferOf(shore);
+const bufStems = bufferOf(hz.stems);
+const bufHeads = bufferOf(hz.heads);
+
+// --- camera ----------------------------------------------------------------
+
+// Three modes, because "look at the lake" and "be on the lake" want different
+// controls and neither is served well by the other.
+//   orbit -- the whole basin, spun around its centre. Good for shape.
+//   fly   -- free camera. Good for getting in close to one shoal.
+//   boat  -- eye height above the surface, driving. Good for "what am I about
+//            to hit", which is the question this whole project exists to answer.
+const MODES = ["orbit", "fly", "boat"];
+let mode = "orbit";
+
+const orbit = { yaw: 0, pitch: 0.62, dist: 7000 };
+const fly = { x: 0, y: 1200, z: 5000, yaw: 0, pitch: -0.35, speed: 400 };
+const boat = { x: 0, z: 2000, yaw: Math.PI, pitch: -0.05, speed: 0, heading: Math.PI };
+const opts = { exag: 8, shallow: 0, terrace: 3 };
+
+const BOAT_EYE_M = 1.8;      // eye height above the waterline
+const BOAT_MAX_MS = 12;      // ~23 kn, about what an outboard on this lake does
+const keys = new Set();
+
+function perspective(fovy, aspect, near, far) {
+  const f = 1 / Math.tan(fovy / 2);
+  return [
+    f / aspect, 0, 0, 0,
+    0, f, 0, 0,
+    0, 0, (far + near) / (near - far), -1,
+    0, 0, (2 * far * near) / (near - far), 0,
+  ];
+}
+
+function multiply(a, b) {
+  const o = new Array(16).fill(0);
+  for (let i = 0; i < 4; i++) {
+    for (let j = 0; j < 4; j++) {
+      for (let k = 0; k < 4; k++) o[i * 4 + j] += a[i * 4 + k] * b[k * 4 + j];
+    }
+  }
+  return o;
+}
+
+const sub3 = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
+const add3 = (a, b) => [a[0] + b[0], a[1] + b[1], a[2] + b[2]];
+const dot3 = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+const cross3 = (a, b) => [
+  a[1] * b[2] - a[2] * b[1],
+  a[2] * b[0] - a[0] * b[2],
+  a[0] * b[1] - a[1] * b[0],
+];
+function norm3(v) {
+  const l = Math.hypot(v[0], v[1], v[2]) || 1;
+  return [v[0] / l, v[1] / l, v[2] / l];
+}
+
+function lookAt(eye, target, up) {
+  const z = norm3(sub3(eye, target));
+  const x = norm3(cross3(up, z));
+  const y = cross3(z, x);
+  return [
+    x[0], y[0], z[0], 0,
+    x[1], y[1], z[1], 0,
+    x[2], y[2], z[2], 0,
+    -dot3(x, eye), -dot3(y, eye), -dot3(z, eye), 1,
+  ];
+}
+
+// Yaw is measured from -Z (north), so heading and the map's course-up agree.
+function forwardOf(yaw, pitch) {
+  return [
+    Math.sin(yaw) * Math.cos(pitch),
+    Math.sin(pitch),
+    -Math.cos(yaw) * Math.cos(pitch),
+  ];
+}
+
+// Depth under an arbitrary world point, for the boat readout. World Z is
+// negated north, so it has to be undone before sampling.
+function depthAtWorld(wx, wz) {
+  return grid.sampleXY(wx + cx, -wz + cz);
+}
+
+function cameraFor(dt) {
+  if (mode === "orbit") {
+    const eye = [
+      Math.sin(orbit.yaw) * Math.cos(orbit.pitch) * orbit.dist,
+      Math.sin(orbit.pitch) * orbit.dist,
+      Math.cos(orbit.yaw) * Math.cos(orbit.pitch) * orbit.dist,
+    ];
+    return { eye, target: [0, 0, 0] };
+  }
+
+  if (mode === "fly") {
+    const fwd = forwardOf(fly.yaw, fly.pitch);
+    const right = norm3(cross3(fwd, [0, 1, 0]));
+    let move = [0, 0, 0];
+    if (keys.has("w")) move = add3(move, fwd);
+    if (keys.has("s")) move = sub3(move, fwd);
+    if (keys.has("d")) move = add3(move, right);
+    if (keys.has("a")) move = sub3(move, right);
+    if (keys.has(" ")) move = add3(move, [0, 1, 0]);
+    if (keys.has("shift")) move = sub3(move, [0, 1, 0]);
+    if (move[0] || move[1] || move[2]) {
+      const m = norm3(move);
+      const v = fly.speed * dt;
+      fly.x += m[0] * v;
+      fly.y += m[1] * v;
+      fly.z += m[2] * v;
+    }
+    const eye = [fly.x, fly.y, fly.z];
+    return { eye, target: add3(eye, fwd) };
+  }
+
+  // boat
+  if (keys.has("a")) boat.heading -= 1.1 * dt;
+  if (keys.has("d")) boat.heading += 1.1 * dt;
+  const target = keys.has("w") ? BOAT_MAX_MS : keys.has("s") ? -BOAT_MAX_MS * 0.4 : 0;
+  // Eased rather than instant, because instant throttle makes the depth readout
+  // jump in a way that is impossible to read.
+  boat.speed += (target - boat.speed) * Math.min(1, dt * 1.6);
+  const h = forwardOf(boat.heading, 0);
+  boat.x += h[0] * boat.speed * dt;
+  boat.z += h[2] * boat.speed * dt;
+
+  boat.yaw = boat.heading;
+  const eye = [boat.x, BOAT_EYE_M, boat.z];
+  return { eye, target: add3(eye, forwardOf(boat.yaw, boat.pitch)) };
+}
+
+function resize() {
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const r = canvas.getBoundingClientRect();
+  canvas.width = Math.round(r.width * dpr);
+  canvas.height = Math.round(r.height * dpr);
+}
+window.addEventListener("resize", resize);
+resize();
+
+function bindAttr(prog, name, buf, size) {
+  const loc = gl.getAttribLocation(prog, name);
+  if (loc < 0) return;
+  gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+  gl.enableVertexAttribArray(loc);
+  gl.vertexAttribPointer(loc, size, gl.FLOAT, false, 0, 0);
+}
+
+let lastT = performance.now();
+
+function draw(now) {
+  const dt = Math.min(0.05, (now - lastT) / 1000) || 0.016;
+  lastT = now;
+
+  const { eye, target } = cameraFor(dt);
+
+  gl.viewport(0, 0, canvas.width, canvas.height);
+  // Lifted off black so the horizon reads as a horizon. In boat mode a pure
+  // black sky made the far shore look like the edge of the world.
+  gl.clearColor(0.063, 0.086, 0.114, 1);
+  gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+  gl.enable(gl.DEPTH_TEST);
+
+  const view = lookAt(eye, target, [0, 1, 0]);
+  // Near plane is tight so boat mode can sit 1.8 m off the water without
+  // clipping through it; far plane is generous because at low pitch the far
+  // shore is most of the lake away.
+  const projM = perspective(0.9, canvas.width / canvas.height, 0.5, 80000);
+  const mvp = new Float32Array(multiply(view, projM));
+
+  // Boat mode ignores the exaggeration slider. From 1.8 m above the water,
+  // 8x turns a 20 ft bottom into a 160 ft canyon and puts every shallow at eye
+  // level -- the one view where the geometry has to be true is the one where
+  // you are pretending to be on it.
+  const exag = mode === "boat" ? 1 : opts.exag;
+
+  gl.useProgram(landProg);
+  gl.uniformMatrix4fv(gl.getUniformLocation(landProg, "uMVP"), false, mvp);
+  // Land sits a hair under the waterline so the shoreline line reads on top.
+  gl.uniform1f(gl.getUniformLocation(landProg, "uY"), -0.05);
+  bindAttr(landProg, "aPos", bufLand, 3);
+  gl.drawArrays(gl.TRIANGLES, 0, land.length / 3);
+
+  gl.useProgram(meshProg);
+  gl.uniformMatrix4fv(gl.getUniformLocation(meshProg, "uMVP"), false, mvp);
+  gl.uniform1f(gl.getUniformLocation(meshProg, "uExag"), exag);
+  gl.uniform1f(gl.getUniformLocation(meshProg, "uShallow"), opts.shallow);
+  gl.uniform1f(gl.getUniformLocation(meshProg, "uTerrace"), opts.terrace);
+  gl.uniform1f(
+    gl.getUniformLocation(meshProg, "uFlat"),
+    opts.terrace > 0 && derivExt ? 1 : 0
+  );
+
+  bindAttr(meshProg, "aPos", bufPos, 3);
+  bindAttr(meshProg, "aNormal", bufNorm, 3);
+  bindAttr(meshProg, "aDepth", bufDep, 1);
+  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, bufIdx);
+  gl.drawElements(gl.TRIANGLES, mesh.count, gl.UNSIGNED_INT, 0);
+
+  // Water surface last among the solids and with blending on, so the bottom
+  // shows through it rather than being replaced by it.
+  if (mode === "boat") {
+    gl.enable(gl.BLEND);
+    gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+    gl.depthMask(false);
+    gl.useProgram(waterProg);
+    gl.uniformMatrix4fv(gl.getUniformLocation(waterProg, "uMVP"), false, mvp);
+    gl.uniform1f(gl.getUniformLocation(waterProg, "uY"), 0);
+    bindAttr(waterProg, "aPos", bufWater, 3);
+    gl.drawArrays(gl.TRIANGLES, 0, water.length / 3);
+    gl.depthMask(true);
+    gl.disable(gl.BLEND);
+  }
+
+  gl.useProgram(lineProg);
+  gl.uniformMatrix4fv(gl.getUniformLocation(lineProg, "uMVP"), false, mvp);
+  const exagLoc = gl.getUniformLocation(lineProg, "uExag");
+  const colorLoc = gl.getUniformLocation(lineProg, "uColor");
+
+  // Shoreline sits at Y=0, so exaggeration must not move it.
+  gl.uniform1f(exagLoc, 1.0);
+  gl.uniform4f(colorLoc, 0.5, 0.77, 0.91, 0.85);
+  bindAttr(lineProg, "aPos", bufShore, 3);
+  gl.drawArrays(gl.LINES, 0, shore.length / 3);
+
+  if (hz.stems.length) {
+    gl.uniform1f(exagLoc, exag);
+    gl.uniform4f(colorLoc, 1.0, 0.42, 0.35, 0.75);
+    bindAttr(lineProg, "aPos", bufStems, 3);
+    gl.drawArrays(gl.LINES, 0, hz.stems.length / 3);
+
+    gl.uniform1f(exagLoc, 1.0);
+    gl.uniform4f(colorLoc, 1.0, 0.35, 0.28, 1.0);
+    bindAttr(lineProg, "aPos", bufHeads, 3);
+    gl.drawArrays(gl.POINTS, 0, hz.heads.length / 3);
+  }
+
+  updateHud();
+  requestAnimationFrame(draw);
+}
+
+// --- HUD -------------------------------------------------------------------
+
+function nearestHazard(x, z) {
+  let best = null;
+  let bestD = Infinity;
+  for (const h of hz.list) {
+    const d = Math.hypot(h.x - x, h.z - z);
+    if (d < bestD) {
+      bestD = d;
+      best = h;
+    }
+  }
+  return best ? { h: best, d: bestD } : null;
+}
+
+function updateHud() {
+  const hud = el("hud");
+  if (mode !== "boat") {
+    hud.style.display = "none";
     return;
   }
-  const label = w.rock.cls === "shoal" ? "SHOAL" : "ROCK";
-  const dist = Math.round(w.range);
-  const ttc = Number.isFinite(w.ttc) ? `  ${Math.round(w.ttc)}s` : "";
-  banner.textContent =
-    state.alert === "clear" ? `nearest ${label.toLowerCase()} ${dist} m` : `${label} ${dist} m${ttc}`;
+  hud.style.display = "block";
+  const ft = depthAtWorld(boat.x, boat.z);
+  el("hudDepth").textContent = ft == null ? "--" : String(ft);
+  el("hudSpeed").textContent = (Math.abs(boat.speed) * 1.94384).toFixed(1);
+  const near = nearestHazard(boat.x, boat.z);
+  el("hudNear").textContent = near ? `${Math.round(near.d)} m` : "--";
+  el("hudNear").style.color = near && near.d < 60 ? "#ff6a5a" : "";
 }
 
-// --- UI --------------------------------------------------------------------
+// --- interaction -----------------------------------------------------------
 
-function setStatus(msg, kind = "") {
-  const s = el("status");
-  s.textContent = msg;
-  s.className = kind;
-}
-
-function refreshCounts() {
-  const confirmed = [...state.marks.values()].filter((m) => m.verdict === "confirmed").length;
-  const absent = [...state.marks.values()].filter((m) => m.verdict === "absent").length;
-  const shown = state.showShore ? state.rocks.length : state.rocks.filter((r) => r.offshore).length;
-  el("counts").textContent =
-    `${shown} shown of ${state.rocks.length} - ${confirmed} confirmed, ${absent} dismissed` +
-    (state.showShore ? "" : " (offshore >50 m; all still alarm)");
-}
-
-let selected = null;
-
-el("map").addEventListener("click", (e) => {
-  el("panel").classList.remove("open");
-  el("btnLayers").classList.remove("on");
-  const r = el("map").getBoundingClientRect();
-  const hit = view.hitTest(e.clientX - r.left, e.clientY - r.top, state.rocks);
-  selected = hit;
-  showSheet(hit);
-});
-
-function showSheet(rock) {
-  const sheet = el("sheet");
-  if (!rock) return sheet.classList.remove("open");
-  const m = state.marks.get(rock.id);
-  el("sheetTitle").textContent = rock.cls === "shoal" ? "Submerged shoal" : "Exposed rock";
-  const depth = state.grid ? state.grid.sampleXY(rock.x, rock.y) : null;
-  el("sheetBody").innerHTML =
-    `<div class="kv"><span>position</span><b>${rock.lat.toFixed(5)}, ${rock.lon.toFixed(5)}</b></div>` +
-    `<div class="kv"><span>footprint</span><b>${rock.area_m2} m&sup2;</b></div>` +
-    // Surrounding depth, not the rock's own depth -- the interpolated surface
-    // is 25 m cells off 1954 transects and knows nothing about this rock.
-    `<div class="kv"><span>surrounding depth</span><b>${
-      depth == null ? "outside survey" : `~${depth} ft (1954)`
-    }</b></div>` +
-    `<div class="kv"><span>detector confidence</span><b>${rock.confidence}</b></div>` +
-    `<div class="kv"><span>0.3 m aerial check</span><b>${
-      { rock_confirmed: "rock confirmed", shoal_confirmed: "shoal confirmed",
-        open_water: "NOT confirmed", unchecked: "not checked",
-        human_mapped: "mapped by a person", naip_multiyear: "NAIP multi-year" }[rock.verdict] || rock.verdict
-    }</b></div>` +
-    `<div class="kv"><span>your verdict</span><b>${m ? m.verdict : "none"}</b></div>`;
-  sheet.classList.add("open");
-}
-
-el("btnConfirm").onclick = async () => {
-  if (!selected) return;
-  await setMark(selected.id, "confirmed", "", { lat: selected.lat, lon: selected.lon });
-  await loadMarks();
-  showSheet(selected);
-};
-el("btnAbsent").onclick = async () => {
-  if (!selected) return;
-  await setMark(selected.id, "absent", "", { lat: selected.lat, lon: selected.lon });
-  await loadMarks();
-  showSheet(selected);
-};
-el("btnUnmark").onclick = async () => {
-  if (!selected) return;
-  await clearMark(selected.id);
-  await loadMarks();
-  showSheet(selected);
-};
-el("btnClose").onclick = () => el("sheet").classList.remove("open");
-
-// --- depth controls --------------------------------------------------------
-
-// Recontouring the whole grid is ~100 ms, which is fine on release but awful if
-// it runs on every pixel of slider travel. The label updates immediately so the
-// slider still feels live; the lines catch up when the finger settles.
-let contourTimer = null;
-
-// Chart mode adds the depth-tint band edges to whatever the slider asked for.
-// On a paper chart the tint boundary IS a contour, and drawing it also hides
-// the soft edge the upscaled raster shows where one band meets the next.
-function contourSet(ft) {
-  if (!state.grid) return [];
-  if (state.theme !== "chart") return contoursAt(state.grid, ft);
-
-  const levels = new Set(CHART_BAND_EDGES);
-  for (let d = ft; d <= state.grid.maxFt; d += ft) levels.add(d);
-  const sorted = [...levels].sort((a, b) => a - b);
-  const bandEdge = new Set(CHART_BAND_EDGES);
-  return contoursAtLevels(state.grid, sorted).map((c) =>
-    bandEdge.has(c.depth) ? { ...c, major: true } : c
-  );
-}
-
-function setInterval_(ft) {
-  state.contourInterval = ft;
-  el("valInterval").textContent = `${ft} ft`;
-  clearTimeout(contourTimer);
-  contourTimer = setTimeout(() => {
-    state.contours = contourSet(ft);
-  }, 90);
-}
-
-// Two looks for two conditions: dark for dusk and night, NOAA chart for direct
-// sun. Chart mode is not a skin -- the discrete shoal tints, printed soundings
-// and magenta danger symbols are the conventions anyone who reads a chart
-// already knows, and they survive glare that a dark screen does not.
-function setTheme(name) {
-  state.theme = name;
-  view.theme = name;
-  const chart = name === "chart";
-  document.body.classList.toggle("chart", chart);
-  el("btnTheme").textContent = chart ? "Chart" : "Night";
-  el("btnSoundings").style.display = chart ? "" : "none";
-  state.contours = contourSet(state.contourInterval);
-  if (state.grid) el("legendRamp").style.background = rampCss(state.grid.maxFt, name);
-}
-
-el("btnTheme").onclick = () => setTheme(state.theme === "chart" ? "night" : "chart");
-
-el("btnSoundings").onclick = () => {
-  state.showSoundings = !state.showSoundings;
-  el("btnSoundings").classList.toggle("on", state.showSoundings);
-};
-
-el("sldInterval").addEventListener("input", (e) => {
-  setInterval_(INTERVALS[+e.target.value]);
-});
-
-el("sldShallow").addEventListener("input", (e) => {
-  state.shallowFt = +e.target.value;
-  el("valShallow").textContent = state.shallowFt === 0 ? "off" : `${state.shallowFt} ft`;
-});
-
-el("btnDepth").onclick = () => {
-  state.showDepth = !state.showDepth;
-  el("btnDepth").classList.toggle("on", state.showDepth);
-  el("sldShallow").disabled = !state.showDepth;
-};
-
-el("btnLines").onclick = () => {
-  state.showContours = !state.showContours;
-  el("btnLines").classList.toggle("on", state.showContours);
-  el("sldInterval").disabled = !state.showContours;
-};
-
-el("btnLayers").onclick = () => {
-  const open = el("panel").classList.toggle("open");
-  el("btnLayers").classList.toggle("on", open);
-  el("sheet").classList.remove("open");
-};
-el("btnPanelClose").onclick = () => {
-  el("panel").classList.remove("open");
-  el("btnLayers").classList.remove("on");
-};
-
-// Shoreline toggle affects DRAWING ONLY. Every hazard stays in the alert index
-// regardless -- the known rocks sit a median 2 m from shore, so suppressing them
-// from the alarm to tidy the map would remove most of the real hazards on the
-// lake. Hidden from view is not the same as hidden from the alarm.
-el("btnCamps").onclick = () => {
-  state.showCamps = !state.showCamps;
-  el("btnCamps").classList.toggle("on", state.showCamps);
-};
-
-// Label stays fixed and the lit state carries the meaning. The old button
-// swapped its own label on press, so what it said and what it did were never
-// the same thing at the same time.
-el("btnShore").onclick = () => {
-  state.showShore = !state.showShore;
-  el("btnShore").classList.toggle("on", state.showShore);
-  refreshCounts();
-};
-
-el("btnFollow").onclick = () => {
-  view.follow = !view.follow;
-  el("btnFollow").classList.toggle("on", view.follow);
-  if (!view.follow) view.rotation = 0;
-};
-
-el("btnExport").onclick = async () => {
-  const fc = await exportAll();
-  const blob = new Blob([JSON.stringify(fc, null, 2)], { type: "application/geo+json" });
-  const a = document.createElement("a");
-  a.href = URL.createObjectURL(blob);
-  a.download = `shoalrun-${new Date().toISOString().slice(0, 10)}.geojson`;
-  a.click();
-};
-
-// pan / zoom
-// Pointers are tracked in a map rather than as a single drag, because the
-// target device is a phone: wheel zoom does not exist there, and without pinch
-// the map is stuck at whatever zoom it loaded at.
-let drag = null;
 const pointers = new Map();
-let pinchDist = 0;
-const map = el("map");
+let last = null;
+let pinch = 0;
 
-function zoomBy(factor) {
-  view.scale = Math.max(0.01, Math.min(4, view.scale * factor));
-}
-
-map.addEventListener("pointerdown", (e) => {
+canvas.addEventListener("pointerdown", (e) => {
   pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
-  if (pointers.size === 1) drag = { x: e.clientX, y: e.clientY, moved: 0 };
-  else if (pointers.size === 2) {
-    drag = null;
-    const [a, b] = [...pointers.values()];
-    pinchDist = Math.hypot(a.x - b.x, a.y - b.y);
-  }
+  last = { x: e.clientX, y: e.clientY };
+  canvas.setPointerCapture(e.pointerId);
 });
 
-map.addEventListener("pointermove", (e) => {
-  if (pointers.has(e.pointerId)) pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+canvas.addEventListener("pointermove", (e) => {
+  if (!pointers.has(e.pointerId)) return;
+  pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
 
   if (pointers.size >= 2) {
     const [a, b] = [...pointers.values()];
     const d = Math.hypot(a.x - b.x, a.y - b.y);
-    if (pinchDist > 0 && d > 0) zoomBy(d / pinchDist);
-    pinchDist = d;
+    if (pinch > 0) {
+      if (mode === "orbit") orbit.dist = clamp(orbit.dist * (pinch / d), 400, 40000);
+      else if (mode === "fly") fly.speed = clamp(fly.speed * (d / pinch), 20, 4000);
+    }
+    pinch = d;
     return;
   }
+  if (!last) return;
+  const dx = e.clientX - last.x;
+  const dy = e.clientY - last.y;
+  last = { x: e.clientX, y: e.clientY };
 
-  if (!drag) return;
-  const dx = e.clientX - drag.x;
-  const dy = e.clientY - drag.y;
-  drag.moved += Math.hypot(dx, dy);
-  const c = Math.cos(-view.rotation);
-  const s = Math.sin(-view.rotation);
-  view.center.x -= (dx * c - -dy * s) / view.scale;
-  view.center.y += (dy * c + dx * s) / view.scale;
-  drag.x = e.clientX;
-  drag.y = e.clientY;
-  view.follow = false;
-  el("btnFollow").classList.remove("on");
+  if (mode === "orbit") {
+    orbit.yaw -= dx * 0.006;
+    // Clamped short of straight down and short of the horizon: past either the
+    // mesh degenerates to a line and the view is useless.
+    orbit.pitch = clamp(orbit.pitch + dy * 0.005, 0.08, 1.45);
+  } else if (mode === "fly") {
+    fly.yaw += dx * 0.005;
+    fly.pitch = clamp(fly.pitch - dy * 0.005, -1.4, 1.4);
+  } else {
+    // In boat mode the drag is looking around, not steering -- steering is the
+    // A/D keys, so you can look off the beam while holding a course.
+    boat.heading += dx * 0.005;
+    boat.pitch = clamp(boat.pitch - dy * 0.004, -0.6, 0.5);
+  }
 });
 
-function endPointer(e) {
+function release(e) {
   pointers.delete(e.pointerId);
-  if (pointers.size < 2) pinchDist = 0;
-  if (pointers.size === 0) drag = null;
+  if (pointers.size < 2) pinch = 0;
+  if (pointers.size === 0) last = null;
 }
-map.addEventListener("pointerup", endPointer);
-map.addEventListener("pointercancel", endPointer);
+canvas.addEventListener("pointerup", release);
+canvas.addEventListener("pointercancel", release);
 
-map.addEventListener("wheel", (e) => {
+canvas.addEventListener("wheel", (e) => {
   e.preventDefault();
-  zoomBy(e.deltaY < 0 ? 1.12 : 0.89);
+  const f = e.deltaY > 0 ? 1.1 : 0.91;
+  if (mode === "orbit") orbit.dist = clamp(orbit.dist * f, 400, 40000);
+  else if (mode === "fly") fly.speed = clamp(fly.speed / f, 20, 4000);
 }, { passive: false });
 
-// --- simulation ------------------------------------------------------------
-// Drives a synthetic boat so the alert logic can be exercised without standing
-// on the water. Explicitly opt-in via ?sim=1 -- it must never be mistaken for a
-// real fix, so it is labelled loudly while running.
-
-// lastStep starts at -Infinity so the first fix lands on the very first frame
-// instead of after a full second of blank map.
-const sim = { on: false, t: 0, px: 0, py: 0, hdg: 0.6, lastStep: -Infinity };
-
-function startSim() {
-  document.body.classList.add("sim");
-  setStatus("SIMULATION - not real GPS", "warn");
-  // Start in the island-studded eastern arm, which is where the hazards are.
-  const start = proj.fwd(-68.79, 45.745);
-  sim.px = start[0];
-  sim.py = start[1];
-  sim.on = true;
-  view.follow = true;
-  view.scale = 0.35;
-  stepSim(performance.now());
-}
-
-// Driven from the render loop rather than setInterval. Timers are throttled or
-// suspended on hidden/background pages, which silently stalls the simulation --
-// exactly what made this look broken under a headless screenshot.
-function stepSim(now) {
-  if (now - sim.lastStep < 1000) return;
-  sim.lastStep = now;
-  sim.t += 1;
-  sim.hdg += Math.sin(sim.t / 18) * 0.05;
-  const spd = 8; // ~16 kn
-  sim.px += Math.cos(sim.hdg) * spd;
-  sim.py += Math.sin(sim.hdg) * spd;
-  const [lon, lat] = proj.inv(sim.px, sim.py);
-  onFix({
-    coords: {
-      latitude: lat,
-      longitude: lon,
-      accuracy: 5,
-      speed: spd,
-      heading: (90 - (sim.hdg * 180) / Math.PI + 360) % 360,
-    },
-    timestamp: Date.now(),
-  });
-}
-
-// --- boot ------------------------------------------------------------------
-
-// A thrown exception inside a GPS callback would otherwise vanish into the
-// console -- on a phone, on a boat, with nobody watching. Surface it where the
-// user will actually see it, because a frozen map that still looks alive is the
-// most dangerous failure this app can have.
-window.addEventListener("error", (e) => {
-  setStatus(`ERROR: ${e.message}`, "warn");
+window.addEventListener("keydown", (e) => {
+  const k = e.key.toLowerCase();
+  keys.add(k === "shift" ? "shift" : k);
+  if ([" ", "w", "a", "s", "d"].includes(k)) e.preventDefault();
 });
-window.addEventListener("unhandledrejection", (e) => {
-  setStatus(`ERROR: ${e.reason && e.reason.message ? e.reason.message : e.reason}`, "warn");
+window.addEventListener("keyup", (e) => {
+  const k = e.key.toLowerCase();
+  keys.delete(k === "shift" ? "shift" : k);
 });
+// A held key with the window unfocused would otherwise stick on forever.
+window.addEventListener("blur", () => keys.clear());
 
-function frame(now) {
-  if (sim.on) stepSim(now || performance.now());
-  view.draw(state);
-  requestAnimationFrame(frame);
+// Touch throttle, so boat and fly modes work without a keyboard.
+for (const [id, key] of [["padFwd", "w"], ["padBack", "s"], ["padLeft", "a"], ["padRight", "d"]]) {
+  const b = el(id);
+  const on = (e) => { e.preventDefault(); keys.add(key); };
+  const off = (e) => { e.preventDefault(); keys.delete(key); };
+  b.addEventListener("pointerdown", on);
+  b.addEventListener("pointerup", off);
+  b.addEventListener("pointercancel", off);
+  b.addEventListener("pointerleave", off);
 }
 
-el("meta").textContent = DATA_META.summary;
-el("valInterval").textContent = `${state.contourInterval} ft`;
-if (state.grid) el("rampMax").textContent = `${state.grid.maxFt} ft`;
-// Chart is the default: this gets used outdoors, in daylight, most of the time.
-setTheme(new URLSearchParams(location.search).get("theme") === "night" ? "night" : "chart");
-loadMarks().then(() => {
-  trackCount().then((n) => {
-    if (n) setStatus(`${n} logged track points on this device`, "ok");
-  });
-});
-frame();
+// --- controls --------------------------------------------------------------
 
-if (new URLSearchParams(location.search).get("sim") === "1") startSim();
-else startGps();
-</script>
-<script>
-// Register only over a secure context. From file:// there is no service worker
-// and no geolocation -- the page still renders, but it is not the way to use
-// this on the water. Installed from HTTPS once, it runs offline forever.
-if ('serviceWorker' in navigator && location.protocol === 'https:') {
-  navigator.serviceWorker.register('./sw.js').catch(() => {});
+// Nearest cell to the lake centre with real water under it. Spawning at a fixed
+// coordinate put the boat on the 0 ft shore ring, where the view is a wall of
+// shallow and nothing reads.
+function findWater(minFt = 12) {
+  let best = null;
+  let bestD = Infinity;
+  for (let row = 0; row < grid.ny; row += 2) {
+    for (let col = 0; col < grid.nx; col += 2) {
+      const ft = grid.at(col, row);
+      if (ft === null || ft < minFt) continue;
+      const x = grid.worldX(col) - cx;
+      const z = -(grid.worldY(row) - cz);
+      const d = Math.hypot(x, z);
+      if (d < bestD) {
+        bestD = d;
+        best = { x, z };
+      }
+    }
+  }
+  return best || { x: 0, z: 0 };
 }
+
+function setMode(m) {
+  mode = m;
+  for (const other of MODES) el(`mode_${other}`).classList.toggle("on", other === m);
+  el("pad").style.display = m === "orbit" ? "none" : "grid";
+  el("hint").textContent =
+    m === "orbit"
+      ? "Drag to orbit - pinch or scroll to zoom"
+      : m === "fly"
+      ? "Drag to look - W/A/S/D to move, Space/Shift for up/down, scroll for speed"
+      : "W to throttle up, A/D to steer, drag to look around";
+  if (m === "boat") {
+    // Drop the boat somewhere it is actually floating rather than wherever the
+    // camera last was, which is usually over land or 1200 m in the air.
+    const here = depthAtWorld(boat.x, boat.z);
+    if (here == null || here < 6) {
+      const spot = findWater();
+      boat.x = spot.x;
+      boat.z = spot.z;
+    }
+    boat.speed = 0;
+  }
+}
+for (const m of MODES) el(`mode_${m}`).onclick = () => setMode(m);
+
+el("sldExag").addEventListener("input", (e) => {
+  opts.exag = +e.target.value;
+  el("valExag").textContent = `${opts.exag}x`;
+});
+el("sldShallow3d").addEventListener("input", (e) => {
+  opts.shallow = +e.target.value;
+  el("valShallow3d").textContent = opts.shallow === 0 ? "off" : `${opts.shallow} ft`;
+});
+el("sldTerrace").addEventListener("input", (e) => {
+  opts.terrace = +e.target.value;
+  el("valTerrace").textContent = opts.terrace === 0 ? "smooth" : `${opts.terrace} ft`;
+});
+el("btnReset").onclick = () => {
+  orbit.yaw = 0;
+  orbit.pitch = 0.62;
+  orbit.dist = 7000;
+  fly.x = 0; fly.y = 1200; fly.z = 5000; fly.yaw = 0; fly.pitch = -0.35;
+  boat.x = 0; boat.z = 2000; boat.heading = Math.PI; boat.pitch = -0.05; boat.speed = 0;
+};
+
+el("stats").textContent =
+  `${(mesh.count / 3).toLocaleString()} triangles - ${grid.nx}x${grid.ny} grid at ` +
+  `${grid.gridM} m - 0-${grid.maxFt} ft - ${hz.list.length} hazards`;
+el("valExag").textContent = `${opts.exag}x`;
+el("valTerrace").textContent = `${opts.terrace} ft`;
+
+// ?mode=boat deep-links straight into a mode, which is how this gets checked
+// without a human clicking, and is handy for a bookmark.
+const wanted = new URLSearchParams(location.search).get("mode");
+setMode(MODES.includes(wanted) ? wanted : "orbit");
+
+requestAnimationFrame(draw);
 </script>
 </body>
 </html>
