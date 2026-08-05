@@ -54,8 +54,13 @@ def main():
     lake = json.loads((DATA / "lake.geojson").read_text())
     # Prefer the NAIP-verified set when it exists: an independent 0.3 m sensor
     # outranks a 10 m inference about the same spot.
-    verified = DATA / "verified.geojson"
-    rocks = json.loads((verified if verified.exists() else DATA / "rocks.geojson").read_text())
+    # Merged layer is the authority: NAIP 1 m detections + Sentinel + the
+    # human-mapped rocks that no imagery method produces on its own.
+    for cand in ("hazards.geojson", "verified.geojson", "rocks.geojson"):
+        path = DATA / cand
+        if path.exists():
+            rocks = json.loads(path.read_text())
+            break
     contours = json.loads((DATA / "contours.geojson").read_text())
 
     # Rocks ship as centroids only: the app alerts on proximity to a point, and
@@ -84,10 +89,7 @@ def main():
     # summary a user reads should reflect what survived checking.
     counts = {}
     for f in rocks["features"]:
-        v = f["properties"].get("verdict", "unchecked")
-        key = {"rock_confirmed": "confirmed rock", "shoal_confirmed": "confirmed shoal",
-               "open_water": "unconfirmed", "unchecked": "unchecked"}.get(v, v)
-        counts[key] = counts.get(key, 0) + 1
+        counts[f["properties"].get("class", "?")] = counts.get(f["properties"].get("class", "?"), 0) + 1
 
     payload = {
         "lake": round_coords(lake),

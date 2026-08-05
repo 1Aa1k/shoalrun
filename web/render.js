@@ -199,9 +199,12 @@ export class MapView {
       // never gives a 10 m inference the same visual weight as a 0.3 m
       // confirmation -- but it is still drawn, because one September flight
       // cannot prove a rock is absent.
-      const unconfirmed = r.verdict === "open_water" || r.verdict === "unchecked";
+      const human = r.evidence === "human_mapped";
+      const unconfirmed = !human && (r.verdict === "open_water" || r.verdict === "unchecked");
       const color =
-        verdict === "confirmed"
+        human
+          ? COLORS.confirmed
+          : verdict === "confirmed"
           ? COLORS.confirmed
           : r.verdict === "shoal_confirmed"
           ? COLORS.shoal

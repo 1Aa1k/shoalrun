@@ -57,6 +57,7 @@ ROCK_GEO.features.forEach((f, i) => {
     area_m2: p.area_m2,
     confidence: p.confidence,
     verdict: p.verdict || "unchecked",
+    evidence: p.evidence || "sentinel_only",
     x,
     y,
   };
@@ -263,7 +264,8 @@ function showSheet(rock) {
     `<div class="kv"><span>detector confidence</span><b>${rock.confidence}</b></div>` +
     `<div class="kv"><span>0.3 m aerial check</span><b>${
       { rock_confirmed: "rock confirmed", shoal_confirmed: "shoal confirmed",
-        open_water: "NOT confirmed", unchecked: "not checked" }[rock.verdict] || rock.verdict
+        open_water: "NOT confirmed", unchecked: "not checked",
+        human_mapped: "mapped by a person", naip_multiyear: "NAIP multi-year" }[rock.verdict] || rock.verdict
     }</b></div>` +
     `<div class="kv"><span>your verdict</span><b>${m ? m.verdict : "none"}</b></div>`;
   sheet.classList.add("open");

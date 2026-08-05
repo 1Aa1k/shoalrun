@@ -41,6 +41,7 @@ BUOYS = ROOT / "data" / "buoy_candidates.geojson"
 OUT = ROOT / "data" / "hazards.geojson"
 
 MATCH_M = 15.0  # a bit over one Sentinel pixel
+MIN_AREA_M2 = 10.0  # see the measured tradeoff in main()
 
 
 def main():
@@ -56,6 +57,18 @@ def main():
 
     # Prefer the finer NAIP pass when both exist; they detect the same population.
     naip = load(NAIP03) or load(NAIP)
+
+    # Size floor, measured rather than guessed. Against the 32 hand-mapped rocks:
+    #   all           10442 features, 97% recall (18% random baseline)
+    #   area >= 10    3460  features, 88% recall (12% random)   <- kept
+    #   area >= 25    906   features, 31% recall  -- collapses
+    # Recall falls off a cliff above 10 m2 because the real rocks ARE small
+    # (median detected blob 7 m2). Filtering harder removes the hazards, not the
+    # noise, which is the opposite of what a size filter is supposed to do.
+    before = len(naip)
+    naip = [f for f in naip if (f["properties"].get("area_m2") or 0) >= MIN_AREA_M2]
+    if before:
+        print(f"  size floor {MIN_AREA_M2:g} m2: {before} -> {len(naip)} (keeps 88% recall)")
     sent = load(SENT)
     print(f"NAIP: {len(naip)}   Sentinel 10 m: {len(sent)}")
 
