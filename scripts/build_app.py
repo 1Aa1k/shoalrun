@@ -29,7 +29,7 @@ MODULES = ["geo.js", "depth.js", "hazard.js", "render.js", "store.js", "app.js"]
 # control surface for someone at the helm, and keeping it out of the map page
 # means it cannot be reached by accident under way. It shares geo and depth so
 # both views read the same surface.
-VIEWER_MODULES = ["geo.js", "depth.js", "scene3d.js", "viewer3d.js"]
+VIEWER_MODULES = ["geo.js", "depth.js", "shaders3d.js", "scene3d.js", "viewer3d.js"]
 
 IMPORT_RE = re.compile(r"^\s*import\s+.*?;\s*$", re.M | re.S)
 EXPORT_RE = re.compile(r"^\s*export\s+(?=(const|let|var|function|class|async))", re.M)
