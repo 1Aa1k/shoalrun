@@ -68,7 +68,8 @@ single image; they separate only across dates.
    10 m grid. Identical grid is non-negotiable: sub-pixel drift between dates would
    read as a rock.
 3. `detect_rocks.py` — water mask per scene, then persistence across scenes.
-4. `export_depth_grid.py` — the interpolated depth surface as a compact grid.
+4. `export_depth_grid.py` — the interpolated depth surface as a compact grid,
+   plus a companion grid of how far each cell is from a real 1954 sounding.
 5. `build_app.py` — inline everything into two offline HTML files (map + 3D).
 
 ### Three things that had to be fixed, and are worth knowing
@@ -261,14 +262,64 @@ those soundings into the `LakeDpth` layer, served as 68 KMZ tiles:
 `extract_soundings.py` pulls **260 soundings inside this lake**, 2–78 ft
 (surveyed max 86 ft). `make_contours.py` interpolates them to **10 ft contours**.
 
-Sparse data (one point per ~13 ha) is rescued by treating the shoreline as a
-depth-0 boundary: 2,557 synthetic zero-points densified along the 99 km shore and
-all 74 island edges anchor the surface where transects do not reach.
+Sparse data is rescued by treating the shoreline as a depth-0 boundary: 2,557
+synthetic zero-points densified along the 99 km shore and all 74 island edges
+anchor the surface where transects do not reach.
 
 These contours are an **interpolated surface, not a survey**. Between transects
 they are an educated guess, from 1954 soundings, on a regulated lake whose level
 moves. A rock does not appear in a 10 ft contour — contours are context for the
 hazard layer, not a replacement.
+
+### How sparse, exactly — the shape of the gap
+
+"260 soundings, one per 13 hectares" was the old wording here and in the app. It
+is arithmetically true and it misleads, because it implies even coverage. Page 2
+of the survey sheet shows what actually happened: the depths sit in straight
+east-west rows. A boat ran transects and sounded along them, and nothing between
+them was measured at all.
+
+`survey_geometry.py` recovers that structure from the data and is stable across
+any grouping threshold from 50 to 120 m:
+
+```
+260 soundings -> 12 real transects
+gap between transects: mean 533 m, min 430 m, max 662 m
+```
+
+`export_depth_grid.py` then ships a companion grid of metres-to-the-nearest-
+sounding, so the app can draw the difference instead of describing it. The
+**Survey reach** layer fogs water in proportion: clear where it was sounded,
+opaque where it was guessed, and the twelve transects show through as stripes.
+The boat HUD carries the same number next to the depth, because "18 ft" a metre
+off a transect and "18 ft" 600 m from anything are not the same claim.
+
+The numbers are worse than the transect spacing suggests, because the eastern
+arm and the outlet were barely sounded at all:
+
+```
+42% of water cells sit more than 200 m from any measurement
+furthest water from a sounding: 1859 m
+```
+
+### A denser survey of this lake exists — it is just not public
+
+The i-Boating web viewer (`fishing-app.gpsnauticalcharts.com`) renders this lake
+with full contours and spot soundings. Nineteen of its soundings were read off
+the render, converted to lat/lon, and checked against ours after validating the
+projection against their shoreline (8/9 land-water probes agree): **none landed
+within 40 m of any of our 260, and the depths disagree by ~9 ft on average.** It
+is an independent survey, not a redraw of the 1954 sheet.
+
+It is proprietary and cannot be shipped here. Two honest routes to better depth
+remain: ask MDIFW whether they hold a newer digital survey, or run transects with
+a logging fishfinder. Note also that Maine's `LakeDpth` holds 3,717
+GPS/depthfinder-surveyed points statewide — and zero of them on this lake. Every
+point in this bbox is `depthmap: meifw`, digitised off the paper sheet.
+
+Satellite-derived bathymetry was tested as a shortcut and **does not work on this
+lake** — see `probe_sdb.py`, which records the measurement and the control that
+settles it.
 
 ### The survey independently corroborates the detector
 
