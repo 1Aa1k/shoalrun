@@ -96,6 +96,7 @@ body.sim::after { content: "SIMULATION"; position: absolute; top: 50%; left: 0; 
 <div class="bar">
   <button id="btnFollow" class="on">Follow</button>
   <button id="btnShore">Offshore only</button>
+  <button id="btnCamps" class="on">Camps</button>
   <button id="btnExport">Export</button>
   <label class="chk"><input type="checkbox" id="sound" checked> alarm sound</label>
   <div id="status"></div>
@@ -416,7 +417,7 @@ class MapView {
     }
 
     if (state.contours) this._drawContours(state.contours);
-    if (state.structures) this._drawStructures(state.structures);
+    if (state.structures && state.showCamps) this._drawStructures(state.structures);
     if (state.track && state.track.length > 1) this._drawTrack(state.track);
     if (state.corridor) this._drawCorridor(state.corridor);
     this._drawRocks(state);
@@ -797,6 +798,7 @@ const state = {
   track: [],
   contours: [],
   showShore: false,
+  showCamps: true,
   structures: [],
   fix: null,
   heading: null,
@@ -1097,6 +1099,11 @@ el("btnClose").onclick = () => el("sheet").classList.remove("open");
 // regardless -- the known rocks sit a median 2 m from shore, so suppressing them
 // from the alarm to tidy the map would remove most of the real hazards on the
 // lake. Hidden from view is not the same as hidden from the alarm.
+el("btnCamps").onclick = () => {
+  state.showCamps = !state.showCamps;
+  el("btnCamps").classList.toggle("on", state.showCamps);
+};
+
 el("btnShore").onclick = () => {
   state.showShore = !state.showShore;
   el("btnShore").classList.toggle("on", state.showShore);

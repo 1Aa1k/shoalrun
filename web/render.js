@@ -122,7 +122,7 @@ export class MapView {
     }
 
     if (state.contours) this._drawContours(state.contours);
-    if (state.structures) this._drawStructures(state.structures);
+    if (state.structures && state.showCamps) this._drawStructures(state.structures);
     if (state.track && state.track.length > 1) this._drawTrack(state.track);
     if (state.corridor) this._drawCorridor(state.corridor);
     this._drawRocks(state);

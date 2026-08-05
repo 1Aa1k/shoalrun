@@ -15,6 +15,7 @@ const state = {
   track: [],
   contours: [],
   showShore: false,
+  showCamps: true,
   structures: [],
   fix: null,
   heading: null,
@@ -315,6 +316,11 @@ el("btnClose").onclick = () => el("sheet").classList.remove("open");
 // regardless -- the known rocks sit a median 2 m from shore, so suppressing them
 // from the alarm to tidy the map would remove most of the real hazards on the
 // lake. Hidden from view is not the same as hidden from the alarm.
+el("btnCamps").onclick = () => {
+  state.showCamps = !state.showCamps;
+  el("btnCamps").classList.toggle("on", state.showCamps);
+};
+
 el("btnShore").onclick = () => {
   state.showShore = !state.showShore;
   el("btnShore").classList.toggle("on", state.showShore);
