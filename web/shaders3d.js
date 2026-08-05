@@ -111,20 +111,33 @@ void main() { gl_FragColor = uColor; }`,
     water_vert: `
 precision highp float;
 attribute vec3 aPos;
+attribute float aDepth;
 uniform mat4 uMVP;
 uniform float uTime;
+uniform float uSwell;
 varying ${P} vec2 vXZ;
+varying ${P} float vShore;
 void main() {
-  float swell =
+  // Swell dies out in the shallows. The surface sits at y=0 and the bottom
+  // shelf under a 0 ft block sits at y=0 too, so an unattenuated wave dipped
+  // straight through the bottom and the depth test punched holes in the water
+  // -- which is what the clipping in and out of the shallows was.
+  float fade = smoothstep(0.0, 8.0, aDepth);
+  float swell = uSwell * fade * (
     sin(aPos.x * 0.013 + uTime * 0.55) * 0.13 +
-    sin(aPos.z * 0.009 - uTime * 0.41) * 0.10;
+    sin(aPos.z * 0.009 - uTime * 0.41) * 0.10
+  );
+  // Held just clear of the bottom regardless, so the two surfaces can never
+  // z-fight where the shelf comes all the way up to the waterline.
   vXZ = aPos.xz;
-  gl_Position = uMVP * vec4(aPos.x, swell, aPos.z, 1.0);
+  vShore = fade;
+  gl_Position = uMVP * vec4(aPos.x, swell + 0.06, aPos.z, 1.0);
 }`,
 
     water_frag: `
 precision ${P} float;
 varying ${P} vec2 vXZ;
+varying ${P} float vShore;
 uniform float uTime;
 uniform float uAlpha;
 void main() {
@@ -141,7 +154,9 @@ void main() {
   vec3 light = normalize(vec3(0.45, 0.8, 0.4));
   float spec = pow(max(dot(n, light), 0.0), 24.0);
   vec3 base = mix(vec3(0.129, 0.310, 0.416), vec3(0.216, 0.451, 0.553), n.x * 3.0 + 0.5);
-  gl_FragColor = vec4(base + spec * 0.55, uAlpha);
+  // Thinner over the shallows, the way real water is -- and it keeps the
+  // hazards there visible instead of veiling the ones that matter most.
+  gl_FragColor = vec4(base + spec * 0.55 * vShore, uAlpha * (0.45 + 0.55 * vShore));
 }`,
 
     sky_vert: `

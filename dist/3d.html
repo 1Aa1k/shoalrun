@@ -184,6 +184,10 @@ input[type=range]::-moz-range-thumb { width: 20px; height: 20px; border-radius: 
       <input type="range" id="sldTerrace" min="1" max="15" step="1" value="3">
     </div>
     <div class="slider">
+      <div class="lab"><span>Voxel size</span><b id="valBlock">75 m</b></div>
+      <input type="range" id="sldBlock" min="1" max="8" step="1" value="3">
+    </div>
+    <div class="slider">
       <div class="lab"><span>Highlight shallower than</span><b id="valShallow3d">off</b></div>
       <input type="range" id="sldShallow3d" min="0" max="30" step="1" value="0">
     </div>
@@ -712,20 +716,33 @@ void main() { gl_FragColor = uColor; }`,
     water_vert: `
 precision highp float;
 attribute vec3 aPos;
+attribute float aDepth;
 uniform mat4 uMVP;
 uniform float uTime;
+uniform float uSwell;
 varying ${P} vec2 vXZ;
+varying ${P} float vShore;
 void main() {
-  float swell =
+  // Swell dies out in the shallows. The surface sits at y=0 and the bottom
+  // shelf under a 0 ft block sits at y=0 too, so an unattenuated wave dipped
+  // straight through the bottom and the depth test punched holes in the water
+  // -- which is what the clipping in and out of the shallows was.
+  float fade = smoothstep(0.0, 8.0, aDepth);
+  float swell = uSwell * fade * (
     sin(aPos.x * 0.013 + uTime * 0.55) * 0.13 +
-    sin(aPos.z * 0.009 - uTime * 0.41) * 0.10;
+    sin(aPos.z * 0.009 - uTime * 0.41) * 0.10
+  );
+  // Held just clear of the bottom regardless, so the two surfaces can never
+  // z-fight where the shelf comes all the way up to the waterline.
   vXZ = aPos.xz;
-  gl_Position = uMVP * vec4(aPos.x, swell, aPos.z, 1.0);
+  vShore = fade;
+  gl_Position = uMVP * vec4(aPos.x, swell + 0.06, aPos.z, 1.0);
 }`,
 
     water_frag: `
 precision ${P} float;
 varying ${P} vec2 vXZ;
+varying ${P} float vShore;
 uniform float uTime;
 uniform float uAlpha;
 void main() {
@@ -742,7 +759,9 @@ void main() {
   vec3 light = normalize(vec3(0.45, 0.8, 0.4));
   float spec = pow(max(dot(n, light), 0.0), 24.0);
   vec3 base = mix(vec3(0.129, 0.310, 0.416), vec3(0.216, 0.451, 0.553), n.x * 3.0 + 0.5);
-  gl_FragColor = vec4(base + spec * 0.55, uAlpha);
+  // Thinner over the shallows, the way real water is -- and it keeps the
+  // hazards there visible instead of veiling the ones that matter most.
+  gl_FragColor = vec4(base + spec * 0.55 * vShore, uAlpha * (0.45 + 0.55 * vShore));
 }`,
 
     sky_vert: `
@@ -792,27 +811,47 @@ function hash(n) {
 //
 // Rebuilt on the CPU when the terrace changes, because the risers are real
 // geometry and cannot be faked from a per-vertex depth.
-function buildSteppedMesh(grid, cx, cz, terraceFt) {
+function buildSteppedMesh(grid, cx, cz, terraceFt, blockCells = 1) {
   const pos = [];
   const norm = [];
   const dep = [];
   const step = Math.max(1, terraceFt);
-  const nx = grid.nx;
-  const ny = grid.ny;
+  const bs = Math.max(1, Math.round(blockCells));
 
-  // Terraced depth per cell, or null for land. floor() keeps every shelf at or
-  // shallower than the interpolated depth; on a boat that is the only safe
-  // direction to round.
+  // Blocks of source cells collapsed into one voxel. At the raw 25 m grid the
+  // terrace edges are a cell wide, which reads as noise rather than as steps --
+  // the model wants blocks you can see, not the finest the data supports.
+  //
+  // The block takes the MINIMUM depth it covers, not the mean. A voxel that
+  // averages a 2 ft rock shelf with the 30 ft hole beside it reports 16 ft of
+  // water over a place with 2, and coarsening the display must never invent
+  // depth that is not there.
+  const nx = Math.ceil((grid.nx - 1) / bs);
+  const ny = Math.ceil((grid.ny - 1) / bs);
+
   const lvl = new Float32Array(nx * ny).fill(NaN);
   for (let row = 0; row < ny; row++) {
     for (let col = 0; col < nx; col++) {
-      const ft = grid.at(col, row);
-      if (ft === null) continue;
-      lvl[row * nx + col] = Math.floor(ft / step) * step;
+      let min = Infinity;
+      for (let r = row * bs; r < Math.min((row + 1) * bs, grid.ny); r++) {
+        for (let c = col * bs; c < Math.min((col + 1) * bs, grid.nx); c++) {
+          const ft = grid.at(c, r);
+          if (ft !== null && ft < min) min = ft;
+        }
+      }
+      // A block is water only if some of it is. A block that is mostly land but
+      // touches the lake still has to carry its shallow edge.
+      if (min !== Infinity) lvl[row * nx + col] = Math.floor(min / step) * step;
     }
   }
   const at = (col, row) =>
     col < 0 || row < 0 || col >= nx || row >= ny ? NaN : lvl[row * nx + col];
+
+  // Block footprint in world metres, from the source grid spacing.
+  const bx = grid.stepX * bs;
+  const bz = grid.stepY * bs;
+  const originX = grid.worldX(0) - cx;
+  const originZ = -(grid.worldY(0) - cz);
 
   const yOf = (ft) => -ft / FT_PER_M;
 
@@ -829,11 +868,11 @@ function buildSteppedMesh(grid, cx, cz, terraceFt) {
       const d = at(col, row);
       if (Number.isNaN(d)) continue;
 
-      // Cell footprint. World Y from the grid runs north, and north is -Z.
-      const x0 = grid.worldX(col) - cx;
-      const x1 = grid.worldX(col + 1) - cx;
-      const z0 = -(grid.worldY(row) - cz);
-      const z1 = -(grid.worldY(row + 1) - cz);
+      // Block footprint. World Y from the grid runs north, and north is -Z.
+      const x0 = originX + col * bx;
+      const x1 = x0 + bx;
+      const z0 = originZ - row * bz;
+      const z1 = z0 - bz;
       const y = yOf(d);
 
       // Shelf top.
@@ -874,22 +913,40 @@ function buildSteppedMesh(grid, cx, cz, terraceFt) {
 // Land is every cell the lake mask excludes, plus a skirt to the horizon.
 // Water is the complement, and gets its own buffer so the surface can be drawn
 // translucent over the bottom.
-function buildFlatCells(grid, cx, cz, wantWater) {
+function buildFlatCells(grid, cx, cz, wantWater, blockCells = 1) {
   const v = [];
-  const quad = (ax, az, bx, bz) => {
+  const dep = [];
+  const bs = Math.max(1, Math.round(blockCells));
+  const quad = (ax, az, bx, bz, d) => {
     v.push(ax, 0, az, bx, 0, az, bx, 0, bz, ax, 0, az, bx, 0, bz, ax, 0, bz);
+    for (let i = 0; i < 6; i++) dep.push(d);
   };
 
-  for (let row = 0; row < grid.ny - 1; row++) {
-    for (let col = 0; col < grid.nx - 1; col++) {
-      const wet = grid.at(col, row) !== null;
+  const nx = Math.ceil((grid.nx - 1) / bs);
+  const ny = Math.ceil((grid.ny - 1) / bs);
+  const bx = grid.stepX * bs;
+  const bz = grid.stepY * bs;
+  const originX = grid.worldX(0) - cx;
+  const originZ = -(grid.worldY(0) - cz);
+
+  for (let row = 0; row < ny; row++) {
+    for (let col = 0; col < nx; col++) {
+      // Same minimum rule as the bottom, so the water surface and the shelf
+      // under it agree about how deep a block is. They have to: the swell
+      // amplitude is derived from this, and if it disagreed the surface would
+      // dip through the bottom in exactly the shallows where it must not.
+      let min = Infinity;
+      for (let r = row * bs; r < Math.min((row + 1) * bs, grid.ny); r++) {
+        for (let c = col * bs; c < Math.min((col + 1) * bs, grid.nx); c++) {
+          const ft = grid.at(c, r);
+          if (ft !== null && ft < min) min = ft;
+        }
+      }
+      const wet = min !== Infinity;
       if (wet !== wantWater) continue;
-      quad(
-        grid.worldX(col) - cx,
-        -(grid.worldY(row) - cz),
-        grid.worldX(col + 1) - cx,
-        -(grid.worldY(row + 1) - cz)
-      );
+      const x0 = originX + col * bx;
+      const z0 = originZ - row * bz;
+      quad(x0, z0, x0 + bx, z0 - bz, wet ? min : 0);
     }
   }
 
@@ -899,13 +956,13 @@ function buildFlatCells(grid, cx, cz, wantWater) {
     const z0 = -(grid.worldY(0) - cz);
     const z1 = -(grid.worldY(grid.ny - 1) - cz);
     const pad = 15000;
-    quad(x0 - pad, z0 + pad, x1 + pad, z0);
-    quad(x0 - pad, z1, x1 + pad, z1 - pad);
-    quad(x0 - pad, z0, x0, z1);
-    quad(x1, z0, x1 + pad, z1);
+    quad(x0 - pad, z0 + pad, x1 + pad, z0, 0);
+    quad(x0 - pad, z1, x1 + pad, z1 - pad, 0);
+    quad(x0 - pad, z0, x0, z1, 0);
+    quad(x1, z0, x1 + pad, z1, 0);
   }
 
-  return new Float32Array(v);
+  return { pos: new Float32Array(v), dep: new Float32Array(dep), count: v.length / 3 };
 }
 function shoreRings(LAKE_GEO, proj) {
   const geom = LAKE_GEO.geometry;
@@ -1249,36 +1306,46 @@ function buf(data) {
   return b;
 }
 
-const opts = { exag: 8, shallow: 0, terrace: 3 };
+// blockCells is in source grid cells; the grid is 25 m, so 3 -> 75 m voxels.
+const opts = { exag: 8, shallow: 0, terrace: 3, block: 3 };
 
 // The terraced bottom is real geometry with vertical risers, so changing the
 // terrace rebuilds it. Buffers are reused rather than reallocated.
-let bottom = buildSteppedMesh(grid, cx, cz, opts.terrace);
+let bottom = buildSteppedMesh(grid, cx, cz, opts.terrace, opts.block);
 const bufBottomPos = buf(bottom.pos);
 const bufBottomNorm = buf(bottom.norm);
 const bufBottomDep = buf(bottom.dep);
 
 function rebuildBottom() {
-  bottom = buildSteppedMesh(grid, cx, cz, opts.terrace);
+  bottom = buildSteppedMesh(grid, cx, cz, opts.terrace, opts.block);
   gl.bindBuffer(gl.ARRAY_BUFFER, bufBottomPos);
   gl.bufferData(gl.ARRAY_BUFFER, bottom.pos, gl.STATIC_DRAW);
   gl.bindBuffer(gl.ARRAY_BUFFER, bufBottomNorm);
   gl.bufferData(gl.ARRAY_BUFFER, bottom.norm, gl.STATIC_DRAW);
   gl.bindBuffer(gl.ARRAY_BUFFER, bufBottomDep);
   gl.bufferData(gl.ARRAY_BUFFER, bottom.dep, gl.STATIC_DRAW);
+
+  // Water blocks follow the bottom blocks, so the swell attenuation is keyed to
+  // the same depth the shelf under it was built from.
+  water = buildFlatCells(grid, cx, cz, true, opts.block);
+  gl.bindBuffer(gl.ARRAY_BUFFER, bufWater);
+  gl.bufferData(gl.ARRAY_BUFFER, water.pos, gl.STATIC_DRAW);
+  gl.bindBuffer(gl.ARRAY_BUFFER, bufWaterDep);
+  gl.bufferData(gl.ARRAY_BUFFER, water.dep, gl.STATIC_DRAW);
   updateStats();
 }
 
 const rings = shoreRings(LAKE_GEO, proj);
-const land = buildFlatCells(grid, cx, cz, false);
-const water = buildFlatCells(grid, cx, cz, true);
+const land = buildFlatCells(grid, cx, cz, false, opts.block);
+let water = buildFlatCells(grid, cx, cz, true, opts.block);
 const shore = buildShore(rings, cx, cz);
 const trees = buildTrees(grid, rings, cx, cz);
 const rocks = buildHazardRocks(grid, ROCK_GEO, proj, cx, cz);
 const hull = buildBoatHull();
 
-const bufLand = buf(land);
-const bufWater = buf(water);
+const bufLand = buf(land.pos);
+const bufWater = buf(water.pos);
+const bufWaterDep = buf(water.dep);
 const bufShore = buf(shore);
 const bufTreePos = buf(trees.pos);
 const bufTreeNorm = buf(trees.norm);
@@ -1297,11 +1364,11 @@ const bufSky = buf(new Float32Array([-1, -1, 3, -1, -1, 3]));
 // reads off the end of the buffer -- three floats per vertex for the normal,
 // one for the shade.
 const bufLandNorm = buf((() => {
-  const n = new Float32Array(land.length);
+  const n = new Float32Array(land.pos.length);
   for (let i = 1; i < n.length; i += 3) n[i] = 1; // straight up
   return n;
 })());
-const bufLandShade = buf(new Float32Array(land.length / 3).fill(1));
+const bufLandShade = buf(new Float32Array(land.count).fill(1));
 
 // --- camera ----------------------------------------------------------------
 
@@ -1312,7 +1379,18 @@ const orbit = { yaw: 0, pitch: 0.62, dist: 7000 };
 // Fly starts fast. At 400 m/s it took most of a minute to cross a 9 km lake,
 // which is not flying, it is drifting.
 const fly = { x: 0, y: 1200, z: 5000, yaw: 0, pitch: -0.35, speed: 1400 };
-const boat = { x: 0, z: 0, yaw: Math.PI, pitch: -0.06, speed: 0, heading: Math.PI };
+// heading is where the hull points; camYaw is where the camera points; look is
+// the drag offset between them. They were one variable, which meant dragging
+// steered the boat AND the camera together, so the hull could never appear to
+// turn -- it was welded to the view.
+const boat = {
+  x: 0, z: 0, speed: 0,
+  heading: Math.PI,
+  camYaw: Math.PI,
+  look: 0,
+  pitch: -0.06,
+  roll: 0,
+};
 
 const BOAT_EYE_M = 1.9;
 const BOAT_MAX_MS = 12; // ~23 kn, about what an outboard on this lake does
@@ -1467,8 +1545,14 @@ function cameraFor(dt) {
     return { eye, target: add3(eye, fwd) };
   }
 
-  if (keys.has("a")) boat.heading -= 1.1 * dt;
-  if (keys.has("d")) boat.heading += 1.1 * dt;
+  // Turn rate falls off with speed, the way a hull actually behaves -- a boat
+  // at rest pivots, a boat at 20 kn carves.
+  let turn = 0;
+  if (keys.has("a")) turn -= 1;
+  if (keys.has("d")) turn += 1;
+  const rate = 1.35 / (1 + Math.abs(boat.speed) * 0.06);
+  boat.heading += turn * rate * dt;
+
   const want = keys.has("w") ? BOAT_MAX_MS : keys.has("s") ? -BOAT_MAX_MS * 0.4 : 0;
   // Eased rather than instant, because instant throttle makes the depth readout
   // jump in a way that is impossible to read.
@@ -1477,9 +1561,19 @@ function cameraFor(dt) {
   boat.x += h[0] * boat.speed * dt;
   boat.z += h[2] * boat.speed * dt;
 
-  boat.yaw = boat.heading;
+  // Camera chases the heading rather than being locked to it. The lag is the
+  // whole point: during a turn the hull swings out in frame and settles back,
+  // which is what makes the boat read as turning instead of the world spinning
+  // around a fixed bow.
+  let err = boat.heading + boat.look - boat.camYaw;
+  while (err > Math.PI) err -= Math.PI * 2;
+  while (err < -Math.PI) err += Math.PI * 2;
+  boat.camYaw += err * Math.min(1, dt * 3.2);
+  boat.roll += (-turn * Math.min(1, Math.abs(boat.speed) / BOAT_MAX_MS) * 0.13 - boat.roll)
+    * Math.min(1, dt * 2.5);
+
   const eye = [boat.x, BOAT_EYE_M, boat.z];
-  return { eye, target: add3(eye, forwardOf(boat.yaw, boat.pitch)) };
+  return { eye, target: add3(eye, forwardOf(boat.camYaw, boat.pitch)), roll: boat.roll };
 }
 
 function resize() {
@@ -1521,7 +1615,7 @@ function draw(now) {
   lastT = now;
   clock += dt;
 
-  const { eye, target } = cameraFor(dt);
+  const { eye, target, roll } = cameraFor(dt);
   // Boat mode ignores the exaggeration slider. From 1.9 m above the water, 8x
   // turns a 20 ft bottom into a 160 ft canyon and puts every shallow at eye
   // level -- the one view that pretends you are on the lake is the one where
@@ -1539,7 +1633,23 @@ function draw(now) {
   gl.depthMask(true);
   gl.enable(gl.DEPTH_TEST);
 
-  const view = lookAt(eye, target, [0, 1, 0]);
+  // Roll has to be about the camera's own forward axis. Tilting a world-space
+  // up vector instead only rolls when you happen to be looking down -Z; at
+  // other headings the same tilt comes out as pitch and throws the view --
+  // and the hull with it -- off the screen.
+  let up = [0, 1, 0];
+  if (roll) {
+    const fwd = norm3(sub3(target, eye));
+    const right = norm3(cross3(fwd, [0, 1, 0]));
+    const c = Math.cos(roll);
+    const sn = Math.sin(roll);
+    up = norm3([
+      right[0] * sn + up[0] * c,
+      right[1] * sn + up[1] * c,
+      right[2] * sn + up[2] * c,
+    ]);
+  }
+  const view = lookAt(eye, target, up);
   const projM = perspective(0.9, canvas.width / canvas.height, 0.4, 80000);
   const mvp = new Float32Array(multiply(view, projM));
 
@@ -1552,7 +1662,7 @@ function draw(now) {
   attr(litProg, "aPos", bufLand, 3);
   attr(litProg, "aNormal", bufLandNorm, 3);
   attr(litProg, "aShade", bufLandShade, 1);
-  gl.drawArrays(gl.TRIANGLES, 0, land.length / 3);
+  gl.drawArrays(gl.TRIANGLES, 0, land.count);
 
   // Bottom.
   gl.useProgram(bottomProg);
@@ -1628,8 +1738,12 @@ function draw(now) {
   gl.uniformMatrix4fv(uni(waterProg, "uMVP"), false, mvp);
   gl.uniform1f(uni(waterProg, "uTime"), clock);
   gl.uniform1f(uni(waterProg, "uAlpha"), mode === "boat" ? 0.62 : 0.2);
+  // Swell is metres of displacement, so it must not be exaggerated along with
+  // the bottom -- at 8x it would tower over the shallows it is meant to skim.
+  gl.uniform1f(uni(waterProg, "uSwell"), mode === "boat" ? 1 : 0);
   attr(waterProg, "aPos", bufWater, 3);
-  gl.drawArrays(gl.TRIANGLES, 0, water.length / 3);
+  attr(waterProg, "aDepth", bufWaterDep, 1);
+  gl.drawArrays(gl.TRIANGLES, 0, water.count);
   gl.depthMask(true);
   gl.disable(gl.BLEND);
 
@@ -1668,9 +1782,11 @@ function updateHud() {
 }
 
 function updateStats() {
+  const m = Math.round(grid.gridM * opts.block);
   el("stats").textContent =
-    `${(bottom.count / 3).toLocaleString()} triangles - ${opts.terrace} ft terraces - ` +
-    `${rocks.list.length} hazards - ${(trees.count / 12).toLocaleString()} trees`;
+    `${(bottom.count / 3).toLocaleString()} triangles - ${m} m voxels, ` +
+    `${opts.terrace} ft steps - ${rocks.list.length} hazards - ` +
+    `${(trees.count / 12).toLocaleString()} trees`;
 }
 
 // --- interaction -----------------------------------------------------------
@@ -1713,9 +1829,9 @@ canvas.addEventListener("pointermove", (e) => {
     fly.yaw += dx * 0.005;
     fly.pitch = clamp(fly.pitch - dy * 0.005, -1.4, 1.4);
   } else {
-    // In boat mode the drag looks around; steering is A/D, so you can look off
-    // the beam while holding a course.
-    boat.heading += dx * 0.005;
+    // Drag looks around; steering is A/D. The offset is clamped so you cannot
+    // end up facing astern with no way to tell which way the boat is going.
+    boat.look = clamp(boat.look + dx * 0.005, -2.2, 2.2);
     boat.pitch = clamp(boat.pitch - dy * 0.004, -0.6, 0.5);
   }
 });
@@ -1790,11 +1906,21 @@ el("sldShallow3d").addEventListener("input", (e) => {
 // The terraces are geometry now, so this rebuilds a ~10 MB buffer. Debounced,
 // or dragging the slider would rebuild it thirty times on the way past.
 let terraceTimer = null;
+function queueRebuild() {
+  clearTimeout(terraceTimer);
+  terraceTimer = setTimeout(rebuildBottom, 140);
+}
+
 el("sldTerrace").addEventListener("input", (e) => {
   opts.terrace = +e.target.value;
   el("valTerrace").textContent = `${opts.terrace} ft`;
-  clearTimeout(terraceTimer);
-  terraceTimer = setTimeout(rebuildBottom, 140);
+  queueRebuild();
+});
+
+el("sldBlock").addEventListener("input", (e) => {
+  opts.block = +e.target.value;
+  el("valBlock").textContent = `${Math.round(grid.gridM * opts.block)} m`;
+  queueRebuild();
 });
 
 el("btnGear").onclick = () => {
@@ -1810,12 +1936,14 @@ el("btnReset").onclick = () => {
   fly.yaw = 0;
   fly.pitch = -0.35;
   fly.speed = 1400;
+  boat.look = 0;
   spawnAt("neoc");
 };
 
 updateStats();
 el("valExag").textContent = `${opts.exag}x`;
 el("valTerrace").textContent = `${opts.terrace} ft`;
+el("valBlock").textContent = `${Math.round(grid.gridM * opts.block)} m`;
 spawnAt("neoc");
 
 // ?mode= deep-links straight into a mode, which is how this gets checked

@@ -111,36 +111,46 @@ function buf(data) {
   return b;
 }
 
-const opts = { exag: 8, shallow: 0, terrace: 3 };
+// blockCells is in source grid cells; the grid is 25 m, so 3 -> 75 m voxels.
+const opts = { exag: 8, shallow: 0, terrace: 3, block: 3 };
 
 // The terraced bottom is real geometry with vertical risers, so changing the
 // terrace rebuilds it. Buffers are reused rather than reallocated.
-let bottom = buildSteppedMesh(grid, cx, cz, opts.terrace);
+let bottom = buildSteppedMesh(grid, cx, cz, opts.terrace, opts.block);
 const bufBottomPos = buf(bottom.pos);
 const bufBottomNorm = buf(bottom.norm);
 const bufBottomDep = buf(bottom.dep);
 
 function rebuildBottom() {
-  bottom = buildSteppedMesh(grid, cx, cz, opts.terrace);
+  bottom = buildSteppedMesh(grid, cx, cz, opts.terrace, opts.block);
   gl.bindBuffer(gl.ARRAY_BUFFER, bufBottomPos);
   gl.bufferData(gl.ARRAY_BUFFER, bottom.pos, gl.STATIC_DRAW);
   gl.bindBuffer(gl.ARRAY_BUFFER, bufBottomNorm);
   gl.bufferData(gl.ARRAY_BUFFER, bottom.norm, gl.STATIC_DRAW);
   gl.bindBuffer(gl.ARRAY_BUFFER, bufBottomDep);
   gl.bufferData(gl.ARRAY_BUFFER, bottom.dep, gl.STATIC_DRAW);
+
+  // Water blocks follow the bottom blocks, so the swell attenuation is keyed to
+  // the same depth the shelf under it was built from.
+  water = buildFlatCells(grid, cx, cz, true, opts.block);
+  gl.bindBuffer(gl.ARRAY_BUFFER, bufWater);
+  gl.bufferData(gl.ARRAY_BUFFER, water.pos, gl.STATIC_DRAW);
+  gl.bindBuffer(gl.ARRAY_BUFFER, bufWaterDep);
+  gl.bufferData(gl.ARRAY_BUFFER, water.dep, gl.STATIC_DRAW);
   updateStats();
 }
 
 const rings = shoreRings(LAKE_GEO, proj);
-const land = buildFlatCells(grid, cx, cz, false);
-const water = buildFlatCells(grid, cx, cz, true);
+const land = buildFlatCells(grid, cx, cz, false, opts.block);
+let water = buildFlatCells(grid, cx, cz, true, opts.block);
 const shore = buildShore(rings, cx, cz);
 const trees = buildTrees(grid, rings, cx, cz);
 const rocks = buildHazardRocks(grid, ROCK_GEO, proj, cx, cz);
 const hull = buildBoatHull();
 
-const bufLand = buf(land);
-const bufWater = buf(water);
+const bufLand = buf(land.pos);
+const bufWater = buf(water.pos);
+const bufWaterDep = buf(water.dep);
 const bufShore = buf(shore);
 const bufTreePos = buf(trees.pos);
 const bufTreeNorm = buf(trees.norm);
@@ -159,11 +169,11 @@ const bufSky = buf(new Float32Array([-1, -1, 3, -1, -1, 3]));
 // reads off the end of the buffer -- three floats per vertex for the normal,
 // one for the shade.
 const bufLandNorm = buf((() => {
-  const n = new Float32Array(land.length);
+  const n = new Float32Array(land.pos.length);
   for (let i = 1; i < n.length; i += 3) n[i] = 1; // straight up
   return n;
 })());
-const bufLandShade = buf(new Float32Array(land.length / 3).fill(1));
+const bufLandShade = buf(new Float32Array(land.count).fill(1));
 
 // --- camera ----------------------------------------------------------------
 
@@ -174,7 +184,18 @@ const orbit = { yaw: 0, pitch: 0.62, dist: 7000 };
 // Fly starts fast. At 400 m/s it took most of a minute to cross a 9 km lake,
 // which is not flying, it is drifting.
 const fly = { x: 0, y: 1200, z: 5000, yaw: 0, pitch: -0.35, speed: 1400 };
-const boat = { x: 0, z: 0, yaw: Math.PI, pitch: -0.06, speed: 0, heading: Math.PI };
+// heading is where the hull points; camYaw is where the camera points; look is
+// the drag offset between them. They were one variable, which meant dragging
+// steered the boat AND the camera together, so the hull could never appear to
+// turn -- it was welded to the view.
+const boat = {
+  x: 0, z: 0, speed: 0,
+  heading: Math.PI,
+  camYaw: Math.PI,
+  look: 0,
+  pitch: -0.06,
+  roll: 0,
+};
 
 const BOAT_EYE_M = 1.9;
 const BOAT_MAX_MS = 12; // ~23 kn, about what an outboard on this lake does
@@ -329,8 +350,14 @@ function cameraFor(dt) {
     return { eye, target: add3(eye, fwd) };
   }
 
-  if (keys.has("a")) boat.heading -= 1.1 * dt;
-  if (keys.has("d")) boat.heading += 1.1 * dt;
+  // Turn rate falls off with speed, the way a hull actually behaves -- a boat
+  // at rest pivots, a boat at 20 kn carves.
+  let turn = 0;
+  if (keys.has("a")) turn -= 1;
+  if (keys.has("d")) turn += 1;
+  const rate = 1.35 / (1 + Math.abs(boat.speed) * 0.06);
+  boat.heading += turn * rate * dt;
+
   const want = keys.has("w") ? BOAT_MAX_MS : keys.has("s") ? -BOAT_MAX_MS * 0.4 : 0;
   // Eased rather than instant, because instant throttle makes the depth readout
   // jump in a way that is impossible to read.
@@ -339,9 +366,19 @@ function cameraFor(dt) {
   boat.x += h[0] * boat.speed * dt;
   boat.z += h[2] * boat.speed * dt;
 
-  boat.yaw = boat.heading;
+  // Camera chases the heading rather than being locked to it. The lag is the
+  // whole point: during a turn the hull swings out in frame and settles back,
+  // which is what makes the boat read as turning instead of the world spinning
+  // around a fixed bow.
+  let err = boat.heading + boat.look - boat.camYaw;
+  while (err > Math.PI) err -= Math.PI * 2;
+  while (err < -Math.PI) err += Math.PI * 2;
+  boat.camYaw += err * Math.min(1, dt * 3.2);
+  boat.roll += (-turn * Math.min(1, Math.abs(boat.speed) / BOAT_MAX_MS) * 0.13 - boat.roll)
+    * Math.min(1, dt * 2.5);
+
   const eye = [boat.x, BOAT_EYE_M, boat.z];
-  return { eye, target: add3(eye, forwardOf(boat.yaw, boat.pitch)) };
+  return { eye, target: add3(eye, forwardOf(boat.camYaw, boat.pitch)), roll: boat.roll };
 }
 
 function resize() {
@@ -383,7 +420,7 @@ function draw(now) {
   lastT = now;
   clock += dt;
 
-  const { eye, target } = cameraFor(dt);
+  const { eye, target, roll } = cameraFor(dt);
   // Boat mode ignores the exaggeration slider. From 1.9 m above the water, 8x
   // turns a 20 ft bottom into a 160 ft canyon and puts every shallow at eye
   // level -- the one view that pretends you are on the lake is the one where
@@ -401,7 +438,23 @@ function draw(now) {
   gl.depthMask(true);
   gl.enable(gl.DEPTH_TEST);
 
-  const view = lookAt(eye, target, [0, 1, 0]);
+  // Roll has to be about the camera's own forward axis. Tilting a world-space
+  // up vector instead only rolls when you happen to be looking down -Z; at
+  // other headings the same tilt comes out as pitch and throws the view --
+  // and the hull with it -- off the screen.
+  let up = [0, 1, 0];
+  if (roll) {
+    const fwd = norm3(sub3(target, eye));
+    const right = norm3(cross3(fwd, [0, 1, 0]));
+    const c = Math.cos(roll);
+    const sn = Math.sin(roll);
+    up = norm3([
+      right[0] * sn + up[0] * c,
+      right[1] * sn + up[1] * c,
+      right[2] * sn + up[2] * c,
+    ]);
+  }
+  const view = lookAt(eye, target, up);
   const projM = perspective(0.9, canvas.width / canvas.height, 0.4, 80000);
   const mvp = new Float32Array(multiply(view, projM));
 
@@ -414,7 +467,7 @@ function draw(now) {
   attr(litProg, "aPos", bufLand, 3);
   attr(litProg, "aNormal", bufLandNorm, 3);
   attr(litProg, "aShade", bufLandShade, 1);
-  gl.drawArrays(gl.TRIANGLES, 0, land.length / 3);
+  gl.drawArrays(gl.TRIANGLES, 0, land.count);
 
   // Bottom.
   gl.useProgram(bottomProg);
@@ -490,8 +543,12 @@ function draw(now) {
   gl.uniformMatrix4fv(uni(waterProg, "uMVP"), false, mvp);
   gl.uniform1f(uni(waterProg, "uTime"), clock);
   gl.uniform1f(uni(waterProg, "uAlpha"), mode === "boat" ? 0.62 : 0.2);
+  // Swell is metres of displacement, so it must not be exaggerated along with
+  // the bottom -- at 8x it would tower over the shallows it is meant to skim.
+  gl.uniform1f(uni(waterProg, "uSwell"), mode === "boat" ? 1 : 0);
   attr(waterProg, "aPos", bufWater, 3);
-  gl.drawArrays(gl.TRIANGLES, 0, water.length / 3);
+  attr(waterProg, "aDepth", bufWaterDep, 1);
+  gl.drawArrays(gl.TRIANGLES, 0, water.count);
   gl.depthMask(true);
   gl.disable(gl.BLEND);
 
@@ -530,9 +587,11 @@ function updateHud() {
 }
 
 function updateStats() {
+  const m = Math.round(grid.gridM * opts.block);
   el("stats").textContent =
-    `${(bottom.count / 3).toLocaleString()} triangles - ${opts.terrace} ft terraces - ` +
-    `${rocks.list.length} hazards - ${(trees.count / 12).toLocaleString()} trees`;
+    `${(bottom.count / 3).toLocaleString()} triangles - ${m} m voxels, ` +
+    `${opts.terrace} ft steps - ${rocks.list.length} hazards - ` +
+    `${(trees.count / 12).toLocaleString()} trees`;
 }
 
 // --- interaction -----------------------------------------------------------
@@ -575,9 +634,9 @@ canvas.addEventListener("pointermove", (e) => {
     fly.yaw += dx * 0.005;
     fly.pitch = clamp(fly.pitch - dy * 0.005, -1.4, 1.4);
   } else {
-    // In boat mode the drag looks around; steering is A/D, so you can look off
-    // the beam while holding a course.
-    boat.heading += dx * 0.005;
+    // Drag looks around; steering is A/D. The offset is clamped so you cannot
+    // end up facing astern with no way to tell which way the boat is going.
+    boat.look = clamp(boat.look + dx * 0.005, -2.2, 2.2);
     boat.pitch = clamp(boat.pitch - dy * 0.004, -0.6, 0.5);
   }
 });
@@ -652,11 +711,21 @@ el("sldShallow3d").addEventListener("input", (e) => {
 // The terraces are geometry now, so this rebuilds a ~10 MB buffer. Debounced,
 // or dragging the slider would rebuild it thirty times on the way past.
 let terraceTimer = null;
+function queueRebuild() {
+  clearTimeout(terraceTimer);
+  terraceTimer = setTimeout(rebuildBottom, 140);
+}
+
 el("sldTerrace").addEventListener("input", (e) => {
   opts.terrace = +e.target.value;
   el("valTerrace").textContent = `${opts.terrace} ft`;
-  clearTimeout(terraceTimer);
-  terraceTimer = setTimeout(rebuildBottom, 140);
+  queueRebuild();
+});
+
+el("sldBlock").addEventListener("input", (e) => {
+  opts.block = +e.target.value;
+  el("valBlock").textContent = `${Math.round(grid.gridM * opts.block)} m`;
+  queueRebuild();
 });
 
 el("btnGear").onclick = () => {
@@ -672,12 +741,14 @@ el("btnReset").onclick = () => {
   fly.yaw = 0;
   fly.pitch = -0.35;
   fly.speed = 1400;
+  boat.look = 0;
   spawnAt("neoc");
 };
 
 updateStats();
 el("valExag").textContent = `${opts.exag}x`;
 el("valTerrace").textContent = `${opts.terrace} ft`;
+el("valBlock").textContent = `${Math.round(grid.gridM * opts.block)} m`;
 spawnAt("neoc");
 
 // ?mode= deep-links straight into a mode, which is how this gets checked
