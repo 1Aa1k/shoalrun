@@ -1,0 +1,157 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2" xmlns:gx="http://www.google.com/kml/ext/2.2" xmlns:kml="http://www.opengis.net/kml/2.2" xmlns:atom="http://www.w3.org/2005/Atom">
+<Document>
+	<name>Maine Public Boating Facilities</name>
+	<open>1</open>
+	<description><![CDATA[<TABLE cellSpacing=4 cellPadding=1 width="100%" summary="" border=0>
+		<TBODY><TR>
+		</TR></TBODY></TABLE>
+	
+		<b><p >Maine Boating Facilities Division Contacts:</p></b>
+		<p>
+			<ul><li>Tom Linscott, Director of Boating Facilities<br>207-287-4952</li>
+			<li>Bill Cunningham, Boat Site Maintenance<br>207-582-7845</li>
+			<li>Tim Thurston, Navigational Aids<br>207-582-5771</li></ui>
+		</p>
+
+	<b><name>Boating Facilities Data Downloads:</name></b>
+		<p><a href='http://www.maine.gov/dacf/parks/water_activities/boating/public_boat_launches/DOC_Boat_Facilities_DataExport.txt'>Public Boat Facilities</a> - download a text file of Maine Public Boating Facilities.</p>
+		
+		<p><a href='http://www.maine.gov/dacf/parks/water_activities/boating/gis/doc_buoys_all_lakes.csv'>Buoys</a> - download a text file of all DACF maintained waterway markers.</p>	
+		
+	<b><name>Other Links:</name></b>
+		<p><a href='http://www.maine.gov/dacf/parks/water_activities/boating/index.shtml'>Maine Boating Facilities Division</a></p>
+		<p><a href='http://www.maine.gov/dacf/parks/water_activities/boating/navigational_aids.shtml'>Navigational Aids</a></p>
+		<p><a href='http://www.maine.gov/dacf/index.shtml'>Maine Department of Agriculture,Conservation and Forestry</a></p>]]></description>
+	<LookAt>
+		<longitude>-69.31801790095346</longitude>
+		<latitude>45.24251821354257</latitude>
+		<altitude>0</altitude>
+		<heading>0</heading>
+		<tilt>0</tilt>
+		<range>559521.845808612</range>
+	</LookAt>
+	<atom:author>             
+		<atom:name>Tim Thurston, Maine Department of Agriculture, Conservation and Forestry</atom:name>         
+    </atom:author><atom:link href="www.maine.gov/dacf/parks/water_activities/boating/index.shtml"></atom:link><DocumentSource>Maine DOC</DocumentSource>
+	<ScreenOverlay>
+		<name>Legend</name>
+		<Icon>
+			<href>http://www.maine.gov/dacf/parks/water_activities/boating/gis/buoy_legend.jpg</href>
+		</Icon>
+		<overlayXY x="0" y="1" xunits="fraction" yunits="fraction"/>
+		<screenXY x="0.005" y="0.995" xunits="fraction" yunits="fraction"/>
+		<rotationXY x="0" y="0" xunits="fraction" yunits="fraction"/>
+		<size x="0" y="0" xunits="fraction" yunits="fraction"/>
+	</ScreenOverlay>
+	<ScreenOverlay>
+		<name>Disclaimer</name>
+		<Icon>
+			<href>http://www.maine.gov/dacf/parks/water_activities/boating/gis/disclaimer.jpg</href>
+		</Icon>
+		<overlayXY x="0" y="1" xunits="fraction" yunits="fraction"/>
+		<screenXY x="0.76" y="0.45" xunits="fraction" yunits="fraction"/>
+		<rotationXY x="0" y="0" xunits="fraction" yunits="fraction"/>
+		<size x="0.24" y="0.35" xunits="fraction" yunits="fraction"/>
+	</ScreenOverlay>
+	<NetworkLink>
+		<name>Buoys by Lake</name>
+		<Snippet maxLines="1">sorted by Lake</Snippet>
+		<Url>
+			<href>http://www.maine.gov/dacf/parks/water_activities/boating/gis/doc_buoys_lake_name.kmz</href>
+		</Url>
+	</NetworkLink>
+	<Folder>
+		<name>Boat Launches</name>
+		<visibility>0</visibility>
+		<Folder>
+			<name>Maine Public Boating Facilities</name>
+			<visibility>0</visibility>
+			<Snippet maxLines="2"><![CDATA[<P>Click here for<BR>Contacts and Links</P>]]></Snippet>
+			<description><![CDATA[<TABLE cellSpacing=4 cellPadding=1 width="100%" summary="" border=0>
+			<TBODY><TR>
+			</TR></TBODY></TABLE>
+			<p align=center>Locations of State Sponsored and State Owned Public Recreational Boat Access Sites.</p>
+			<p>
+				<ul><li>Tom Linscott, Director of Boating Facilities<br>207-287-4964</li>
+				<li>Elisabeth Altshuler, Secretary<br>207-287-4952</li>
+				<li>Bill Cunningham, Boat Site Maintenance<br>207-582-7845</li>
+				<li>Tim Thurston, Navigational Aids<br>207-582-5771</ui>
+			</p>
+			<p><a href='http://www.maine.gov/dacf/parks/water_activities/boating/public_boat_launches/boat_sites.shtml'>Boating Facilities Access Site List</a></p>
+			<p>GIS users <a href='http://www.maine.gov/dacf/parks/water_activities/boating/public_boat_launches/DOC_Boat_Facilities_DataExport.txt'>download</a> a list with coordinates.</p>
+			<p>Printable List - <a href='http://www.maine.gov/dacf/parks/docs/maineboatsitelist.pdf'>Download</a> our site list in a .pdf file for printing.</p>
+			<br>
+			<p><a href='http://www.maine.gov/dacf/parks/water_activities/boating/public_boat_launches/index.shtml'>Maine Boating Facilities Division</a></p>
+			<p><a href='http://www.maine.gov/dacf/index.shtml'>Maine Department of Agriculture,Conservation and Forestry</a></p>]]></description>
+			<LookAt>
+				<longitude>-69.02772466165376</longitude>
+				<latitude>45.2149811590935</latitude>
+				<altitude>0</altitude>
+				<heading>0</heading>
+				<tilt>0</tilt>
+				<range>285912.9961775088</range>
+			</LookAt>
+			<Region>
+				<LatLonAltBox>
+					<north>90</north>
+					<south>-90</south>
+					<east>180</east>
+					<west>-180</west>
+					<minAltitude>0</minAltitude>
+					<maxAltitude>0</maxAltitude>
+				</LatLonAltBox>
+				<Lod>
+					<minLodPixels>128</minLodPixels>
+					<maxLodPixels>-1</maxLodPixels>
+					<minFadeExtent>0</minFadeExtent>
+					<maxFadeExtent>0</maxFadeExtent>
+				</Lod>
+				<LatLonBox>
+<north>47.5029699317638</north>
+<south>42.926992386423194</south>
+<east>-66.82839392182677</east>
+<west>-71.22705540148075</west>
+</LatLonBox>
+			</Region>
+			<ScreenOverlay>
+				<name>Legend</name>
+				<visibility>0</visibility>
+				<Icon>
+					<href>http://www.maine.gov/dacf/parks/water_activities/boating/public_boat_launches/sites/DOC_Boat_Facilities.kmz/legend.JPG</href>
+				</Icon>
+				<overlayXY x="0" y="1" xunits="fraction" yunits="fraction"/>
+				<screenXY x="0" y="1" xunits="fraction" yunits="fraction"/>
+				<rotationXY x="0" y="0" xunits="fraction" yunits="fraction"/>
+				<size x="-1" y="-1" xunits="fraction" yunits="fraction"/>
+			</ScreenOverlay>
+			<NetworkLink>
+				<name>All Boat Sites</name>
+				<visibility>0</visibility>
+				<Snippet maxLines="1">sorted by Water Body</Snippet>
+				<Url>
+					<href>http://www.maine.gov/dacf/parks/water_activities/boating/public_boat_launches/DOC_Boat_Facilities.kmz</href>
+				</Url>
+			</NetworkLink>
+		</Folder>
+	</Folder>
+	<NetworkLink>
+		<name>Dams</name>
+		<visibility>0</visibility>
+		<Url>
+			<href>http://www.maine.gov/megis/catalog/kml/state/impounds.kmz</href>
+		</Url>
+	</NetworkLink>
+<NetworkLink>
+		<name>NAIP 2018 Imagery</name>
+		<visibility>0</visibility>
+		<open>1</open>
+		<Link>
+			<href>https://gis.maine.gov/arcgis/rest/services/imageryBaseMapsEarthCover/orthoNaip2018ImgSvc/ImageServer/exportImage?</href>
+			<viewRefreshMode>onStop</viewRefreshMode>
+			<viewRefreshTime>2</viewRefreshTime>
+			<viewFormat>f=kmz&amp;bboxSR=4326&amp;imageSR=4326&amp;format=jpgpng&amp;bbox=[bboxWest],[bboxSouth],[bboxEast],[bboxNorth]&amp;size=[horizPixels],[vertPixels]&amp;</viewFormat>
+		</Link>
+	</NetworkLink>
+</Document>
+</kml>
