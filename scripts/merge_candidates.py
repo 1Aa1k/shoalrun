@@ -35,6 +35,7 @@ from shoalrun_config import lake_crs
 ROOT = Path(__file__).resolve().parent.parent
 NAIP = ROOT / "data" / "rocks_naip.geojson"
 NAIP03 = ROOT / "data" / "rocks_naip_03.geojson"
+BRIGHT = ROOT / "data" / "rocks_bright.geojson"
 SENT = ROOT / "data" / "verified.geojson"
 REFS = ROOT / "data" / "reference_rocks.geojson"
 BUOYS = ROOT / "data" / "buoy_candidates.geojson"
@@ -71,14 +72,18 @@ def main():
             return []
         return json.loads(path.read_text())["features"]
 
-    # MEASURED: the 1 m pass beats the 0.3 m pass, and it is not close.
-    #   naip-1m    12841 det, 97% recall (20% random), median error 11.5 m
-    #   naip-0.3m   3562 det, 56% recall (10% random), median error 18.8 m
-    # Finer pixels did not help; more DATES did. The 1 m run stacks six flights
-    # (2011-2023) while 0.3 m imagery only exists from 2018, so the persistence
-    # test had three chances instead of six. Temporal depth is worth more than
-    # spatial resolution for this problem, which is the opposite of the intuition
-    # that sent the 0.3 m job to a 24-core box in the first place.
+    # MEASURED against 32 hand-mapped rocks, each scored beside a same-size
+    # random null. The null matters more than the recall: scatter 12,841 points
+    # on a 34 km2 lake and half of them land within 30 m of a known rock by luck
+    # alone, so only the LIFT over random means anything.
+    #   naip-1m         12841 det, 97% recall, 56% random, lift +41%, err 11.5 m
+    #   naip-bright-1m   8454 det, 91% recall, 47% random, lift +44%, err 13.0 m
+    #   naip-0.3m        3562 det, 56% recall, 22% random, lift +34%, err 20.2 m
+    # An earlier version of this comment claimed "97% recall (20% random)". That
+    # 20% came from a differently-constructed null and overstated the lift badly.
+    # The 1 m pass still beats the 0.3 m pass -- more DATES beat finer pixels,
+    # since 0.3 m imagery only exists from 2018 so persistence had three chances
+    # instead of six -- but by less than previously advertised.
     naip = load(NAIP)
 
     # Size floor, measured rather than guessed. Against the 32 hand-mapped rocks:
@@ -98,6 +103,22 @@ def main():
     def pt(f):
         p = f["properties"]
         return shape({"type": "Point", "coordinates": [p["lon"], p["lat"]]})
+
+    # The brightness detector is a genuinely INDEPENDENT channel, not a rerun.
+    # detect_naip.py asks "is this pixel greener than the water around it" --
+    # a colour ratio, tuned for bottom seen through a water column.
+    # detect_bright.py asks "is this pixel far brighter than the water around
+    # it" across all four bands, which is what makes bare granite obvious to a
+    # person. The two can fail independently: glint fools brightness, weed beds
+    # and shallow sand fool the colour ratio. So where they AGREE is worth more
+    # than either alone, and that agreement becomes a confidence tier rather
+    # than a filter -- nothing is deleted for failing to corroborate, because a
+    # rock only one channel can see is still a rock in the water.
+    bright = load(BRIGHT)
+    bright = [f for f in bright if (f["properties"].get("area_m2") or 0) >= MIN_AREA_M2]
+    bright_pts = [shp_transform(lambda x, y: fwd.transform(x, y), pt(f)) for f in bright]
+    bright_tree = STRtree(bright_pts) if bright_pts else None
+    print(f"brightness channel: {len(bright)} (>= {MIN_AREA_M2:g} m2)")
 
     naip_pts = [shp_transform(lambda x, y: fwd.transform(x, y), pt(f)) for f in naip]
     tree = STRtree(naip_pts) if naip_pts else None
@@ -137,6 +158,39 @@ def main():
         p["evidence"] = "naip_only"
         p["confidence_rank"] = 2
         out.append({"type": "Feature", "properties": p, "geometry": None})
+
+    # Corroboration pass. Every hazard so far gets asked whether the independent
+    # brightness channel also saw something here; those that do are promoted.
+    matched_bright = set()
+    for f in out:
+        pr = f["properties"]
+        if pr.get("lon") is None or bright_tree is None:
+            continue
+        g = shp_transform(lambda x, y: fwd.transform(x, y), pt(f))
+        near = [int(j) for j in bright_tree.query(g.buffer(MATCH_M))
+                if bright_pts[j].distance(g) <= MATCH_M]
+        if near:
+            matched_bright.update(near)
+            pr["bright_confirmed"] = True
+            pr["confidence_rank"] = max(pr.get("confidence_rank", 1), 3)
+        else:
+            pr["bright_confirmed"] = False
+
+    # Brightness-only detections. Rank 2: one channel saw it, and that channel
+    # is the one keyed on how a bare rock actually looks. Not promoted to 3
+    # without a second opinion, not dropped either.
+    added_bright = 0
+    for j, f in enumerate(bright):
+        if j in matched_bright:
+            continue
+        p = dict(f["properties"])
+        p["evidence"] = "bright_only"
+        p["bright_confirmed"] = True
+        p["confidence_rank"] = 2
+        out.append({"type": "Feature", "properties": p, "geometry": None})
+        added_bright += 1
+    n_corr = sum(1 for f in out if f["properties"].get("bright_confirmed"))
+    print(f"\nbrightness corroborated {n_corr} hazards; added {added_bright} it alone saw")
 
     # Human-mapped rocks go in as FIRST-CLASS hazards, not as a scoring rubric.
     # 25 of these 32 are statistically invisible in 0.3 m imagery -- no aerial
@@ -211,7 +265,7 @@ def main():
         cls[f["properties"]["class"]] += 1
 
     print("\nevidence:")
-    for k in ("both", "naip_only", "sentinel_only", "human_mapped", "buoy_proxy"):
+    for k in ("both", "naip_only", "bright_only", "sentinel_only", "human_mapped", "buoy_proxy"):
         if stats.get(k):
             print(f"  {k:14s} {stats[k]:5d}")
     print("\nclass:")

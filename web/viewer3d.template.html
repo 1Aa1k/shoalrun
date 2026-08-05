@@ -51,6 +51,13 @@ button.on { background: var(--accent); border-color: var(--accent); color: #fff;
 body.open #sliders { display: block; }
 #btnGear { flex: 0 0 44px; }
 
+/* Spawn picker. Boat and fly both drop you somewhere specific, and "somewhere
+   specific" on a 34 km2 lake needs to be a choice rather than the origin. */
+.spawnRow { display: none; align-items: center; gap: 6px; margin-top: 8px; }
+.spawnRow .spawnLab { font-size: 11px; color: var(--ink-faint);
+  letter-spacing: .08em; text-transform: uppercase; margin-right: 2px; }
+.spawnRow button { flex: 1; padding: 7px 8px; font-size: 12.5px; }
+
 /* Boat HUD. Depth, speed and range to the nearest hazard, which is the whole
    question boat mode exists to answer. */
 .hud { position: absolute; z-index: 3; right: 10px; top: calc(70px + var(--pad-t));
@@ -160,6 +167,13 @@ input[type=range]::-moz-range-thumb { width: 20px; height: 20px; border-radius: 
     <button id="mode_boat" class="btn">Boat</button>
     <button id="btnGear" class="btn">&#9881;</button>
   </div>
+  <div class="spawnRow" id="spawnRow">
+    <span class="spawnLab">Start at</span>
+    <button id="spawn_neoc" class="btn">NEOC</button>
+    <button id="spawn_shoals" class="btn">Shoals</button>
+    <button id="spawn_deep" class="btn">Deep basin</button>
+  </div>
+
   <div id="sliders">
     <div class="slider">
       <div class="lab"><span>Vertical exaggeration</span><b id="valExag">8x</b></div>
@@ -167,7 +181,7 @@ input[type=range]::-moz-range-thumb { width: 20px; height: 20px; border-radius: 
     </div>
     <div class="slider">
       <div class="lab"><span>Depth steps</span><b id="valTerrace">3 ft</b></div>
-      <input type="range" id="sldTerrace" min="0" max="10" step="1" value="3">
+      <input type="range" id="sldTerrace" min="1" max="15" step="1" value="3">
     </div>
     <div class="slider">
       <div class="lab"><span>Highlight shallower than</span><b id="valShallow3d">off</b></div>

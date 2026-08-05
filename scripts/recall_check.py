@@ -95,6 +95,7 @@ def load_detections(fwd):
         ("sentinel-10m", "verified.geojson"),
         ("naip-1m", "rocks_naip.geojson"),
         ("naip-0.3m", "rocks_naip_03.geojson"),
+        ("naip-bright-1m", "rocks_bright.geojson"),
     ):
         path = DATA / fn
         if not path.exists():
@@ -106,6 +107,38 @@ def load_detections(fwd):
             pts.append(shp_transform(lambda x, y: fwd.transform(x, y), Point(p["lon"], p["lat"])))
         layers[label] = pts
     return layers
+
+
+def null_recall(refs, n_det, lake, trials=5, seed=11):
+    """Recall a detector would score by scattering n_det points at random.
+
+    Without this, a high recall number proves nothing. A detector that flags
+    12,000 blobs on a 34 km2 lake puts something within 30 m of almost any point
+    you name, so it will "find" the reference rocks whether or not it can see
+    them. The honest score is recall MINUS this baseline. It is also why
+    detection count is not a figure of merit: raising the count raises the
+    baseline just as fast.
+    """
+    import numpy as np
+
+    rng = np.random.default_rng(seed)
+    minx, miny, maxx, maxy = lake.bounds
+    scores = []
+    for _ in range(trials):
+        pts = []
+        while len(pts) < n_det:
+            xs = rng.uniform(minx, maxx, n_det)
+            ys = rng.uniform(miny, maxy, n_det)
+            pts.extend((x, y) for x, y in zip(xs, ys) if lake.contains(Point(x, y)))
+        arr = np.array(pts[:n_det])
+        hit = 0
+        for r in refs:
+            g = r["geom"]
+            d = np.hypot(arr[:, 0] - g.x, arr[:, 1] - g.y)
+            if d.min() <= MATCH_M:
+                hit += 1
+        scores.append(hit / len(refs) * 100)
+    return float(sorted(scores)[len(scores) // 2])
 
 
 def main():
@@ -136,17 +169,20 @@ def main():
     if not layers:
         raise SystemExit("no detection layers found yet")
 
-    print(f"\nRECALL at {MATCH_M:.0f} m:\n")
-    print(f"{'layer':14s} {'detections':>10s} {'found':>7s} {'of':>4s} {'recall':>8s}")
+    print(f"\nRECALL at {MATCH_M:.0f} m, against a same-size random null:\n")
+    print(f"{'layer':16s} {'detections':>10s} {'recall':>8s} {'random':>8s} {'lift':>7s} {'err_m':>7s}")
     for label, pts in layers.items():
-        found = 0
-        misses = []
+        found, errs = 0, []
         for r in refs:
-            if any(p.distance(r["geom"]) <= MATCH_M for p in pts):
+            d = min((p.distance(r["geom"]) for p in pts), default=1e9)
+            if d <= MATCH_M:
                 found += 1
-            else:
-                misses.append(r)
-        print(f"{label:14s} {len(pts):10d} {found:7d} {len(refs):4d} {found/len(refs)*100:7.0f}%")
+                errs.append(d)
+        null = null_recall(refs, len(pts), lake)
+        recall = found / len(refs) * 100
+        err = sorted(errs)[len(errs) // 2] if errs else float("nan")
+        print(f"{label:16s} {len(pts):10d} {recall:7.0f}% {null:7.0f}% "
+              f"{recall - null:+6.0f}% {err:7.1f}")
 
     # Detail the misses for the best layer, so they can be looked at directly.
     best = max(layers.items(), key=lambda kv: sum(

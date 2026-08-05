@@ -1,0 +1,50 @@
+{
+ "2011": {
+  "chips": 12,
+  "contrast": 9.24,
+  "contrast_mean": 25.67,
+  "date": "2011-09-11",
+  "water_median": 50.8,
+  "weight": 0.359
+ },
+ "2013": {
+  "chips": 12,
+  "contrast": 5.07,
+  "contrast_mean": 20.48,
+  "date": "2013-08-22",
+  "water_median": 95.8,
+  "weight": 0.197
+ },
+ "2015": {
+  "chips": 12,
+  "contrast": 3.87,
+  "contrast_mean": 7.75,
+  "date": "2015-07-16",
+  "water_median": 90.6,
+  "weight": 0.15
+ },
+ "2018": {
+  "chips": 12,
+  "contrast": 3.98,
+  "contrast_mean": 8.66,
+  "date": "2018-07-21",
+  "water_median": 63.9,
+  "weight": 0.155
+ },
+ "2021": {
+  "chips": 12,
+  "contrast": 25.74,
+  "contrast_mean": 36.86,
+  "date": "2021-08-16",
+  "water_median": 47.3,
+  "weight": 1.0
+ },
+ "2023": {
+  "chips": 12,
+  "contrast": 7.06,
+  "contrast_mean": 8.17,
+  "date": "2023-09-01",
+  "water_median": 71.8,
+  "weight": 0.274
+ }
+}

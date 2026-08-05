@@ -51,6 +51,13 @@ button.on { background: var(--accent); border-color: var(--accent); color: #fff;
 body.open #sliders { display: block; }
 #btnGear { flex: 0 0 44px; }
 
+/* Spawn picker. Boat and fly both drop you somewhere specific, and "somewhere
+   specific" on a 34 km2 lake needs to be a choice rather than the origin. */
+.spawnRow { display: none; align-items: center; gap: 6px; margin-top: 8px; }
+.spawnRow .spawnLab { font-size: 11px; color: var(--ink-faint);
+  letter-spacing: .08em; text-transform: uppercase; margin-right: 2px; }
+.spawnRow button { flex: 1; padding: 7px 8px; font-size: 12.5px; }
+
 /* Boat HUD. Depth, speed and range to the nearest hazard, which is the whole
    question boat mode exists to answer. */
 .hud { position: absolute; z-index: 3; right: 10px; top: calc(70px + var(--pad-t));
@@ -160,6 +167,13 @@ input[type=range]::-moz-range-thumb { width: 20px; height: 20px; border-radius: 
     <button id="mode_boat" class="btn">Boat</button>
     <button id="btnGear" class="btn">&#9881;</button>
   </div>
+  <div class="spawnRow" id="spawnRow">
+    <span class="spawnLab">Start at</span>
+    <button id="spawn_neoc" class="btn">NEOC</button>
+    <button id="spawn_shoals" class="btn">Shoals</button>
+    <button id="spawn_deep" class="btn">Deep basin</button>
+  </div>
+
   <div id="sliders">
     <div class="slider">
       <div class="lab"><span>Vertical exaggeration</span><b id="valExag">8x</b></div>
@@ -167,7 +181,7 @@ input[type=range]::-moz-range-thumb { width: 20px; height: 20px; border-radius: 
     </div>
     <div class="slider">
       <div class="lab"><span>Depth steps</span><b id="valTerrace">3 ft</b></div>
-      <input type="range" id="sldTerrace" min="0" max="10" step="1" value="3">
+      <input type="range" id="sldTerrace" min="1" max="15" step="1" value="3">
     </div>
     <div class="slider">
       <div class="lab"><span>Highlight shallower than</span><b id="valShallow3d">off</b></div>
@@ -586,16 +600,401 @@ function shadeCanvas(g, shallowFt, theme = "night") {
   return cv;
 }
 
+// Geometry builders for the 3D viewer. Split out of viewer3d.js because that
+// file was doing shaders, camera, input and mesh generation at once, and the
+// mesh generation is the part that changes whenever the terrace setting moves.
+//
+// Everything here works in metres with Y up, +north mapped to -Z, and the grid
+// centred on the origin. Depth is feet, positive down, because that is the unit
+// the survey is in and converting it early would only make the numbers stop
+// matching the source.
+const FT_PER_M = 3.28084;
+
+// Deterministic hash so the scattered decoration (tree placement, rock shape)
+// is identical on every load. A different lake every refresh would make it
+// impossible to tell a rendering bug from a reroll.
+function hash(n) {
+  let x = Math.sin(n * 127.1) * 43758.5453;
+  return x - Math.floor(x);
+}
+
+// --- terraced bottom -------------------------------------------------------
+
+// The bottom as a milled contour model: every cell is a flat shelf at its
+// terraced depth, and adjacent shelves at different levels are joined by a
+// vertical wall. Quantising in the shader instead produced a ramp between
+// levels -- the steps were there in the colour but the surface still sloped,
+// which is exactly the thing a milled map does not do.
+//
+// Rebuilt on the CPU when the terrace changes, because the risers are real
+// geometry and cannot be faked from a per-vertex depth.
+function buildSteppedMesh(grid, cx, cz, terraceFt) {
+  const pos = [];
+  const norm = [];
+  const dep = [];
+  const step = Math.max(1, terraceFt);
+  const nx = grid.nx;
+  const ny = grid.ny;
+
+  // Terraced depth per cell, or null for land. floor() keeps every shelf at or
+  // shallower than the interpolated depth; on a boat that is the only safe
+  // direction to round.
+  const lvl = new Float32Array(nx * ny).fill(NaN);
+  for (let row = 0; row < ny; row++) {
+    for (let col = 0; col < nx; col++) {
+      const ft = grid.at(col, row);
+      if (ft === null) continue;
+      lvl[row * nx + col] = Math.floor(ft / step) * step;
+    }
+  }
+  const at = (col, row) =>
+    col < 0 || row < 0 || col >= nx || row >= ny ? NaN : lvl[row * nx + col];
+
+  const yOf = (ft) => -ft / FT_PER_M;
+
+  const tri = (ax, ay, az, bx, by, bz, ccx, ccy, ccz, n, d) => {
+    pos.push(ax, ay, az, bx, by, bz, ccx, ccy, ccz);
+    norm.push(n[0], n[1], n[2], n[0], n[1], n[2], n[0], n[1], n[2]);
+    dep.push(d, d, d);
+  };
+
+  const UP = [0, 1, 0];
+
+  for (let row = 0; row < ny; row++) {
+    for (let col = 0; col < nx; col++) {
+      const d = at(col, row);
+      if (Number.isNaN(d)) continue;
+
+      // Cell footprint. World Y from the grid runs north, and north is -Z.
+      const x0 = grid.worldX(col) - cx;
+      const x1 = grid.worldX(col + 1) - cx;
+      const z0 = -(grid.worldY(row) - cz);
+      const z1 = -(grid.worldY(row + 1) - cz);
+      const y = yOf(d);
+
+      // Shelf top.
+      tri(x0, y, z0, x1, y, z0, x1, y, z1, UP, d);
+      tri(x0, y, z0, x1, y, z1, x0, y, z1, UP, d);
+
+      // Risers. Only emitted toward the DEEPER neighbour, so each wall is built
+      // once rather than twice from both sides. A land neighbour counts as
+      // depth 0, which gives the shoreline a clean cut face.
+      const sides = [
+        [at(col + 1, row), x1, z0, x1, z1, [1, 0, 0]],
+        [at(col - 1, row), x0, z1, x0, z0, [-1, 0, 0]],
+        [at(col, row + 1), x0, z1, x1, z1, [0, 0, -1]],
+        [at(col, row - 1), x1, z0, x0, z0, [0, 0, 1]],
+      ];
+      for (const [nd, ax, az, bx, bz, n] of sides) {
+        const neighbour = Number.isNaN(nd) ? 0 : nd;
+        if (neighbour <= d) continue;
+        const yb = yOf(neighbour);
+        // Wall faces the deeper side, so its normal points away from this cell.
+        const wn = [-n[0], 0, -n[2]];
+        tri(ax, y, az, bx, y, bz, bx, yb, bz, wn, d);
+        tri(ax, y, az, bx, yb, bz, ax, yb, az, wn, d);
+      }
+    }
+  }
+
+  return {
+    pos: new Float32Array(pos),
+    norm: new Float32Array(norm),
+    dep: new Float32Array(dep),
+    count: pos.length / 3,
+  };
+}
+
+// --- land, water, shoreline ------------------------------------------------
+
+// Land is every cell the lake mask excludes, plus a skirt to the horizon.
+// Water is the complement, and gets its own buffer so the surface can be drawn
+// translucent over the bottom.
+function buildFlatCells(grid, cx, cz, wantWater) {
+  const v = [];
+  const quad = (ax, az, bx, bz) => {
+    v.push(ax, 0, az, bx, 0, az, bx, 0, bz, ax, 0, az, bx, 0, bz, ax, 0, bz);
+  };
+
+  for (let row = 0; row < grid.ny - 1; row++) {
+    for (let col = 0; col < grid.nx - 1; col++) {
+      const wet = grid.at(col, row) !== null;
+      if (wet !== wantWater) continue;
+      quad(
+        grid.worldX(col) - cx,
+        -(grid.worldY(row) - cz),
+        grid.worldX(col + 1) - cx,
+        -(grid.worldY(row + 1) - cz)
+      );
+    }
+  }
+
+  if (!wantWater) {
+    const x0 = grid.worldX(0) - cx;
+    const x1 = grid.worldX(grid.nx - 1) - cx;
+    const z0 = -(grid.worldY(0) - cz);
+    const z1 = -(grid.worldY(grid.ny - 1) - cz);
+    const pad = 15000;
+    quad(x0 - pad, z0 + pad, x1 + pad, z0);
+    quad(x0 - pad, z1, x1 + pad, z1 - pad);
+    quad(x0 - pad, z0, x0, z1);
+    quad(x1, z0, x1 + pad, z1);
+  }
+
+  return new Float32Array(v);
+}
+function shoreRings(LAKE_GEO, proj) {
+  const geom = LAKE_GEO.geometry;
+  const polys = geom.type === "Polygon" ? [geom.coordinates] : geom.coordinates;
+  const rings = [];
+  for (const poly of polys) {
+    for (const ring of poly) rings.push(ring.map(([lon, lat]) => proj.fwd(lon, lat)));
+  }
+  return rings;
+}
+function buildShore(rings, cx, cz) {
+  const segs = [];
+  for (const ring of rings) {
+    for (let i = 0; i < ring.length - 1; i++) {
+      segs.push(ring[i][0] - cx, 0, -(ring[i][1] - cz));
+      segs.push(ring[i + 1][0] - cx, 0, -(ring[i + 1][1] - cz));
+    }
+  }
+  return new Float32Array(segs);
+}
+
+// --- trees -----------------------------------------------------------------
+
+// Conifers along the shore, as real (if crude) geometry rather than sprites.
+// Sprites have to be turned to face the camera every frame, and a four-triangle
+// cone costs less than that bookkeeping. They exist for scale: without anything
+// of known height on the shoreline, boat mode is a coloured plane and a line,
+// and there is no way to judge how far away the far shore is.
+//
+// Placement is deterministic and inland-checked against the depth grid, so no
+// tree ends up standing in the lake.
+function buildTrees(grid, rings, cx, cz, spacing = 22) {
+  const pos = [];
+  const norm = [];
+  const shade = [];
+
+  const push = (ax, ay, az, bx, by, bz, ccx, ccy, ccz, n, s) => {
+    pos.push(ax, ay, az, bx, by, bz, ccx, ccy, ccz);
+    norm.push(n[0], n[1], n[2], n[0], n[1], n[2], n[0], n[1], n[2]);
+    shade.push(s, s, s);
+  };
+
+  let seed = 0;
+  for (const ring of rings) {
+    // Walked by arc length across the whole ring, not per segment. The shoreline
+    // polygon has vertices every few metres in places, so emitting one tree per
+    // segment would put a forest on every headland and nothing on the straights.
+    let nextAt = 0;
+    let travelled = 0;
+
+    for (let i = 0; i < ring.length - 1; i++) {
+      const [ax, ay] = ring[i];
+      const [bx, by] = ring[i + 1];
+      const segLen = Math.hypot(bx - ax, by - ay);
+      if (segLen < 1e-6) continue;
+
+      // Outward normal of the segment, in grid space.
+      const tx = (bx - ax) / segLen;
+      const ty = (by - ay) / segLen;
+      const px = -ty;
+      const py = tx;
+
+      while (nextAt < travelled + segLen) {
+        const t = nextAt - travelled;
+        nextAt += spacing;
+        seed++;
+        const f = t / segLen;
+        const gx = ax + (bx - ax) * f;
+        const gy = ay + (by - ay) * f;
+
+        // Step off the shoreline to whichever side is dry. The ring winding is
+        // not reliable across 74 islands, so ask the grid rather than assume.
+        const off = 8 + hash(seed) * 26;
+        let sx = gx + px * off;
+        let sy = gy + py * off;
+        if (grid.sampleXY(sx, sy) !== null) {
+          sx = gx - px * off;
+          sy = gy - py * off;
+          if (grid.sampleXY(sx, sy) !== null) continue; // both sides wet: skip
+        }
+
+        const h = 9 + hash(seed * 3.7) * 11;
+        const r = h * (0.16 + hash(seed * 5.1) * 0.07);
+        const x = sx - cx;
+        const z = -(sy - cz);
+        const s = 0.72 + hash(seed * 9.3) * 0.5;
+
+        // Four-sided cone. Flat-shaded per face so it catches light unevenly
+        // and a hillside of them does not read as one green mass.
+        for (let k = 0; k < 4; k++) {
+          const a0 = (k / 4) * Math.PI * 2;
+          const a1 = ((k + 1) / 4) * Math.PI * 2;
+          const p0 = [x + Math.cos(a0) * r, 0, z + Math.sin(a0) * r];
+          const p1 = [x + Math.cos(a1) * r, 0, z + Math.sin(a1) * r];
+          const mid = (a0 + a1) / 2;
+          push(
+            p0[0], p0[1], p0[2],
+            p1[0], p1[1], p1[2],
+            x, h, z,
+            [Math.cos(mid) * 0.7, 0.7, Math.sin(mid) * 0.7],
+            s * (0.85 + 0.3 * hash(seed + k))
+          );
+        }
+      }
+      travelled += segLen;
+    }
+  }
+
+  return {
+    pos: new Float32Array(pos),
+    norm: new Float32Array(norm),
+    shade: new Float32Array(shade),
+    count: pos.length / 3,
+  };
+}
+
+// --- hazard rocks ----------------------------------------------------------
+
+// Rocks as lumps of geometry rather than dots. A dot floating in 3D gives no
+// sense of distance or size; a rock sitting on the bottom does.
+//
+// The two classes sit differently on purpose. A `rock` breaks the surface, so
+// its top is above the waterline where you would actually see it. A `shoal`
+// is submerged, so it sits on the bottom and its top stays below zero -- which
+// is precisely why it also keeps a marker stem, because otherwise the dangerous
+// class is the invisible one.
+function buildHazardRocks(grid, ROCK_GEO, proj, cx, cz) {
+  const pos = [];
+  const norm = [];
+  const kind = [];
+  const stems = [];
+  const list = [];
+
+  let seed = 0;
+  for (const f of ROCK_GEO.features) {
+    const p = f.properties;
+    if (p.offshore === false) continue;
+    const [wx, wy] = proj.fwd(p.lon, p.lat);
+    const ft = grid.sampleXY(wx, wy);
+    if (ft === null) continue;
+
+    seed++;
+    const x = wx - cx;
+    const z = -(wy - cz);
+    const submerged = p.class === "shoal" || p.class === "drawdown";
+
+    // Footprint radius from the detected area, clamped: a 96,700 m2 "island"
+    // would otherwise be a 175 m boulder, and a sub-pixel detection would be
+    // invisible.
+    const r = Math.max(3, Math.min(22, Math.sqrt((p.area_m2 || 20) / Math.PI)));
+    const bottomY = -ft / FT_PER_M;
+
+    // A breaking rock pokes above the surface. A shoal rises off the bottom but
+    // stops short of it -- never drawn poking through, because the whole point
+    // of the class is that it does not.
+    const height = submerged
+      ? Math.min(r * 1.1, Math.max(0.5, -bottomY - 0.6))
+      : -bottomY + 0.5 + r * 0.25;
+    const topY = bottomY + height;
+
+    const sides = 6;
+    for (let k = 0; k < sides; k++) {
+      const a0 = (k / sides) * Math.PI * 2;
+      const a1 = ((k + 1) / sides) * Math.PI * 2;
+      // Irregular radius per facet so they do not read as a field of cones.
+      const r0 = r * (0.62 + hash(seed * 7.3 + k) * 0.55);
+      const r1 = r * (0.62 + hash(seed * 7.3 + k + 1) * 0.55);
+      const p0 = [x + Math.cos(a0) * r0, bottomY, z + Math.sin(a0) * r0];
+      const p1 = [x + Math.cos(a1) * r1, bottomY, z + Math.sin(a1) * r1];
+      const apex = [
+        x + (hash(seed * 2.1) - 0.5) * r * 0.4,
+        topY,
+        z + (hash(seed * 4.9) - 0.5) * r * 0.4,
+      ];
+      const mid = (a0 + a1) / 2;
+      const n = [Math.cos(mid) * 0.6, 0.72, Math.sin(mid) * 0.6];
+      pos.push(...p0, ...p1, ...apex);
+      for (let j = 0; j < 3; j++) norm.push(n[0], n[1], n[2]);
+      // 1 = submerged shoal, 0 = breaks the surface. Drives colour.
+      for (let j = 0; j < 3; j++) kind.push(submerged ? 1 : 0);
+    }
+
+    if (submerged) stems.push(x, topY, z, x, 0, z);
+    list.push({ x, z, ft, cls: p.class, submerged });
+  }
+
+  return {
+    pos: new Float32Array(pos),
+    norm: new Float32Array(norm),
+    kind: new Float32Array(kind),
+    stems: new Float32Array(stems),
+    count: pos.length / 3,
+    list,
+  };
+}
+
+// --- boat ------------------------------------------------------------------
+
+// A hull drawn ahead of and below the camera in boat mode. Local coords: +X is
+// starboard, -Z is forward, Y up, origin at the helm. Crude on purpose -- it is
+// there so the view reads as "from a boat" rather than "from a hovering eye",
+// and any more detail would just be in the way.
+function buildBoatHull() {
+  const pos = [];
+  const norm = [];
+  const shade = [];
+
+  const tri = (a, b, c, n, s) => {
+    pos.push(...a, ...b, ...c);
+    for (let i = 0; i < 3; i++) norm.push(...n);
+    shade.push(s, s, s);
+  };
+
+  // Every part of the hull sits FORWARD of the eye and below it. The first
+  // version put the transom behind the camera at +Z, so the deck triangle ran
+  // off past the near plane and filled the screen with white.
+  const bowZ = -5.4;
+  const sternZ = -0.9;
+  const beam = 0.85;
+  const deckY = -1.25;
+  const keelY = -1.75;
+
+  // Foredeck: bow point back to the cockpit coaming.
+  tri([0, deckY, bowZ], [beam, deckY, sternZ], [-beam, deckY, sternZ], [0, 1, 0], 1.0);
+  // Topsides.
+  tri([0, deckY, bowZ], [beam, keelY, sternZ], [beam, deckY, sternZ], [0.9, 0.25, 0], 0.72);
+  tri([0, deckY, bowZ], [-beam, deckY, sternZ], [-beam, keelY, sternZ], [-0.9, 0.25, 0], 0.58);
+  // Stem, so the bow has some depth to it rather than being a flat wedge.
+  tri([0, deckY, bowZ], [-beam, keelY, sternZ], [beam, keelY, sternZ], [0, -0.3, -0.9], 0.66);
+  // Coaming across the front of the cockpit -- the near edge you look over.
+  tri([beam, deckY, sternZ], [-beam, deckY, sternZ], [-beam, deckY + 0.3, sternZ], [0, 0.2, 1], 1.2);
+  tri([beam, deckY, sternZ], [-beam, deckY + 0.3, sternZ], [beam, deckY + 0.3, sternZ], [0, 0.2, 1], 1.2);
+
+  return {
+    pos: new Float32Array(pos),
+    norm: new Float32Array(norm),
+    shade: new Float32Array(shade),
+    count: pos.length / 3,
+  };
+}
+
 // 3D view of the lake bottom. Hand-rolled WebGL, no library: the whole point of
 // this project is that it works on a phone with no signal, and a CDN script tag
 // is a runtime network dependency wearing a hat.
 //
 // It renders the SAME interpolated grid the map contours come from, so the mesh
 // and the depth lines can never tell different stories. And it is the same 1954
-// survey underneath -- a smooth shaded 3D basin looks far more authoritative
-// than 260 soundings deserve, which is why the caveat is on the screen, the
-// terracing defaults on, and the depth is quantised rather than pretending to a
-// continuous surface nobody measured.
+// survey underneath -- a smooth shaded basin looks far more authoritative than
+// 260 soundings deserve, which is why the bottom is milled into discrete
+// terraces rather than smoothed, and why the caveat is on the screen.
+//
+// Geometry generation lives in scene3d.js.
+
 
 
 const { lake: LAKE_GEO, rocks: ROCK_GEO, depth: DEPTH_RAW } = window.SHOALRUN_DATA;
@@ -604,10 +1003,10 @@ const el = (id) => document.getElementById(id);
 const canvas = el("gl");
 
 // Anything thrown during setup used to leave a black canvas and no explanation,
-// which is indistinguishable from "the GPU cannot do this" and sent the last
-// shader bug hunting in entirely the wrong place. Put the real message on the
-// screen instead -- a driver-specific shader failure is exactly the class of bug
-// that only ever reproduces on someone else's machine.
+// which is indistinguishable from "the GPU cannot do this" and sent a shader bug
+// hunting in entirely the wrong place. Put the real message on the screen -- a
+// driver-specific failure is exactly the class of bug that only ever reproduces
+// on someone else's machine.
 function fatal(msg) {
   const box = el("nogl");
   box.style.display = "grid";
@@ -620,7 +1019,6 @@ function fatal(msg) {
 window.addEventListener("error", (e) => fatal(e.message));
 
 const gl = canvas.getContext("webgl", { antialias: true, alpha: false });
-
 if (!gl) {
   fatal("This device has no WebGL.");
   throw new Error("WebGL unavailable");
@@ -630,67 +1028,47 @@ const bounds = LAKE_GEO.bbox;
 const proj = makeProjection((bounds[1] + bounds[3]) / 2, (bounds[0] + bounds[2]) / 2);
 const grid = new DepthGrid(DEPTH_RAW, proj);
 
-const FT_PER_M = 3.28084;
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 
-// Derivative-based normals are what make terracing read as steps rather than as
-// a soft ramp. Without the extension the mesh still draws, just smooth-shaded.
+// New England Outdoor Center, from the OSM structures layer -- a real mapped
+// building on this lake, which is where anyone launching actually starts.
+const NEOC = { lat: 45.72635, lon: -68.81841 };
+
 const derivExt = gl.getExtension("OES_standard_derivatives");
 
 // Shared precision, chosen once and substituted into BOTH stages, because the
-// only way a cross-stage precision mismatch cannot happen is if there is one
-// source of truth for it.
-//
-// It has to be highp wherever the flat-shading path runs. That path is
-// normalize(cross(dFdx(vWorld), dFdy(vWorld))), and vWorld carries a world
-// position: at magnitude ~5 a mediump (fp16) ULP is about 0.005, which is the
-// entire per-pixel derivative. The subtraction then returns 0 or 1 ULP of pure
-// noise, and the terraces render as blown-out white speckle.
+// only way a cross-stage precision mismatch cannot happen is if there is a
+// single source of truth for it. A vertex shader defaults to highp; a fragment
+// shader declaring mediump silently disagrees, which links on SwiftShader and
+// hard-fails on AMD/ANGLE.
 const HIGHP_FRAG = gl.getShaderPrecisionFormat(gl.FRAGMENT_SHADER, gl.HIGH_FLOAT).precision > 0;
 const P = HIGHP_FRAG ? "highp" : "mediump";
 
 // --- shaders ---------------------------------------------------------------
 
-// Precision is stated explicitly on every uniform and varying that crosses the
-// stage boundary. A vertex shader defaults to highp and a fragment shader here
-// declares mediump, so anything shared silently disagrees -- which links fine on
-// SwiftShader and hard-fails on AMD/ANGLE with "declared as type float16_t and
-// type float". That failure surfaced as a black screen, because a throw during
-// program setup leaves nothing on the canvas.
-const VERT = `
+const BOTTOM_VERT = `
 precision highp float;
 attribute vec3 aPos;
 attribute vec3 aNormal;
 attribute float aDepth;
 uniform mat4 uMVP;
 uniform float uExag;
-uniform ${P} float uTerrace;
 varying ${P} float vDepth;
 varying ${P} vec3 vNormal;
-varying ${P} vec3 vWorld;
 void main() {
-  // Depth is quantised here, not in the buffer, so the terrace slider does not
-  // have to rebuild the mesh. Snapping to the NEAR side (floor) keeps every
-  // terrace at or shallower than the interpolated depth -- on a boat, rounding
-  // depth the optimistic way is the one direction you must not round.
-  float d = uTerrace > 0.0 ? floor(aDepth / uTerrace) * uTerrace : aDepth;
-  vec3 p = vec3(aPos.x, -(d / 3.28084) * uExag, aPos.z);
-  vDepth = d;
-  vWorld = p;
+  vDepth = aDepth;
   // Exaggerating Y steepens the true slope, so the normal has to be corrected
   // the opposite way or the lighting stays flat while the terrain gets sharper.
+  // The risers are already vertical, and scaling leaves them vertical.
   vNormal = normalize(vec3(aNormal.x * uExag, aNormal.y, aNormal.z * uExag));
-  gl_Position = uMVP * vec4(p, 1.0);
+  gl_Position = uMVP * vec4(aPos.x, aPos.y * uExag, aPos.z, 1.0);
 }`;
 
-const FRAG = `
-#extension GL_OES_standard_derivatives : enable
+const BOTTOM_FRAG = `
 precision ${P} float;
 varying ${P} float vDepth;
 varying ${P} vec3 vNormal;
-varying ${P} vec3 vWorld;
 uniform float uShallow;
-uniform float uFlat;
 
 // Same ramp as the 2D map, so the two views agree about what 15 ft looks like.
 vec3 ramp(float ft) {
@@ -709,88 +1087,115 @@ vec3 ramp(float ft) {
 void main() {
   vec3 base = ramp(vDepth);
   if (uShallow > 0.0 && vDepth <= uShallow) base = mix(base, vec3(1.0, 0.72, 0.25), 0.55);
-
   vec3 n = normalize(vNormal);
-#ifdef GL_OES_standard_derivatives
-  // Flat-shade off the true facet when terracing, so each step gets its own
-  // tone and the risers actually read as risers.
-  if (uFlat > 0.5) n = normalize(cross(dFdx(vWorld), dFdy(vWorld))) * sign(normalize(vNormal).y);
-#endif
-
-  vec3 lightDir = normalize(vec3(0.45, 0.8, 0.4));
-  float diff = max(dot(n, lightDir), 0.0);
+  float diff = max(dot(n, normalize(vec3(0.45, 0.8, 0.4))), 0.0);
   // Ambient floor is high: this is a bottom surface being read for shape, and
   // a physically honest light would put half the basin in unreadable shadow.
-  vec3 color = base * (0.5 + 0.7 * diff);
-  gl_FragColor = vec4(color, 1.0);
+  gl_FragColor = vec4(base * (0.5 + 0.7 * diff), 1.0);
 }`;
 
-// Land fills every cell the lake mask excludes -- the shore and all 74 islands.
-// Without it those cells were simply absent, and a lake full of holes onto the
-// background reads as broken geometry rather than as islands.
-const LAND_VERT = `
+// Land, trees, rocks and the hull all shade the same way: a normal, a per-vertex
+// brightness, and a flat base colour from a uniform.
+const LIT_VERT = `
+precision highp float;
+attribute vec3 aPos;
+attribute vec3 aNormal;
+attribute float aShade;
+uniform mat4 uMVP;
+uniform float uExag;
+varying ${P} vec3 vNormal;
+varying ${P} float vShade;
+void main() {
+  vNormal = aNormal;
+  vShade = aShade;
+  gl_Position = uMVP * vec4(aPos.x, aPos.y * uExag, aPos.z, 1.0);
+}`;
+
+const LIT_FRAG = `
+precision ${P} float;
+varying ${P} vec3 vNormal;
+varying ${P} float vShade;
+uniform vec3 uColorA;
+uniform vec3 uColorB;
+void main() {
+  vec3 n = normalize(vNormal);
+  float diff = max(dot(n, normalize(vec3(0.45, 0.8, 0.4))), 0.0);
+  // vShade doubles as a blend between two tones, which is what stops a few
+  // thousand identical cones reading as a single green mass.
+  vec3 base = mix(uColorA, uColorB, clamp(vShade - 0.6, 0.0, 1.0));
+  gl_FragColor = vec4(base * (0.45 + 0.75 * diff), 1.0);
+}`;
+
+const FLAT_VERT = `
 precision highp float;
 attribute vec3 aPos;
 uniform mat4 uMVP;
 uniform float uY;
+uniform float uExag;
 void main() {
-  gl_Position = uMVP * vec4(vec3(aPos.x, aPos.y + uY, aPos.z), 1.0);
+  gl_Position = uMVP * vec4(vec3(aPos.x, aPos.y * uExag + uY, aPos.z), 1.0);
 }`;
 
-// Translucent water surface, drawn only in boat mode. Sitting 1.8 m off the
-// water and seeing the bare bottom is disorienting -- you cannot tell where the
-// waterline is, which is the one reference a boat view needs. Thin enough to
-// see the bottom through: an opaque surface makes boat mode a blue plane, and
-// seeing what is under you is the entire reason to be in boat mode.
-const WATER_FRAG = `
-precision mediump float;
-void main() { gl_FragColor = vec4(0.184, 0.404, 0.510, 0.34); }`;
+const FLAT_FRAG = `
+precision ${P} float;
+uniform vec4 uColor;
+void main() { gl_FragColor = uColor; }`;
 
-// Sky gradient, drawn as a screen-space pass before anything else. A flat black
-// background made the far shore look like the edge of the world, and in boat
-// mode there was no horizon at all to judge attitude against.
-const SKY_VERT = `
-precision highp float;
-attribute vec2 aXY;
-varying mediump float vY;
-void main() { vY = aXY.y * 0.5 + 0.5; gl_Position = vec4(aXY, 0.0, 1.0); }`;
-
-const SKY_FRAG = `
-precision mediump float;
-varying mediump float vY;
-void main() {
-  // Light band held low and wide: the horizon sits near the middle of the
-  // screen at boat pitch, and that is exactly where it has to be readable.
-  vec3 low  = vec3(0.322, 0.388, 0.443);
-  vec3 high = vec3(0.075, 0.110, 0.169);
-  gl_FragColor = vec4(mix(low, high, smoothstep(0.30, 1.0, vY)), 1.0);
-}`;
-
-const LAND_FRAG = `
-precision mediump float;
-void main() {
-  // Flat, and deliberately so: there is no terrain elevation data for this
-  // lake, so any relief here would be invented. Light enough to read as
-  // ground -- at the first darker value the islands looked like holes punched
-  // in the mesh rather than like land.
-  gl_FragColor = vec4(0.294, 0.310, 0.243, 1.0);
-}`;
-
-const LINE_VERT = `
+// Water. Long swell displaces the surface; the chop that actually reads as
+// water is done per-pixel, because the quads are 25 m across and geometry that
+// coarse cannot carry a 4 m wave.
+const WATER_VERT = `
 precision highp float;
 attribute vec3 aPos;
 uniform mat4 uMVP;
-uniform float uExag;
-uniform float uPointSize;
+uniform float uTime;
+varying ${P} vec2 vXZ;
 void main() {
-  gl_Position = uMVP * vec4(aPos.x, aPos.y * uExag, aPos.z, 1.0);
-  gl_PointSize = uPointSize;
+  float swell =
+    sin(aPos.x * 0.013 + uTime * 0.55) * 0.13 +
+    sin(aPos.z * 0.009 - uTime * 0.41) * 0.10;
+  vXZ = aPos.xz;
+  gl_Position = uMVP * vec4(aPos.x, swell, aPos.z, 1.0);
 }`;
 
-const LINE_FRAG = `
-precision mediump float;
-uniform vec4 uColor;
-void main() { gl_FragColor = uColor; }`;
+const WATER_FRAG = `
+precision ${P} float;
+varying ${P} vec2 vXZ;
+uniform float uTime;
+uniform float uAlpha;
+void main() {
+  // Two crossed wave trains, differentiated analytically into a surface normal.
+  // Cheaper than a normal map and it needs no texture to ship.
+  float a = vXZ.x * 0.22 + uTime * 1.3;
+  float b = vXZ.y * 0.17 - uTime * 1.05;
+  float c = (vXZ.x + vXZ.y) * 0.09 + uTime * 0.6;
+  vec3 n = normalize(vec3(
+    cos(a) * 0.05 + cos(c) * 0.03,
+    1.0,
+    cos(b) * 0.045 + cos(c) * 0.03
+  ));
+  vec3 light = normalize(vec3(0.45, 0.8, 0.4));
+  float spec = pow(max(dot(n, light), 0.0), 24.0);
+  vec3 base = mix(vec3(0.129, 0.310, 0.416), vec3(0.216, 0.451, 0.553), n.x * 3.0 + 0.5);
+  gl_FragColor = vec4(base + spec * 0.55, uAlpha);
+}`;
+
+const SKY_VERT = `
+precision highp float;
+attribute vec2 aXY;
+varying ${P} float vY;
+void main() { vY = aXY.y * 0.5 + 0.5; gl_Position = vec4(aXY, 0.0, 1.0); }`;
+
+const SKY_FRAG = `
+precision ${P} float;
+varying ${P} float vY;
+void main() {
+  // Light band held low and wide: the horizon sits near the middle of the
+  // screen at boat pitch, and that is exactly where it has to be readable.
+  vec3 low  = vec3(0.482, 0.553, 0.596);
+  vec3 high = vec3(0.098, 0.145, 0.216);
+  gl_FragColor = vec4(mix(low, high, smoothstep(0.28, 1.0, vY)), 1.0);
+}`;
 
 function compile(src, type) {
   const s = gl.createShader(type);
@@ -813,241 +1218,91 @@ function program(vsrc, fsrc) {
   return p;
 }
 
-const meshProg = program(VERT, FRAG);
-const landProg = program(LAND_VERT, LAND_FRAG);
-const waterProg = program(LAND_VERT, WATER_FRAG);
+const bottomProg = program(BOTTOM_VERT, BOTTOM_FRAG);
+const litProg = program(LIT_VERT, LIT_FRAG);
+const flatProg = program(FLAT_VERT, FLAT_FRAG);
+const waterProg = program(WATER_VERT, WATER_FRAG);
 const skyProg = program(SKY_VERT, SKY_FRAG);
-const lineProg = program(LINE_VERT, LINE_FRAG);
 
-const bufSky = (() => {
-  const b = gl.createBuffer();
-  gl.bindBuffer(gl.ARRAY_BUFFER, b);
-  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
-  return b;
-})();
-
-// --- mesh ------------------------------------------------------------------
+// --- geometry --------------------------------------------------------------
 
 const cx = (grid.worldX(0) + grid.worldX(grid.nx - 1)) / 2;
 const cz = (grid.worldY(0) + grid.worldY(grid.ny - 1)) / 2;
 
-// A cell just outside the lake still has a real depth: zero. Treating the first
-// ring of land cells as 0 ft closes the mesh right up to the waterline instead
-// of leaving the ragged fringe you get from requiring all four corners wet --
-// which is what made the shoreline look chewed.
-function depthForMesh(col, row) {
-  const v = grid.at(col, row);
-  if (v !== null) return { ft: v, wet: true };
-  for (let dr = -1; dr <= 1; dr++) {
-    for (let dc = -1; dc <= 1; dc++) {
-      if (grid.at(col + dc, row + dr) !== null) return { ft: 0, wet: false };
-    }
-  }
-  return null;
-}
-
-function buildMesh() {
-  const pos = [];
-  const norm = [];
-  const dep = [];
-  const idx = [];
-  const vertIndex = new Int32Array(grid.nx * grid.ny).fill(-1);
-  const cell = new Array(grid.nx * grid.ny).fill(null);
-
-  for (let row = 0; row < grid.ny; row++) {
-    for (let col = 0; col < grid.nx; col++) {
-      cell[row * grid.nx + col] = depthForMesh(col, row);
-    }
-  }
-  const ftAt = (col, row) => {
-    if (col < 0 || row < 0 || col >= grid.nx || row >= grid.ny) return null;
-    const c = cell[row * grid.nx + col];
-    return c ? c.ft : null;
-  };
-
-  for (let row = 0; row < grid.ny; row++) {
-    for (let col = 0; col < grid.nx; col++) {
-      const c = cell[row * grid.nx + col];
-      if (!c) continue;
-      vertIndex[row * grid.nx + col] = pos.length / 3;
-
-      // +north maps to -Z so the default camera looks north up the lake, which
-      // is how the survey map is drawn and how people describe this lake. Y is
-      // filled by the vertex shader from the depth attribute.
-      pos.push(grid.worldX(col) - cx, 0, -(grid.worldY(row) - cz));
-      dep.push(c.ft);
-
-      const l = ftAt(col - 1, row) ?? c.ft;
-      const r = ftAt(col + 1, row) ?? c.ft;
-      const d = ftAt(col, row - 1) ?? c.ft;
-      const u = ftAt(col, row + 1) ?? c.ft;
-      const sx = ((l - r) / FT_PER_M) / (2 * grid.gridM);
-      const sz = ((d - u) / FT_PER_M) / (2 * grid.gridM);
-      const len = Math.hypot(sx, 1, sz);
-      norm.push(sx / len, 1 / len, sz / len);
-    }
-  }
-
-  // A quad needs four corners, and at least one of them genuinely wet -- that
-  // last condition is what stops the mesh sheeting across an island whose whole
-  // footprint is dry. `covered` records which cells the water mesh claimed, so
-  // the land pass can fill exactly the complement and nothing overlaps.
-  const covered = new Uint8Array((grid.nx - 1) * (grid.ny - 1));
-  for (let row = 0; row < grid.ny - 1; row++) {
-    for (let col = 0; col < grid.nx - 1; col++) {
-      const ia = vertIndex[row * grid.nx + col];
-      const ib = vertIndex[row * grid.nx + col + 1];
-      const ic = vertIndex[(row + 1) * grid.nx + col + 1];
-      const ie = vertIndex[(row + 1) * grid.nx + col];
-      if (ia < 0 || ib < 0 || ic < 0 || ie < 0) continue;
-      const anyWet =
-        cell[row * grid.nx + col].wet ||
-        cell[row * grid.nx + col + 1].wet ||
-        cell[(row + 1) * grid.nx + col + 1].wet ||
-        cell[(row + 1) * grid.nx + col].wet;
-      if (!anyWet) continue;
-      idx.push(ia, ib, ic, ia, ic, ie);
-      covered[row * (grid.nx - 1) + col] = 1;
-    }
-  }
-
-  return {
-    pos: new Float32Array(pos),
-    norm: new Float32Array(norm),
-    dep: new Float32Array(dep),
-    idx: new Uint32Array(idx),
-    count: idx.length,
-    covered,
-  };
-}
-
-// Land fills exactly the cells the water mesh did not claim -- the shore and
-// every one of the 74 islands -- plus a skirt out to the horizon. Cutting it
-// per-cell rather than laying one slab over everything is the whole trick: a
-// slab hides the lake, and no slab leaves the islands as holes onto the
-// background, which is what made the geometry look broken.
-function buildLand(covered, wantWater = false) {
-  const v = [];
-  const y = 0;
-  const quad = (ax, az, bx, bz) => {
-    v.push(ax, y, az, bx, y, az, bx, y, bz, ax, y, az, bx, y, bz, ax, y, bz);
-  };
-
-  for (let row = 0; row < grid.ny - 1; row++) {
-    for (let col = 0; col < grid.nx - 1; col++) {
-      if (!!covered[row * (grid.nx - 1) + col] !== wantWater) continue;
-      quad(
-        grid.worldX(col) - cx,
-        -(grid.worldY(row) - cz),
-        grid.worldX(col + 1) - cx,
-        -(grid.worldY(row + 1) - cz)
-      );
-    }
-  }
-
-  // Skirt beyond the grid, so the horizon is ground rather than a cut edge.
-  if (!wantWater) {
-    const x0 = grid.worldX(0) - cx;
-    const x1 = grid.worldX(grid.nx - 1) - cx;
-    const z0 = -(grid.worldY(0) - cz);
-    const z1 = -(grid.worldY(grid.ny - 1) - cz);
-    const pad = 15000;
-    quad(x0 - pad, z0 + pad, x1 + pad, z0);
-    quad(x0 - pad, z1, x1 + pad, z1 - pad);
-    quad(x0 - pad, z0, x0, z1);
-    quad(x1, z0, x1 + pad, z1);
-  }
-
-  return new Float32Array(v);
-}
-
-// Index counts here run past 65535, so 32-bit indices are required. Every
-// target browser has the extension, but failing loudly beats rendering a
-// scrambled lake.
-if (!gl.getExtension("OES_element_index_uint")) throw new Error("OES_element_index_uint unavailable");
-
-const mesh = buildMesh();
-
-function bufferOf(data, target = gl.ARRAY_BUFFER) {
+function buf(data) {
   const b = gl.createBuffer();
-  gl.bindBuffer(target, b);
-  gl.bufferData(target, data, gl.STATIC_DRAW);
+  gl.bindBuffer(gl.ARRAY_BUFFER, b);
+  gl.bufferData(gl.ARRAY_BUFFER, data, gl.STATIC_DRAW);
   return b;
 }
 
-const bufPos = bufferOf(mesh.pos);
-const bufNorm = bufferOf(mesh.norm);
-const bufDep = bufferOf(mesh.dep);
-const bufIdx = bufferOf(mesh.idx, gl.ELEMENT_ARRAY_BUFFER);
-const land = buildLand(mesh.covered);
-const bufLand = bufferOf(land);
-const water = buildLand(mesh.covered, true);
-const bufWater = bufferOf(water);
+const opts = { exag: 8, shallow: 0, terrace: 3 };
 
-// --- shoreline + hazards ---------------------------------------------------
+// The terraced bottom is real geometry with vertical risers, so changing the
+// terrace rebuilds it. Buffers are reused rather than reallocated.
+let bottom = buildSteppedMesh(grid, cx, cz, opts.terrace);
+const bufBottomPos = buf(bottom.pos);
+const bufBottomNorm = buf(bottom.norm);
+const bufBottomDep = buf(bottom.dep);
 
-function buildShore() {
-  const segs = [];
-  const push = (ring) => {
-    for (let i = 0; i < ring.length - 1; i++) {
-      segs.push(ring[i][0] - cx, 0, -(ring[i][1] - cz));
-      segs.push(ring[i + 1][0] - cx, 0, -(ring[i + 1][1] - cz));
-    }
-  };
-  const geom = LAKE_GEO.geometry;
-  const polys = geom.type === "Polygon" ? [geom.coordinates] : geom.coordinates;
-  for (const poly of polys) {
-    for (const ring of poly) push(ring.map(([lon, lat]) => proj.fwd(lon, lat)));
-  }
-  return new Float32Array(segs);
+function rebuildBottom() {
+  bottom = buildSteppedMesh(grid, cx, cz, opts.terrace);
+  gl.bindBuffer(gl.ARRAY_BUFFER, bufBottomPos);
+  gl.bufferData(gl.ARRAY_BUFFER, bottom.pos, gl.STATIC_DRAW);
+  gl.bindBuffer(gl.ARRAY_BUFFER, bufBottomNorm);
+  gl.bufferData(gl.ARRAY_BUFFER, bottom.norm, gl.STATIC_DRAW);
+  gl.bindBuffer(gl.ARRAY_BUFFER, bufBottomDep);
+  gl.bufferData(gl.ARRAY_BUFFER, bottom.dep, gl.STATIC_DRAW);
+  updateStats();
 }
 
-// Hazards as vertical stems from the bottom to the surface. A dot floating at
-// depth is unreadable in 3D -- you cannot tell how far away it is. A stem tells
-// you where it is on the bottom and how much water is over it in one mark.
-function buildHazards() {
-  const stems = [];
-  const heads = [];
-  const list = [];
-  for (const f of ROCK_GEO.features) {
-    const p = f.properties;
-    if (p.offshore === false) continue;
-    const [x, y] = proj.fwd(p.lon, p.lat);
-    const ft = grid.sampleXY(x, y);
-    if (ft === null) continue;
-    const wx = x - cx;
-    const wz = -(y - cz);
-    stems.push(wx, -ft / FT_PER_M, wz, wx, 0, wz);
-    heads.push(wx, 0, wz);
-    list.push({ x: wx, z: wz, ft, cls: p.class });
-  }
-  return { stems: new Float32Array(stems), heads: new Float32Array(heads), list };
-}
+const rings = shoreRings(LAKE_GEO, proj);
+const land = buildFlatCells(grid, cx, cz, false);
+const water = buildFlatCells(grid, cx, cz, true);
+const shore = buildShore(rings, cx, cz);
+const trees = buildTrees(grid, rings, cx, cz);
+const rocks = buildHazardRocks(grid, ROCK_GEO, proj, cx, cz);
+const hull = buildBoatHull();
 
-const shore = buildShore();
-const hz = buildHazards();
-const bufShore = bufferOf(shore);
-const bufStems = bufferOf(hz.stems);
-const bufHeads = bufferOf(hz.heads);
+const bufLand = buf(land);
+const bufWater = buf(water);
+const bufShore = buf(shore);
+const bufTreePos = buf(trees.pos);
+const bufTreeNorm = buf(trees.norm);
+const bufTreeShade = buf(trees.shade);
+const bufRockPos = buf(rocks.pos);
+const bufRockNorm = buf(rocks.norm);
+const bufRockKind = buf(rocks.kind);
+const bufStems = buf(rocks.stems);
+const bufHullPos = buf(hull.pos);
+const bufHullNorm = buf(hull.norm);
+const bufHullShade = buf(hull.shade);
+const bufSky = buf(new Float32Array([-1, -1, 3, -1, -1, 3]));
+
+// Land goes through the lit shader like everything else, so it needs matching
+// normal and shade attributes. These have to be sized per-vertex or the shader
+// reads off the end of the buffer -- three floats per vertex for the normal,
+// one for the shade.
+const bufLandNorm = buf((() => {
+  const n = new Float32Array(land.length);
+  for (let i = 1; i < n.length; i += 3) n[i] = 1; // straight up
+  return n;
+})());
+const bufLandShade = buf(new Float32Array(land.length / 3).fill(1));
 
 // --- camera ----------------------------------------------------------------
 
-// Three modes, because "look at the lake" and "be on the lake" want different
-// controls and neither is served well by the other.
-//   orbit -- the whole basin, spun around its centre. Good for shape.
-//   fly   -- free camera. Good for getting in close to one shoal.
-//   boat  -- eye height above the surface, driving. Good for "what am I about
-//            to hit", which is the question this whole project exists to answer.
 const MODES = ["orbit", "fly", "boat"];
 let mode = "orbit";
 
 const orbit = { yaw: 0, pitch: 0.62, dist: 7000 };
-const fly = { x: 0, y: 1200, z: 5000, yaw: 0, pitch: -0.35, speed: 400 };
-const boat = { x: 0, z: 2000, yaw: Math.PI, pitch: -0.05, speed: 0, heading: Math.PI };
-const opts = { exag: 8, shallow: 0, terrace: 3 };
+// Fly starts fast. At 400 m/s it took most of a minute to cross a 9 km lake,
+// which is not flying, it is drifting.
+const fly = { x: 0, y: 1200, z: 5000, yaw: 0, pitch: -0.35, speed: 1400 };
+const boat = { x: 0, z: 0, yaw: Math.PI, pitch: -0.06, speed: 0, heading: Math.PI };
 
-const BOAT_EYE_M = 1.8;      // eye height above the waterline
-const BOAT_MAX_MS = 12;      // ~23 kn, about what an outboard on this lake does
+const BOAT_EYE_M = 1.9;
+const BOAT_MAX_MS = 12; // ~23 kn, about what an outboard on this lake does
 const keys = new Set();
 
 function perspective(fovy, aspect, near, far) {
@@ -1104,10 +1359,68 @@ function forwardOf(yaw, pitch) {
   ];
 }
 
-// Depth under an arbitrary world point, for the boat readout. World Z is
-// negated north, so it has to be undone before sampling.
-function depthAtWorld(wx, wz) {
-  return grid.sampleXY(wx + cx, -wz + cz);
+// World Z is negated north, so it has to be undone before sampling.
+const depthAtWorld = (wx, wz) => grid.sampleXY(wx + cx, -wz + cz);
+
+// Nearest water to a given point with at least `minFt` under it. Used for the
+// spawn: NEOC's mapped position is the building, which is on land.
+function waterNear(x0, z0, minFt = 8) {
+  let best = null;
+  let bestD = Infinity;
+  for (let row = 0; row < grid.ny; row += 2) {
+    for (let col = 0; col < grid.nx; col += 2) {
+      const ft = grid.at(col, row);
+      if (ft === null || ft < minFt) continue;
+      const x = grid.worldX(col) - cx;
+      const z = -(grid.worldY(row) - cz);
+      const d = Math.hypot(x - x0, z - z0);
+      if (d < bestD) {
+        bestD = d;
+        best = { x, z };
+      }
+    }
+  }
+  return best || { x: 0, z: 0 };
+}
+
+const SPAWNS = (() => {
+  const [nx, ny] = proj.fwd(NEOC.lon, NEOC.lat);
+  const neoc = waterNear(nx - cx, -(ny - cz));
+  return {
+    neoc: { ...neoc, label: "NEOC" },
+    deep: { ...waterNear(0, 0, 45), label: "Deep basin" },
+    shoals: { ...pickShoalWater(), label: "Shoal field" },
+  };
+})();
+
+// Somewhere with hazards actually around you, which is the interesting place to
+// be dropped and the one the boat view is for.
+function pickShoalWater() {
+  let best = null;
+  let bestN = -1;
+  for (const h of rocks.list) {
+    if (!h.submerged) continue;
+    let n = 0;
+    for (const o of rocks.list) {
+      if (Math.abs(o.x - h.x) < 400 && Math.abs(o.z - h.z) < 400) n++;
+    }
+    if (n > bestN) {
+      bestN = n;
+      best = h;
+    }
+  }
+  return best ? waterNear(best.x, best.z, 6) : waterNear(0, 0, 6);
+}
+
+function spawnAt(key) {
+  const s = SPAWNS[key] || SPAWNS.neoc;
+  boat.x = s.x;
+  boat.z = s.z;
+  boat.speed = 0;
+  fly.x = s.x;
+  fly.z = s.z + 900;
+  fly.y = 500;
+  fly.pitch = -0.3;
 }
 
 function cameraFor(dt) {
@@ -1141,13 +1454,12 @@ function cameraFor(dt) {
     return { eye, target: add3(eye, fwd) };
   }
 
-  // boat
   if (keys.has("a")) boat.heading -= 1.1 * dt;
   if (keys.has("d")) boat.heading += 1.1 * dt;
-  const target = keys.has("w") ? BOAT_MAX_MS : keys.has("s") ? -BOAT_MAX_MS * 0.4 : 0;
+  const want = keys.has("w") ? BOAT_MAX_MS : keys.has("s") ? -BOAT_MAX_MS * 0.4 : 0;
   // Eased rather than instant, because instant throttle makes the depth readout
   // jump in a way that is impossible to read.
-  boat.speed += (target - boat.speed) * Math.min(1, dt * 1.6);
+  boat.speed += (want - boat.speed) * Math.min(1, dt * 1.6);
   const h = forwardOf(boat.heading, 0);
   boat.x += h[0] * boat.speed * dt;
   boat.z += h[2] * boat.speed * dt;
@@ -1166,116 +1478,147 @@ function resize() {
 window.addEventListener("resize", resize);
 resize();
 
-function bindAttr(prog, name, buf, size) {
+function attr(prog, name, b, size) {
   const loc = gl.getAttribLocation(prog, name);
   if (loc < 0) return;
-  gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+  gl.bindBuffer(gl.ARRAY_BUFFER, b);
   gl.enableVertexAttribArray(loc);
   gl.vertexAttribPointer(loc, size, gl.FLOAT, false, 0, 0);
 }
+const uni = (prog, n) => gl.getUniformLocation(prog, n);
+
+// Hull sits in the camera's own frame, so it is placed by building a model
+// matrix from the boat's heading and position rather than by baking it in.
+function hullMatrix() {
+  const c = Math.cos(boat.heading);
+  const s = Math.sin(boat.heading);
+  return [
+    c, 0, -s, 0,
+    0, 1, 0, 0,
+    s, 0, c, 0,
+    boat.x, BOAT_EYE_M, boat.z, 1,
+  ];
+}
 
 let lastT = performance.now();
+let clock = 0;
 
 function draw(now) {
   const dt = Math.min(0.05, (now - lastT) / 1000) || 0.016;
   lastT = now;
+  clock += dt;
 
   const { eye, target } = cameraFor(dt);
+  // Boat mode ignores the exaggeration slider. From 1.9 m above the water, 8x
+  // turns a 20 ft bottom into a 160 ft canyon and puts every shallow at eye
+  // level -- the one view that pretends you are on the lake is the one where
+  // the geometry has to be true.
+  const exag = mode === "boat" ? 1 : opts.exag;
 
   gl.viewport(0, 0, canvas.width, canvas.height);
   gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
-  // Sky first, with depth writes off so it never occludes the scene.
   gl.disable(gl.DEPTH_TEST);
   gl.depthMask(false);
   gl.useProgram(skyProg);
-  const skyLoc = gl.getAttribLocation(skyProg, "aXY");
-  gl.bindBuffer(gl.ARRAY_BUFFER, bufSky);
-  gl.enableVertexAttribArray(skyLoc);
-  gl.vertexAttribPointer(skyLoc, 2, gl.FLOAT, false, 0, 0);
+  attr(skyProg, "aXY", bufSky, 2);
   gl.drawArrays(gl.TRIANGLES, 0, 3);
   gl.depthMask(true);
   gl.enable(gl.DEPTH_TEST);
 
   const view = lookAt(eye, target, [0, 1, 0]);
-  // Near plane is tight so boat mode can sit 1.8 m off the water without
-  // clipping through it; far plane is generous because at low pitch the far
-  // shore is most of the lake away.
-  const projM = perspective(0.9, canvas.width / canvas.height, 0.5, 80000);
+  const projM = perspective(0.9, canvas.width / canvas.height, 0.4, 80000);
   const mvp = new Float32Array(multiply(view, projM));
 
-  // Boat mode ignores the exaggeration slider. From 1.8 m above the water,
-  // 8x turns a 20 ft bottom into a 160 ft canyon and puts every shallow at eye
-  // level -- the one view where the geometry has to be true is the one where
-  // you are pretending to be on it.
-  const exag = mode === "boat" ? 1 : opts.exag;
-
-  gl.useProgram(landProg);
-  gl.uniformMatrix4fv(gl.getUniformLocation(landProg, "uMVP"), false, mvp);
-  // Land sits a hair under the waterline so the shoreline line reads on top.
-  gl.uniform1f(gl.getUniformLocation(landProg, "uY"), -0.05);
-  bindAttr(landProg, "aPos", bufLand, 3);
+  // Land.
+  gl.useProgram(litProg);
+  gl.uniformMatrix4fv(uni(litProg, "uMVP"), false, mvp);
+  gl.uniform1f(uni(litProg, "uExag"), 1);
+  gl.uniform3f(uni(litProg, "uColorA"), 0.271, 0.286, 0.216);
+  gl.uniform3f(uni(litProg, "uColorB"), 0.271, 0.286, 0.216);
+  attr(litProg, "aPos", bufLand, 3);
+  attr(litProg, "aNormal", bufLandNorm, 3);
+  attr(litProg, "aShade", bufLandShade, 1);
   gl.drawArrays(gl.TRIANGLES, 0, land.length / 3);
 
-  gl.useProgram(meshProg);
-  gl.uniformMatrix4fv(gl.getUniformLocation(meshProg, "uMVP"), false, mvp);
-  gl.uniform1f(gl.getUniformLocation(meshProg, "uExag"), exag);
-  gl.uniform1f(gl.getUniformLocation(meshProg, "uShallow"), opts.shallow);
-  gl.uniform1f(gl.getUniformLocation(meshProg, "uTerrace"), opts.terrace);
-  // Flat shading needs both the derivative extension and highp in the fragment
-  // stage. Without highp the derivative is precision noise, which renders as
-  // white speckle -- smooth-shaded terraces are the better failure.
-  gl.uniform1f(
-    gl.getUniformLocation(meshProg, "uFlat"),
-    opts.terrace > 0 && derivExt && HIGHP_FRAG ? 1 : 0
-  );
+  // Bottom.
+  gl.useProgram(bottomProg);
+  gl.uniformMatrix4fv(uni(bottomProg, "uMVP"), false, mvp);
+  gl.uniform1f(uni(bottomProg, "uExag"), exag);
+  gl.uniform1f(uni(bottomProg, "uShallow"), opts.shallow);
+  attr(bottomProg, "aPos", bufBottomPos, 3);
+  attr(bottomProg, "aNormal", bufBottomNorm, 3);
+  attr(bottomProg, "aDepth", bufBottomDep, 1);
+  gl.drawArrays(gl.TRIANGLES, 0, bottom.count);
 
-  bindAttr(meshProg, "aPos", bufPos, 3);
-  bindAttr(meshProg, "aNormal", bufNorm, 3);
-  bindAttr(meshProg, "aDepth", bufDep, 1);
-  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, bufIdx);
-  gl.drawElements(gl.TRIANGLES, mesh.count, gl.UNSIGNED_INT, 0);
+  // Rocks, trees, hull -- all through the lit shader.
+  gl.useProgram(litProg);
+  gl.uniformMatrix4fv(uni(litProg, "uMVP"), false, mvp);
 
-  // Water surface last among the solids and with blending on, so the bottom
-  // shows through it rather than being replaced by it.
+  gl.uniform1f(uni(litProg, "uExag"), exag);
+  gl.uniform3f(uni(litProg, "uColorA"), 0.62, 0.24, 0.20);   // breaks surface
+  gl.uniform3f(uni(litProg, "uColorB"), 0.85, 0.48, 0.16);   // submerged shoal
+  attr(litProg, "aPos", bufRockPos, 3);
+  attr(litProg, "aNormal", bufRockNorm, 3);
+  attr(litProg, "aShade", bufRockKind, 1);
+  gl.drawArrays(gl.TRIANGLES, 0, rocks.count);
+
+  gl.uniform1f(uni(litProg, "uExag"), 1);
+  gl.uniform3f(uni(litProg, "uColorA"), 0.106, 0.208, 0.145);
+  gl.uniform3f(uni(litProg, "uColorB"), 0.180, 0.310, 0.196);
+  attr(litProg, "aPos", bufTreePos, 3);
+  attr(litProg, "aNormal", bufTreeNorm, 3);
+  attr(litProg, "aShade", bufTreeShade, 1);
+  gl.drawArrays(gl.TRIANGLES, 0, trees.count);
+
   if (mode === "boat") {
+    gl.uniformMatrix4fv(uni(litProg, "uMVP"), false, new Float32Array(multiply(hullMatrix(), multiply(view, projM))));
+    gl.uniform3f(uni(litProg, "uColorA"), 0.62, 0.64, 0.67);
+    gl.uniform3f(uni(litProg, "uColorB"), 0.78, 0.79, 0.81);
+    attr(litProg, "aPos", bufHullPos, 3);
+    attr(litProg, "aNormal", bufHullNorm, 3);
+    attr(litProg, "aShade", bufHullShade, 1);
+    gl.drawArrays(gl.TRIANGLES, 0, hull.count);
+    gl.uniformMatrix4fv(uni(litProg, "uMVP"), false, mvp);
+  }
+
+  // Shoreline and shoal stems.
+  gl.useProgram(flatProg);
+  gl.uniformMatrix4fv(uni(flatProg, "uMVP"), false, mvp);
+  // Shoreline lives at the waterline, so exaggeration must not move it.
+  gl.uniform1f(uni(flatProg, "uY"), 0.15);
+  gl.uniform1f(uni(flatProg, "uExag"), 1);
+  gl.uniform4f(uni(flatProg, "uColor"), 0.42, 0.34, 0.22, 1);
+  attr(flatProg, "aPos", bufShore, 3);
+  gl.drawArrays(gl.LINES, 0, shore.length / 3);
+
+  if (rocks.stems.length) {
+    // Stems run from the rock up to the surface, so they have to be stretched
+    // by the same factor as the bottom or they float free of it.
+    gl.uniform1f(uni(flatProg, "uY"), 0);
+    gl.uniform1f(uni(flatProg, "uExag"), exag);
+    gl.uniform4f(uni(flatProg, "uColor"), 1.0, 0.55, 0.18, 0.7);
     gl.enable(gl.BLEND);
     gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
-    gl.depthMask(false);
-    gl.useProgram(waterProg);
-    gl.uniformMatrix4fv(gl.getUniformLocation(waterProg, "uMVP"), false, mvp);
-    gl.uniform1f(gl.getUniformLocation(waterProg, "uY"), 0);
-    bindAttr(waterProg, "aPos", bufWater, 3);
-    gl.drawArrays(gl.TRIANGLES, 0, water.length / 3);
-    gl.depthMask(true);
+    attr(flatProg, "aPos", bufStems, 3);
+    gl.drawArrays(gl.LINES, 0, rocks.stems.length / 3);
     gl.disable(gl.BLEND);
   }
 
-  gl.useProgram(lineProg);
-  gl.uniformMatrix4fv(gl.getUniformLocation(lineProg, "uMVP"), false, mvp);
-  const exagLoc = gl.getUniformLocation(lineProg, "uExag");
-  const colorLoc = gl.getUniformLocation(lineProg, "uColor");
-
-  // Shoreline sits at Y=0, so exaggeration must not move it.
-  gl.uniform1f(exagLoc, 1.0);
-  gl.uniform4f(colorLoc, 0.5, 0.77, 0.91, 0.85);
-  bindAttr(lineProg, "aPos", bufShore, 3);
-  gl.drawArrays(gl.LINES, 0, shore.length / 3);
-
-  if (hz.stems.length) {
-    gl.uniform1f(exagLoc, exag);
-    gl.uniform4f(colorLoc, 1.0, 0.42, 0.35, 0.75);
-    bindAttr(lineProg, "aPos", bufStems, 3);
-    gl.drawArrays(gl.LINES, 0, hz.stems.length / 3);
-
-    gl.uniform1f(exagLoc, 1.0);
-    gl.uniform4f(colorLoc, 1.0, 0.35, 0.28, 1.0);
-    // Bigger marks in boat mode: from the helm a hazard has to be findable at a
-    // glance, not hunted for among 7 px dots.
-    gl.uniform1f(gl.getUniformLocation(lineProg, "uPointSize"), mode === "boat" ? 11 : 7);
-    bindAttr(lineProg, "aPos", bufHeads, 3);
-    gl.drawArrays(gl.POINTS, 0, hz.heads.length / 3);
-  }
+  // Water last, blended, with depth writes off so the bottom stays visible
+  // through it. Opaque water makes boat mode a blue plane, and seeing what is
+  // under you is the entire reason to be in boat mode.
+  gl.enable(gl.BLEND);
+  gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+  gl.depthMask(false);
+  gl.useProgram(waterProg);
+  gl.uniformMatrix4fv(uni(waterProg, "uMVP"), false, mvp);
+  gl.uniform1f(uni(waterProg, "uTime"), clock);
+  gl.uniform1f(uni(waterProg, "uAlpha"), mode === "boat" ? 0.62 : 0.2);
+  attr(waterProg, "aPos", bufWater, 3);
+  gl.drawArrays(gl.TRIANGLES, 0, water.length / 3);
+  gl.depthMask(true);
+  gl.disable(gl.BLEND);
 
   updateHud();
   requestAnimationFrame(draw);
@@ -1286,7 +1629,7 @@ function draw(now) {
 function nearestHazard(x, z) {
   let best = null;
   let bestD = Infinity;
-  for (const h of hz.list) {
+  for (const h of rocks.list) {
     const d = Math.hypot(h.x - x, h.z - z);
     if (d < bestD) {
       bestD = d;
@@ -1311,6 +1654,12 @@ function updateHud() {
   el("hudNear").style.color = near && near.d < 60 ? "#ff6a5a" : "";
 }
 
+function updateStats() {
+  el("stats").textContent =
+    `${(bottom.count / 3).toLocaleString()} triangles - ${opts.terrace} ft terraces - ` +
+    `${rocks.list.length} hazards - ${(trees.count / 12).toLocaleString()} trees`;
+}
+
 // --- interaction -----------------------------------------------------------
 
 const pointers = new Map();
@@ -1332,7 +1681,7 @@ canvas.addEventListener("pointermove", (e) => {
     const d = Math.hypot(a.x - b.x, a.y - b.y);
     if (pinch > 0) {
       if (mode === "orbit") orbit.dist = clamp(orbit.dist * (pinch / d), 400, 40000);
-      else if (mode === "fly") fly.speed = clamp(fly.speed * (d / pinch), 20, 4000);
+      else if (mode === "fly") fly.speed = clamp(fly.speed * (d / pinch), 50, 9000);
     }
     pinch = d;
     return;
@@ -1351,8 +1700,8 @@ canvas.addEventListener("pointermove", (e) => {
     fly.yaw += dx * 0.005;
     fly.pitch = clamp(fly.pitch - dy * 0.005, -1.4, 1.4);
   } else {
-    // In boat mode the drag is looking around, not steering -- steering is the
-    // A/D keys, so you can look off the beam while holding a course.
+    // In boat mode the drag looks around; steering is A/D, so you can look off
+    // the beam while holding a course.
     boat.heading += dx * 0.005;
     boat.pitch = clamp(boat.pitch - dy * 0.004, -0.6, 0.5);
   }
@@ -1368,9 +1717,9 @@ canvas.addEventListener("pointercancel", release);
 
 canvas.addEventListener("wheel", (e) => {
   e.preventDefault();
-  const f = e.deltaY > 0 ? 1.1 : 0.91;
+  const f = e.deltaY > 0 ? 1.12 : 0.89;
   if (mode === "orbit") orbit.dist = clamp(orbit.dist * f, 400, 40000);
-  else if (mode === "fly") fly.speed = clamp(fly.speed / f, 20, 4000);
+  else if (mode === "fly") fly.speed = clamp(fly.speed / f, 50, 9000);
 }, { passive: false });
 
 window.addEventListener("keydown", (e) => {
@@ -1385,7 +1734,6 @@ window.addEventListener("keyup", (e) => {
 // A held key with the window unfocused would otherwise stick on forever.
 window.addEventListener("blur", () => keys.clear());
 
-// Touch throttle, so boat and fly modes work without a keyboard.
 for (const [id, key] of [["padFwd", "w"], ["padBack", "s"], ["padLeft", "a"], ["padRight", "d"]]) {
   const b = el(id);
   const on = (e) => { e.preventDefault(); keys.add(key); };
@@ -1398,51 +1746,24 @@ for (const [id, key] of [["padFwd", "w"], ["padBack", "s"], ["padLeft", "a"], ["
 
 // --- controls --------------------------------------------------------------
 
-// Nearest cell to the lake centre with real water under it. Spawning at a fixed
-// coordinate put the boat on the 0 ft shore ring, where the view is a wall of
-// shallow and nothing reads.
-function findWater(minFt = 12) {
-  let best = null;
-  let bestD = Infinity;
-  for (let row = 0; row < grid.ny; row += 2) {
-    for (let col = 0; col < grid.nx; col += 2) {
-      const ft = grid.at(col, row);
-      if (ft === null || ft < minFt) continue;
-      const x = grid.worldX(col) - cx;
-      const z = -(grid.worldY(row) - cz);
-      const d = Math.hypot(x, z);
-      if (d < bestD) {
-        bestD = d;
-        best = { x, z };
-      }
-    }
-  }
-  return best || { x: 0, z: 0 };
-}
-
 function setMode(m) {
   mode = m;
   for (const other of MODES) el(`mode_${other}`).classList.toggle("on", other === m);
   el("pad").style.display = m === "orbit" ? "none" : "grid";
+  el("spawnRow").style.display = m === "orbit" ? "none" : "flex";
   el("hint").textContent =
     m === "orbit"
       ? "Drag to orbit - pinch or scroll to zoom"
       : m === "fly"
       ? "Drag to look - W/A/S/D to move, Space/Shift for up/down, scroll for speed"
       : "W to throttle up, A/D to steer, drag to look around";
-  if (m === "boat") {
-    // Drop the boat somewhere it is actually floating rather than wherever the
-    // camera last was, which is usually over land or 1200 m in the air.
-    const here = depthAtWorld(boat.x, boat.z);
-    if (here == null || here < 6) {
-      const spot = findWater();
-      boat.x = spot.x;
-      boat.z = spot.z;
-    }
-    boat.speed = 0;
-  }
+  if (m === "boat" && depthAtWorld(boat.x, boat.z) == null) spawnAt("neoc");
 }
 for (const m of MODES) el(`mode_${m}`).onclick = () => setMode(m);
+for (const key of Object.keys(SPAWNS)) {
+  const b = el(`spawn_${key}`);
+  if (b) b.onclick = () => spawnAt(key);
+}
 
 el("sldExag").addEventListener("input", (e) => {
   opts.exag = +e.target.value;
@@ -1452,10 +1773,17 @@ el("sldShallow3d").addEventListener("input", (e) => {
   opts.shallow = +e.target.value;
   el("valShallow3d").textContent = opts.shallow === 0 ? "off" : `${opts.shallow} ft`;
 });
+
+// The terraces are geometry now, so this rebuilds a ~10 MB buffer. Debounced,
+// or dragging the slider would rebuild it thirty times on the way past.
+let terraceTimer = null;
 el("sldTerrace").addEventListener("input", (e) => {
   opts.terrace = +e.target.value;
-  el("valTerrace").textContent = opts.terrace === 0 ? "smooth" : `${opts.terrace} ft`;
+  el("valTerrace").textContent = `${opts.terrace} ft`;
+  clearTimeout(terraceTimer);
+  terraceTimer = setTimeout(rebuildBottom, 140);
 });
+
 el("btnGear").onclick = () => {
   const open = document.body.classList.toggle("open");
   el("btnGear").classList.toggle("on", open);
@@ -1466,17 +1794,18 @@ el("btnReset").onclick = () => {
   orbit.yaw = 0;
   orbit.pitch = 0.62;
   orbit.dist = 7000;
-  fly.x = 0; fly.y = 1200; fly.z = 5000; fly.yaw = 0; fly.pitch = -0.35;
-  boat.x = 0; boat.z = 2000; boat.heading = Math.PI; boat.pitch = -0.05; boat.speed = 0;
+  fly.yaw = 0;
+  fly.pitch = -0.35;
+  fly.speed = 1400;
+  spawnAt("neoc");
 };
 
-el("stats").textContent =
-  `${(mesh.count / 3).toLocaleString()} triangles - ${grid.nx}x${grid.ny} grid at ` +
-  `${grid.gridM} m - 0-${grid.maxFt} ft - ${hz.list.length} hazards`;
+updateStats();
 el("valExag").textContent = `${opts.exag}x`;
 el("valTerrace").textContent = `${opts.terrace} ft`;
+spawnAt("neoc");
 
-// ?mode=boat deep-links straight into a mode, which is how this gets checked
+// ?mode= deep-links straight into a mode, which is how this gets checked
 // without a human clicking, and is handy for a bookmark.
 const wanted = new URLSearchParams(location.search).get("mode");
 setMode(MODES.includes(wanted) ? wanted : "orbit");

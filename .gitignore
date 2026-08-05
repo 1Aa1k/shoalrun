@@ -2,3 +2,8 @@
 data/stack.npz
 data/lake_raw.json
 __pycache__/
+
+# Annotator chips: ~190 MB of rendered JPEG, regenerable from build_annotator.py
+dist/annotate/chips/
+# Per-pixel evidence grids: 1.5 GB, regenerable from detect_edge.py
+data/evidence/

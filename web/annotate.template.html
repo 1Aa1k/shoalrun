@@ -1,0 +1,198 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Shoalrun - mark the rocks</title>
+<style>
+  :root { color-scheme: dark; --bg:#0d1117; --fg:#e6edf3; --dim:#7d8590; --hi:#f0b429; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg);
+         font:14px/1.5 system-ui,-apple-system,sans-serif; }
+  header { display:flex; gap:16px; align-items:center; flex-wrap:wrap;
+           padding:8px 14px; background:#161b22; border-bottom:1px solid #30363d;
+           position:sticky; top:0; z-index:5; }
+  h1 { font-size:15px; margin:0; font-weight:600; }
+  .grow { flex:1; }
+  button { background:#21262d; color:var(--fg); border:1px solid #30363d;
+           border-radius:6px; padding:5px 11px; cursor:pointer; font-size:13px; }
+  button:hover { background:#30363d; }
+  button.on { background:var(--hi); color:#000; border-color:var(--hi); }
+  .wrap { display:flex; gap:14px; padding:14px; align-items:flex-start; }
+  .stage { position:relative; line-height:0; flex-shrink:0;
+           border:1px solid #30363d; border-radius:8px; overflow:hidden; }
+  .stage img { display:block; width:800px; height:800px; cursor:crosshair;
+               image-rendering:auto; }
+  .stage svg { position:absolute; inset:0; width:100%; height:100%;
+               pointer-events:none; }
+  .stage svg circle.mine { pointer-events:all; cursor:pointer; }
+  aside { width:280px; font-size:13px; }
+  aside h2 { font-size:13px; margin:14px 0 6px; color:var(--dim);
+             text-transform:uppercase; letter-spacing:.05em; }
+  kbd { background:#21262d; border:1px solid #30363d; border-bottom-width:2px;
+        border-radius:4px; padding:1px 6px; font:12px ui-monospace,monospace; }
+  .row { display:flex; justify-content:space-between; padding:2px 0; }
+  .dim { color:var(--dim); }
+  .big { font-size:24px; font-weight:600; }
+  progress { width:100%; height:8px; }
+</style>
+
+<header>
+  <h1>Mark the rocks</h1>
+  <span class="dim" id="pos"></span>
+  <button id="prev">&larr; prev</button>
+  <button id="next">next &rarr;</button>
+  <button id="flip"></button>
+  <button id="tIr">infrared</button>
+  <span class="grow"></span>
+  <button id="tHaz" class="on">our guesses</button>
+  <button id="tSnd" class="on">depths</button>
+  <button id="tMine" class="on">my marks</button>
+  <button id="export">export</button>
+</header>
+
+<div class="wrap">
+  <div class="stage">
+    <img id="im" alt="">
+    <svg id="ov" viewBox="0 0 800 800" preserveAspectRatio="none"></svg>
+  </div>
+  <aside>
+    <div class="big"><span id="nmine">0</span> rocks marked</div>
+    <progress id="prog" value="0" max="1"></progress>
+    <div class="row"><span class="dim">section</span><span id="sid"></span></div>
+    <div class="row"><span class="dim">flight</span><span id="yr"></span></div>
+    <div class="row"><span class="dim">position</span><span id="ll"></span></div>
+    <div class="row"><span class="dim">our guesses here</span><span id="nhaz"></span></div>
+
+    <h2>How</h2>
+    <p><b>Click a rock</b> to mark it. Click your own mark again to remove it.</p>
+    <p><b>Flip between years</b> with <kbd>space</kbd>. A wave or a glint shows up
+      in one year only. A rock sits in the same spot every year. That flip is the
+      whole trick.</p>
+    <p><b>Infrared</b> (<kbd>i</kbd>) is the giveaway for anything actually
+      breaking the surface. Water swallows infrared, so open water goes black
+      and dry rock glows. A shoal still under water stays dark -- so if it is
+      bright in colour but dark in infrared, it is submerged, not exposed.</p>
+    <p>Only water more than 50 m off shore is shown, ordered so the busy water
+      comes first. Stop whenever you like, it stays useful.</p>
+
+    <h2>Keys</h2>
+    <div class="row"><kbd>space</kbd><span class="dim">next flight</span></div>
+    <div class="row"><kbd>&larr;</kbd> <kbd>&rarr;</kbd><span class="dim">section</span></div>
+    <div class="row"><kbd>i</kbd><span class="dim">infrared on/off</span></div>
+    <div class="row"><kbd>h</kbd><span class="dim">our guesses on/off</span></div>
+    <div class="row"><kbd>u</kbd><span class="dim">undo last mark</span></div>
+    <div class="row"><kbd>x</kbd><span class="dim">nothing here, next</span></div>
+
+    <h2>Legend</h2>
+    <div class="row"><span style="color:#f0b429">&#9679; yellow</span><span class="dim">your rocks</span></div>
+    <div class="row"><span style="color:#58a6ff">&#9675; blue</span><span class="dim">what we detected</span></div>
+    <div class="row"><span style="color:#3fb950">&#9633; green</span><span class="dim">1954 sounding, ft</span></div>
+
+    <p class="dim" style="margin-top:18px">Saved in this browser after every
+      click. <b>Export</b> writes the file I read back.</p>
+  </aside>
+</div>
+
+<script>
+const DATA = /*DATA*/;
+const S = DATA.sections;
+const KEY = "shoalrun_marks_v1";
+let i = 0, f = 0, ir = false;
+let marks = JSON.parse(localStorage.getItem(KEY) || "{}");
+let seen = JSON.parse(localStorage.getItem(KEY + "_seen") || "{}");
+const show = { haz: true, snd: true, mine: true };
+
+const $ = (id) => document.getElementById(id);
+const cur = () => S[i];
+
+function draw() {
+  const s = cur();
+  f = Math.min(f, s.imgs.length - 1);
+  const im = s.imgs[f];
+  $("im").src = (ir && im.ir) ? im.ir : im.file;
+  $("pos").textContent = `${i + 1} / ${S.length}`;
+  $("sid").textContent = "#" + s.id;
+  $("yr").textContent = im.year + (ir ? " infrared" : " colour");
+  $("flip").textContent = "flight " + im.year;
+  $("ll").textContent = s.center_ll[1].toFixed(4) + ", " + s.center_ll[0].toFixed(4);
+  $("nhaz").textContent = s.haz.length;
+  $("prog").value = Object.keys(seen).length;
+  $("prog").max = S.length;
+  $("nmine").textContent = Object.values(marks).reduce((a, b) => a + b.length, 0);
+
+  // The chip is rendered at s.n px and displayed at 800; scale so a stored
+  // pixel coordinate lands on the same rock at any display size.
+  const k = 800 / s.n;
+  const p = [];
+  if (show.snd) for (const d of s.snd)
+    p.push(`<rect x="${d.p[0]*k-5}" y="${d.p[1]*k-5}" width="10" height="10"
+             fill="none" stroke="#3fb950" stroke-width="1.5"/>
+            <text x="${d.p[0]*k+9}" y="${d.p[1]*k+4}" fill="#3fb950"
+             font-size="11">${d.d}</text>`);
+  if (show.haz) for (const h of s.haz)
+    p.push(`<circle cx="${h.p[0]*k}" cy="${h.p[1]*k}" r="9" fill="none"
+             stroke="#58a6ff" stroke-width="1.5" opacity="0.85"/>`);
+  if (show.mine) (marks[s.id] || []).forEach((m, j) =>
+    p.push(`<circle class="mine" data-j="${j}" cx="${m[0]*k}" cy="${m[1]*k}" r="7"
+             fill="#f0b429" fill-opacity="0.35" stroke="#f0b429" stroke-width="2"/>`));
+  $("ov").innerHTML = p.join("");
+}
+
+$("im").addEventListener("click", (e) => {
+  const s = cur(), r = e.target.getBoundingClientRect();
+  const k = s.n / r.width;
+  (marks[s.id] ||= []).push([
+    +((e.clientX - r.left) * k).toFixed(1),
+    +((e.clientY - r.top) * k).toFixed(1),
+  ]);
+  seen[s.id] = 1;
+  save(); draw();
+});
+
+$("ov").addEventListener("click", (e) => {
+  const j = e.target.getAttribute?.("data-j");
+  if (j === null || j === undefined) return;
+  marks[cur().id].splice(+j, 1);
+  save(); draw();
+});
+
+function save() {
+  localStorage.setItem(KEY, JSON.stringify(marks));
+  localStorage.setItem(KEY + "_seen", JSON.stringify(seen));
+}
+function go(d) { i = (i + d + S.length) % S.length; f = 0; draw(); }
+function flip() { f = (f + 1) % cur().imgs.length; draw(); }
+
+$("tIr").onclick = () => { ir = !ir; $("tIr").classList.toggle("on"); draw(); };
+$("prev").onclick = () => go(-1);
+$("next").onclick = () => go(1);
+$("flip").onclick = flip;
+for (const [id, key] of [["tHaz", "haz"], ["tSnd", "snd"], ["tMine", "mine"]])
+  $(id).onclick = () => { show[key] = !show[key]; $(id).classList.toggle("on"); draw(); };
+
+$("export").onclick = () => {
+  const out = { section_m: DATA.section_m, res: DATA.res, crs: DATA.crs, marks: [] };
+  for (const s of S) for (const m of (marks[s.id] || []))
+    out.marks.push({
+      section: s.id,
+      x: s.origin[0] + m[0] * s.res,
+      y: s.origin[1] - m[1] * s.res,
+    });
+  out.sections_reviewed = Object.keys(seen).map(Number);
+  const b = new Blob([JSON.stringify(out, null, 1)], { type: "application/json" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(b);
+  a.download = "my_rocks.json";
+  a.click();
+};
+
+addEventListener("keydown", (e) => {
+  if (e.key === " ") { e.preventDefault(); flip(); }
+  else if (e.key === "ArrowLeft") go(-1);
+  else if (e.key === "ArrowRight") go(1);
+  else if (e.key === "h") { show.haz = !show.haz; $("tHaz").classList.toggle("on"); draw(); }
+  else if (e.key === "i") { ir = !ir; $("tIr").classList.toggle("on"); draw(); }
+  else if (e.key === "u") { (marks[cur().id] || []).pop(); save(); draw(); }
+  else if (e.key === "x") { seen[cur().id] = 1; save(); go(1); }
+});
+
+draw();
+</script>
