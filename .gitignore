@@ -7,3 +7,5 @@ __pycache__/
 dist/annotate/chips/
 # Per-pixel evidence grids: 1.5 GB, regenerable from detect_edge.py
 data/evidence/
+# Derived bathymetry grids: ~357 MB, regenerable from derive_bathymetry.py
+data/sdb/*.npy
