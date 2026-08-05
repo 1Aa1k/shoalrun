@@ -2,7 +2,8 @@ import { makeProjection, GridIndex } from "./geo.js";
 import { scan, alertLevel, CORRIDOR_HALF_W } from "./hazard.js";
 import { MapView } from "./render.js";
 import { DepthGrid, contoursAt, contoursAtLevels, rampCss, CHART_BAND_EDGES } from "./depth.js";
-import { logFix, allMarks, setMark, clearMark, exportAll, trackCount } from "./store.js";
+import { logFix, allTracks, allMarks, setMark, clearMark, exportAll, trackCount } from "./store.js";
+import { SweptGrid, coverageStats, sweptFromFixes } from "./swept.js";
 
 // DATA is injected at build time so the app is one self-contained file with no
 // network dependency of any kind. There is no cell service on this lake.
@@ -20,6 +21,10 @@ const state = {
   rocks: [],
   marks: new Map(),
   track: [],
+  // Water proven by having driven it. The one evidence source on this lake that
+  // does not depend on seeing through the water.
+  swept: new SweptGrid(),
+  sweptPrev: null,
   grid: null,
   contours: [],
   soundings: [],
@@ -109,6 +114,20 @@ ROCK_GEO.features.forEach((f, i) => {
   index.insert(x, y, rock);
 });
 
+// Lake area in projected metres, for the coverage readout. Computed from the
+// same rings the map draws, so it cannot drift from what is on screen.
+const LAKE_AREA_M2 = state.lake.reduce((sum, poly) => {
+  const ringArea = (r) => {
+    let a = 0;
+    for (let i = 0, j = r.length - 1; i < r.length; j = i++) {
+      a += (r[j][0] + r[i][0]) * (r[j][1] - r[i][1]);
+    }
+    return Math.abs(a / 2);
+  };
+  // First ring is the outside, the rest are islands and come off the total.
+  return sum + poly.reduce((acc, r, i) => acc + (i === 0 ? ringArea(r) : -ringArea(r)), 0);
+}, 0);
+
 const view = new MapView(el("map"), proj);
 view.center = { x: 0, y: 0 };
 view.scale = Math.min(
@@ -169,6 +188,15 @@ function onFix(pos) {
 
   state.track.push({ x, y });
   if (state.track.length > 5000) state.track.shift();
+
+  // Grow the proven-water layer live, so the fog lifts as he drives rather
+  // than only after a reload.
+  if (state.sweptPrev && t - state.sweptPrev.t < 30000) {
+    state.swept.addLeg(state.sweptPrev.x, state.sweptPrev.y, x, y, c.accuracy, speed, t);
+  } else {
+    state.swept.addFix(x, y, c.accuracy, speed, t);
+  }
+  if (c.accuracy <= 12) state.sweptPrev = { x, y, t };
 
   logFix(state.trip, {
     t,
@@ -607,6 +635,26 @@ if (state.grid) el("rampMax").textContent = `${state.grid.maxFt} ft`;
 // Chart is the default: this gets used outdoors, in daylight, most of the time.
 setTheme(new URLSearchParams(location.search).get("theme") === "night" ? "night" : "chart");
 loadMarks().then(() => {
+  // Rebuild the proven-water layer from every past trip. Until now these fixes
+  // were logged and never read back, so each outing started from a blank lake.
+  allTracks().then((fixes) => {
+    const pts = fixes
+      .filter((f) => f.lat != null && f.lon != null)
+      .sort((a, b) => a.t - b.t)
+      .map((f) => {
+        const [x, y] = proj.fwd(f.lon, f.lat);
+        return { x, y, accuracy: f.accuracy, speed: f.speed, t: f.t };
+      });
+    if (!pts.length) return;
+    state.swept = sweptFromFixes(pts);
+    const st = coverageStats(state.swept, LAKE_AREA_M2);
+    setStatus(
+      `${st.kmDriven.toFixed(1)} km driven, ${(st.provenM2 / 1e6).toFixed(2)} km2 ` +
+        `proven (${st.pctOfLake.toFixed(1)}% of the lake)`,
+      "ok",
+    );
+  });
+
   trackCount().then((n) => {
     if (n) setStatus(`${n} logged track points on this device`, "ok");
   });
