@@ -1,0 +1,5653 @@
+{
+  "version": 0.6,
+  "generator": "Overpass API 0.7.62.11 87bfad18",
+  "osm3s": {
+    "timestamp_osm_base": "2026-08-05T00:44:38Z",
+    "copyright": "The data included in this document is from www.openstreetmap.org. The data is made available under ODbL."
+  },
+  "elements": [
+
+{
+  "type": "node",
+  "id": 3009684400,
+  "lat": 45.7522678,
+  "lon": -68.8086087,
+  "tags": {
+    "tourism": "camp_site"
+  }
+},
+{
+  "type": "node",
+  "id": 4383565394,
+  "lat": 45.7313052,
+  "lon": -68.8353668,
+  "tags": {
+    "addr:city": "Northern Piscataquis County",
+    "addr:housenumber": "41",
+    "addr:state": "ME",
+    "addr:street": "Loon Lane",
+    "building": "cabin"
+  }
+},
+{
+  "type": "node",
+  "id": 4383567193,
+  "lat": 45.7312814,
+  "lon": -68.8357576,
+  "tags": {
+    "addr:city": "Northern Piscataquis County",
+    "addr:housenumber": "39",
+    "addr:state": "ME",
+    "addr:street": "Loon Lane",
+    "building": "cabin",
+    "name": "Katahdin's Rest"
+  }
+},
+{
+  "type": "node",
+  "id": 4383574493,
+  "lat": 45.7314738,
+  "lon": -68.8362008,
+  "tags": {
+    "building": "cabin"
+  }
+},
+{
+  "type": "node",
+  "id": 4383575390,
+  "lat": 45.7313766,
+  "lon": -68.8349553,
+  "tags": {
+    "addr:city": "Northern Piscataquis County",
+    "addr:housenumber": "45",
+    "addr:state": "ME",
+    "addr:street": "Loon Lane",
+    "building": "cabin"
+  }
+},
+{
+  "type": "node",
+  "id": 4383611589,
+  "lat": 45.7315559,
+  "lon": -68.8346586,
+  "tags": {
+    "building": "cabin"
+  }
+},
+{
+  "type": "node",
+  "id": 4383611590,
+  "lat": 45.7314711,
+  "lon": -68.8339335,
+  "tags": {
+    "building": "cabin"
+  }
+},
+{
+  "type": "node",
+  "id": 4383611789,
+  "lat": 45.7318004,
+  "lon": -68.8337338,
+  "tags": {
+    "building": "cabin"
+  }
+},
+{
+  "type": "node",
+  "id": 4383611989,
+  "lat": 45.7317356,
+  "lon": -68.8347236,
+  "tags": {
+    "building": "garage"
+  }
+},
+{
+  "type": "node",
+  "id": 4385074189,
+  "lat": 45.7280877,
+  "lon": -68.8354198,
+  "tags": {
+    "addr:housenumber": "26",
+    "addr:street": "Blackcat Road",
+    "building": "cabin"
+  }
+},
+{
+  "type": "node",
+  "id": 4385213289,
+  "lat": 45.7296858,
+  "lon": -68.8374396,
+  "tags": {
+    "building": "garage",
+    "name": "raft storage"
+  }
+},
+{
+  "type": "node",
+  "id": 4387031990,
+  "lat": 45.7233848,
+  "lon": -68.8349334,
+  "tags": {
+    "addr:housenumber": "F2",
+    "tourism": "camp_site",
+    "wheelchair": "no"
+  }
+},
+{
+  "type": "node",
+  "id": 4387194494,
+  "lat": 45.7220820,
+  "lon": -68.8334141,
+  "tags": {
+    "addr:housenumber": "5J",
+    "tourism": "camp_site",
+    "wheelchair": "no"
+  }
+},
+{
+  "type": "node",
+  "id": 4387215096,
+  "lat": 45.7231262,
+  "lon": -68.8348970,
+  "tags": {
+    "addr:housenumber": "3G",
+    "tourism": "camp_site",
+    "wheelchair": "no"
+  }
+},
+{
+  "type": "node",
+  "id": 4387221298,
+  "lat": 45.7218465,
+  "lon": -68.8336626,
+  "tags": {
+    "addr:housenumber": "5K",
+    "tourism": "camp_site",
+    "wheelchair": "no"
+  }
+},
+{
+  "type": "node",
+  "id": 4387238593,
+  "lat": 45.7277329,
+  "lon": -68.8368480,
+  "tags": {
+    "addr:housenumber": "2A",
+    "tourism": "camp_site",
+    "wheelchair": "no"
+  }
+},
+{
+  "type": "node",
+  "id": 4387238596,
+  "lat": 45.7234947,
+  "lon": -68.8351084,
+  "tags": {
+    "addr:housenumber": "E2",
+    "tourism": "camp_site",
+    "wheelchair": "no"
+  }
+},
+{
+  "type": "node",
+  "id": 4387243590,
+  "lat": 45.7222839,
+  "lon": -68.8336112,
+  "tags": {
+    "addr:housenumber": "4I",
+    "tourism": "camp_site",
+    "wheelchair": "no"
+  }
+},
+{
+  "type": "node",
+  "id": 4387245091,
+  "lat": 45.7228890,
+  "lon": -68.8350002,
+  "tags": {
+    "addr:housenumber": "3H",
+    "tourism": "camp_site",
+    "wheelchair": "no"
+  }
+},
+{
+  "type": "node",
+  "id": 4387536492,
+  "lat": 45.7308348,
+  "lon": -68.8396015,
+  "tags": {
+    "building": "cabin"
+  }
+},
+{
+  "type": "node",
+  "id": 4387539392,
+  "lat": 45.7308739,
+  "lon": -68.8390678,
+  "tags": {
+    "addr:housename": "Electric Guitar Avenue",
+    "addr:street": "Golden Road",
+    "building": "house"
+  }
+},
+{
+  "type": "node",
+  "id": 4387539393,
+  "lat": 45.7314924,
+  "lon": -68.8418938,
+  "tags": {
+    "addr:housename": "Elliot",
+    "building": "cabin"
+  }
+},
+{
+  "type": "node",
+  "id": 4387553592,
+  "lat": 45.7314434,
+  "lon": -68.8414354,
+  "tags": {
+    "building": "yes"
+  }
+},
+{
+  "type": "node",
+  "id": 4387589992,
+  "lat": 45.7310169,
+  "lon": -68.8439745,
+  "tags": {
+    "addr:housename": "Elliot",
+    "building": "cabin"
+  }
+},
+{
+  "type": "node",
+  "id": 4387607589,
+  "lat": 45.7312485,
+  "lon": -68.8398332,
+  "tags": {
+    "addr:city": "T1 R9 Wels",
+    "addr:housenumber": "1900",
+    "addr:state": "ME",
+    "addr:street": "Golden Road",
+    "building": "cabin"
+  }
+},
+{
+  "type": "node",
+  "id": 4387608190,
+  "lat": 45.7305981,
+  "lon": -68.8477077,
+  "tags": {
+    "addr:housename": "Soucy",
+    "building": "cabin"
+  }
+},
+{
+  "type": "node",
+  "id": 7176604156,
+  "lat": 45.7264286,
+  "lon": -68.7947838,
+  "tags": {
+    "addr:city": "North Penobscot County",
+    "addr:housenumber": "25",
+    "addr:state": "ME",
+    "addr:street": "Muriel Boulevard",
+    "building": "detached"
+  }
+},
+{
+  "type": "node",
+  "id": 7176604159,
+  "lat": 45.7181538,
+  "lon": -68.7980971,
+  "tags": {
+    "addr:city": "North Penobscot County",
+    "addr:housenumber": "219",
+    "addr:state": "ME",
+    "addr:street": "Gravity Lane",
+    "building": "detached"
+  }
+},
+{
+  "type": "node",
+  "id": 7188441096,
+  "lat": 45.7632147,
+  "lon": -68.7476144,
+  "tags": {
+    "addr:city": "North Penobscot County",
+    "addr:housenumber": "482",
+    "addr:state": "ME",
+    "addr:street": "Hawk Haven",
+    "building": "detached"
+  }
+},
+{
+  "type": "node",
+  "id": 7188441097,
+  "lat": 45.7793470,
+  "lon": -68.7890649,
+  "tags": {
+    "addr:city": "North Penobscot County",
+    "addr:housenumber": "270",
+    "addr:state": "ME",
+    "addr:street": "Honeysuckle Lane",
+    "building": "detached"
+  }
+},
+{
+  "type": "node",
+  "id": 7188441098,
+  "lat": 45.7874953,
+  "lon": -68.8031732,
+  "tags": {
+    "addr:city": "North Penobscot County",
+    "addr:housenumber": "174",
+    "addr:state": "ME",
+    "addr:street": "White Cap Way",
+    "building": "detached"
+  }
+},
+{
+  "type": "node",
+  "id": 7188441099,
+  "lat": 45.7863986,
+  "lon": -68.8013695,
+  "tags": {
+    "addr:city": "North Penobscot County",
+    "addr:housenumber": "158",
+    "addr:state": "ME",
+    "addr:street": "White Cap Way",
+    "building": "detached"
+  }
+},
+{
+  "type": "node",
+  "id": 7188441100,
+  "lat": 45.7980601,
+  "lon": -68.7968758,
+  "tags": {
+    "addr:city": "North Penobscot County",
+    "addr:housenumber": "99",
+    "addr:state": "ME",
+    "addr:street": "North Shore Road",
+    "building": "detached"
+  }
+},
+{
+  "type": "node",
+  "id": 7188441101,
+  "lat": 45.7879705,
+  "lon": -68.8183463,
+  "tags": {
+    "addr:city": "North Penobscot County",
+    "addr:housenumber": "340",
+    "addr:state": "ME",
+    "addr:street": "North Shore Road",
+    "building": "detached"
+  }
+},
+{
+  "type": "node",
+  "id": 7209262061,
+  "lat": 45.7327424,
+  "lon": -68.8364486,
+  "tags": {
+    "addr:city": "Northern Piscataquis County",
+    "addr:housenumber": "25",
+    "addr:state": "ME",
+    "addr:street": "Frog Hollow Lane",
+    "building": "residential"
+  }
+},
+{
+  "type": "node",
+  "id": 7209265482,
+  "lat": 45.7126249,
+  "lon": -68.8524840,
+  "tags": {
+    "addr:city": "Northern Piscataquis County",
+    "addr:housenumber": "271",
+    "addr:state": "ME",
+    "addr:street": "Rock Ridge Road",
+    "building": "residential"
+  }
+},
+{
+  "type": "node",
+  "id": 7209265625,
+  "lat": 45.7283118,
+  "lon": -68.8380745,
+  "tags": {
+    "addr:city": "Northern Piscataquis County",
+    "addr:housenumber": "1852",
+    "addr:state": "ME",
+    "addr:street": "Golden Road",
+    "building": "residential"
+  }
+},
+{
+  "type": "node",
+  "id": 7209265651,
+  "lat": 45.7309650,
+  "lon": -68.8430856,
+  "tags": {
+    "addr:city": "Northern Piscataquis County",
+    "addr:housenumber": "36",
+    "addr:state": "ME",
+    "addr:street": "Spencer Cove Road",
+    "building": "detached"
+  }
+},
+{
+  "type": "node",
+  "id": 7209265652,
+  "lat": 45.7248955,
+  "lon": -68.8508967,
+  "tags": {
+    "addr:city": "Northern Piscataquis County",
+    "addr:housenumber": "19",
+    "addr:state": "ME",
+    "addr:street": "Shady Lane",
+    "building": "detached"
+  }
+},
+{
+  "type": "node",
+  "id": 7209265653,
+  "lat": 45.7251606,
+  "lon": -68.8505940,
+  "tags": {
+    "addr:city": "Northern Piscataquis County",
+    "addr:housenumber": "21",
+    "addr:state": "ME",
+    "addr:street": "Shady Lane",
+    "building": "detached"
+  }
+},
+{
+  "type": "node",
+  "id": 7209265654,
+  "lat": 45.7256593,
+  "lon": -68.8499630,
+  "tags": {
+    "addr:city": "Northern Piscataquis County",
+    "addr:housenumber": "25",
+    "addr:state": "ME",
+    "addr:street": "Shady Lane",
+    "building": "detached"
+  }
+},
+{
+  "type": "node",
+  "id": 7209265655,
+  "lat": 45.7294138,
+  "lon": -68.8692374,
+  "tags": {
+    "addr:city": "Northern Piscataquis County",
+    "addr:housenumber": "86",
+    "addr:state": "ME",
+    "addr:street": "Hill Road",
+    "building": "detached"
+  }
+},
+{
+  "type": "node",
+  "id": 7209265657,
+  "lat": 45.7258474,
+  "lon": -68.8393474,
+  "tags": {
+    "addr:city": "Northern Piscataquis County",
+    "addr:housenumber": "26",
+    "addr:state": "ME",
+    "addr:street": "Black Bear Lane",
+    "building": "detached"
+  }
+},
+{
+  "type": "node",
+  "id": 7209265658,
+  "lat": 45.7260125,
+  "lon": -68.8383317,
+  "tags": {
+    "addr:city": "Northern Piscataquis County",
+    "addr:housenumber": "28",
+    "addr:state": "ME",
+    "addr:street": "Black Bear Lane",
+    "building": "detached"
+  }
+},
+{
+  "type": "node",
+  "id": 7209265661,
+  "lat": 45.7161955,
+  "lon": -68.8503995,
+  "tags": {
+    "addr:city": "Northern Piscataquis County",
+    "addr:housenumber": "51",
+    "addr:state": "ME",
+    "addr:street": "Doc Moreys Lane",
+    "building": "detached"
+  }
+},
+{
+  "type": "node",
+  "id": 7209265664,
+  "lat": 45.7232042,
+  "lon": -68.8550520,
+  "tags": {
+    "addr:city": "Northern Piscataquis County",
+    "addr:housenumber": "333",
+    "addr:state": "ME",
+    "addr:street": "Sawdust Pile Road",
+    "building": "detached"
+  }
+},
+{
+  "type": "node",
+  "id": 7209265666,
+  "lat": 45.7257154,
+  "lon": -68.8383197,
+  "tags": {
+    "addr:city": "Northern Piscataquis County",
+    "addr:housenumber": "1814",
+    "addr:state": "ME",
+    "addr:street": "Golden Road",
+    "building": "detached"
+  }
+},
+{
+  "type": "node",
+  "id": 7209265671,
+  "lat": 45.7301194,
+  "lon": -68.8338280,
+  "tags": {
+    "addr:city": "Northern Piscataquis County",
+    "addr:housenumber": "31",
+    "addr:state": "ME",
+    "addr:street": "Pine Drive",
+    "building": "residential"
+  }
+},
+{
+  "type": "way",
+  "id": 439624547,
+  "bounds": {
+    "minlat": 45.7294290,
+    "minlon": -68.8379816,
+    "maxlat": 45.7296313,
+    "maxlon": -68.8377374
+  },
+  "geometry": [
+    { "lat": 45.7295890, "lon": -68.8379816 },
+    { "lat": 45.7296313, "lon": -68.8378273 },
+    { "lat": 45.7294712, "lon": -68.8377374 },
+    { "lat": 45.7294290, "lon": -68.8378917 },
+    { "lat": 45.7295890, "lon": -68.8379816 }
+  ],
+  "tags": {
+    "building": "yes",
+    "internet_access": "wlan",
+    "internet_access:fee": "yes",
+    "name": "North Woods Trading Company"
+  }
+},
+{
+  "type": "way",
+  "id": 439624548,
+  "bounds": {
+    "minlat": 45.7298877,
+    "minlon": -68.8368417,
+    "maxlat": 45.7300548,
+    "maxlon": -68.8366301
+  },
+  "geometry": [
+    { "lat": 45.7300187, "lon": -68.8368417 },
+    { "lat": 45.7300548, "lon": -68.8366971 },
+    { "lat": 45.7299237, "lon": -68.8366301 },
+    { "lat": 45.7298877, "lon": -68.8367746 },
+    { "lat": 45.7300187, "lon": -68.8368417 }
+  ],
+  "tags": {
+    "building": "yes",
+    "man_made": "water_works",
+    "name": "Pumping Station"
+  }
+},
+{
+  "type": "way",
+  "id": 439624549,
+  "bounds": {
+    "minlat": 45.7294907,
+    "minlon": -68.8377603,
+    "maxlat": 45.7296754,
+    "maxlon": -68.8375645
+  },
+  "geometry": [
+    { "lat": 45.7296452, "lon": -68.8377603 },
+    { "lat": 45.7296754, "lon": -68.8376583 },
+    { "lat": 45.7295209, "lon": -68.8375645 },
+    { "lat": 45.7294907, "lon": -68.8376664 },
+    { "lat": 45.7296452, "lon": -68.8377603 }
+  ],
+  "tags": {
+    "addr:city": "T1 R9 Wels",
+    "addr:housenumber": "8",
+    "addr:state": "ME",
+    "addr:street": "Fredericka's Way",
+    "building": "yes",
+    "leisure": "sports_centre",
+    "name": "North Country Rivers",
+    "sport": "rafting"
+  }
+},
+{
+  "type": "way",
+  "id": 440746687,
+  "bounds": {
+    "minlat": 45.7290510,
+    "minlon": -68.8377472,
+    "maxlat": 45.7293607,
+    "maxlon": -68.8373948
+  },
+  "geometry": [
+    { "lat": 45.7292440, "lon": -68.8377472 },
+    { "lat": 45.7292594, "lon": -68.8377042 },
+    { "lat": 45.7292825, "lon": -68.8376407 },
+    { "lat": 45.7293031, "lon": -68.8376474 },
+    { "lat": 45.7293134, "lon": -68.8376193 },
+    { "lat": 45.7292975, "lon": -68.8375958 },
+    { "lat": 45.7293027, "lon": -68.8375918 },
+    { "lat": 45.7293144, "lon": -68.8376018 },
+    { "lat": 45.7293420, "lon": -68.8376119 },
+    { "lat": 45.7293607, "lon": -68.8375717 },
+    { "lat": 45.7293490, "lon": -68.8375254 },
+    { "lat": 45.7293275, "lon": -68.8375134 },
+    { "lat": 45.7291656, "lon": -68.8373948 },
+    { "lat": 45.7291453, "lon": -68.8374518 },
+    { "lat": 45.7292184, "lon": -68.8375053 },
+    { "lat": 45.7292064, "lon": -68.8375387 },
+    { "lat": 45.7291022, "lon": -68.8374624 },
+    { "lat": 45.7290510, "lon": -68.8376059 },
+    { "lat": 45.7291981, "lon": -68.8377136 },
+    { "lat": 45.7292440, "lon": -68.8377472 }
+  ],
+  "tags": {
+    "addr:city": "T1 R9 Wels",
+    "addr:housenumber": "5",
+    "addr:state": "ME",
+    "addr:street": "Fredericka's Way",
+    "building": "commercial"
+  }
+},
+{
+  "type": "way",
+  "id": 440996268,
+  "bounds": {
+    "minlat": 45.7304455,
+    "minlon": -68.8396516,
+    "maxlat": 45.7305682,
+    "maxlon": -68.8394756
+  },
+  "geometry": [
+    { "lat": 45.7304455, "lon": -68.8395596 },
+    { "lat": 45.7305076, "lon": -68.8394756 },
+    { "lat": 45.7305682, "lon": -68.8395676 },
+    { "lat": 45.7305061, "lon": -68.8396516 },
+    { "lat": 45.7304455, "lon": -68.8395596 }
+  ],
+  "tags": {
+    "aeroway": "terminal",
+    "building": "commercial",
+    "email": "wbav@beeline-online.net",
+    "name": "West Branch Aviation",
+    "phone": "+1-207-723-4375",
+    "website": "https://westbranchaviation.com/"
+  }
+},
+{
+  "type": "way",
+  "id": 441137721,
+  "bounds": {
+    "minlat": 45.7286865,
+    "minlon": -68.8364875,
+    "maxlat": 45.7288392,
+    "maxlon": -68.8362687
+  },
+  "geometry": [
+    { "lat": 45.7287816, "lon": -68.8364875 },
+    { "lat": 45.7286865, "lon": -68.8363579 },
+    { "lat": 45.7287436, "lon": -68.8362687 },
+    { "lat": 45.7288392, "lon": -68.8363945 },
+    { "lat": 45.7287816, "lon": -68.8364875 }
+  ],
+  "tags": {
+    "addr:housename": "Baxter House",
+    "addr:housenumber": "10",
+    "building": "cabin",
+    "name": "Baxter House"
+  }
+},
+{
+  "type": "way",
+  "id": 441932378,
+  "bounds": {
+    "minlat": 45.7297172,
+    "minlon": -68.8362961,
+    "maxlat": 45.7297406,
+    "maxlon": -68.8361915
+  },
+  "geometry": [
+    { "lat": 45.7297406, "lon": -68.8362961 },
+    { "lat": 45.7297172, "lon": -68.8361915 }
+  ],
+  "tags": {
+    "man_made": "pier"
+  }
+},
+{
+  "type": "way",
+  "id": 441932379,
+  "bounds": {
+    "minlat": 45.7289178,
+    "minlon": -68.8390239,
+    "maxlat": 45.7289187,
+    "maxlon": -68.8388553
+  },
+  "geometry": [
+    { "lat": 45.7289178, "lon": -68.8390239 },
+    { "lat": 45.7289187, "lon": -68.8388553 }
+  ],
+  "tags": {
+    "man_made": "pier"
+  }
+},
+{
+  "type": "way",
+  "id": 441932383,
+  "bounds": {
+    "minlat": 45.7297050,
+    "minlon": -68.8369318,
+    "maxlat": 45.7297256,
+    "maxlon": -68.8368902
+  },
+  "geometry": [
+    { "lat": 45.7297256, "lon": -68.8369318 },
+    { "lat": 45.7297256, "lon": -68.8368902 },
+    { "lat": 45.7297050, "lon": -68.8368902 },
+    { "lat": 45.7297050, "lon": -68.8369318 },
+    { "lat": 45.7297256, "lon": -68.8369318 }
+  ],
+  "tags": {
+    "addr:housename": "Boathouse",
+    "addr:street": "Fredericka's Way",
+    "building": "cabin",
+    "name": "Boathouse"
+  }
+},
+{
+  "type": "way",
+  "id": 441932384,
+  "bounds": {
+    "minlat": 45.7289619,
+    "minlon": -68.8371806,
+    "maxlat": 45.7290034,
+    "maxlon": -68.8371167
+  },
+  "geometry": [
+    { "lat": 45.7289931, "lon": -68.8371806 },
+    { "lat": 45.7290034, "lon": -68.8371296 },
+    { "lat": 45.7289722, "lon": -68.8371167 },
+    { "lat": 45.7289619, "lon": -68.8371676 },
+    { "lat": 45.7289931, "lon": -68.8371806 }
+  ],
+  "tags": {
+    "addr:housename": "Icehouse",
+    "building": "cabin",
+    "name": "Icehouse"
+  }
+},
+{
+  "type": "way",
+  "id": 441932385,
+  "bounds": {
+    "minlat": 45.7296052,
+    "minlon": -68.8374736,
+    "maxlat": 45.7296626,
+    "maxlon": -68.8373800
+  },
+  "geometry": [
+    { "lat": 45.7296376, "lon": -68.8374736 },
+    { "lat": 45.7296626, "lon": -68.8374037 },
+    { "lat": 45.7296301, "lon": -68.8373800 },
+    { "lat": 45.7296052, "lon": -68.8374498 },
+    { "lat": 45.7296376, "lon": -68.8374736 }
+  ],
+  "tags": {
+    "addr:housename": "Kitchen",
+    "building": "commercial"
+  }
+},
+{
+  "type": "way",
+  "id": 441932386,
+  "bounds": {
+    "minlat": 45.7286762,
+    "minlon": -68.8360433,
+    "maxlat": 45.7287824,
+    "maxlon": -68.8359141
+  },
+  "geometry": [
+    { "lat": 45.7287824, "lon": -68.8360084 },
+    { "lat": 45.7287642, "lon": -68.8359141 },
+    { "lat": 45.7286762, "lon": -68.8359489 },
+    { "lat": 45.7286944, "lon": -68.8360433 },
+    { "lat": 45.7287824, "lon": -68.8360084 }
+  ],
+  "tags": {
+    "addr:housename": "Pamola House",
+    "addr:housenumber": "9",
+    "building": "cabin",
+    "name": "Pamola House"
+  }
+},
+{
+  "type": "way",
+  "id": 441932387,
+  "bounds": {
+    "minlat": 45.7312638,
+    "minlon": -68.8402198,
+    "maxlat": 45.7314294,
+    "maxlon": -68.8399835
+  },
+  "geometry": [
+    { "lat": 45.7314294, "lon": -68.8400975 },
+    { "lat": 45.7313386, "lon": -68.8399835 },
+    { "lat": 45.7312638, "lon": -68.8401058 },
+    { "lat": 45.7313546, "lon": -68.8402198 },
+    { "lat": 45.7314294, "lon": -68.8400975 }
+  ],
+  "tags": {
+    "addr:city": "T1 R9 Wels",
+    "addr:housenumber": "1902",
+    "addr:state": "ME",
+    "addr:street": "Golden Road",
+    "building": "cabin"
+  }
+},
+{
+  "type": "way",
+  "id": 441932388,
+  "bounds": {
+    "minlat": 45.7316174,
+    "minlon": -68.8404262,
+    "maxlat": 45.7318048,
+    "maxlon": -68.8401752
+  },
+  "geometry": [
+    { "lat": 45.7318048, "lon": -68.8402611 },
+    { "lat": 45.7317580, "lon": -68.8401752 },
+    { "lat": 45.7317035, "lon": -68.8402363 },
+    { "lat": 45.7317060, "lon": -68.8402410 },
+    { "lat": 45.7316878, "lon": -68.8402614 },
+    { "lat": 45.7316852, "lon": -68.8402567 },
+    { "lat": 45.7316599, "lon": -68.8402850 },
+    { "lat": 45.7316669, "lon": -68.8402976 },
+    { "lat": 45.7316174, "lon": -68.8403531 },
+    { "lat": 45.7316572, "lon": -68.8404262 },
+    { "lat": 45.7317307, "lon": -68.8403440 },
+    { "lat": 45.7317128, "lon": -68.8403111 },
+    { "lat": 45.7317329, "lon": -68.8402885 },
+    { "lat": 45.7317509, "lon": -68.8403214 },
+    { "lat": 45.7318048, "lon": -68.8402611 }
+  ],
+  "tags": {
+    "addr:city": "T1 R9 Wels",
+    "addr:housenumber": "1906",
+    "addr:state": "ME",
+    "addr:street": "Golden Road",
+    "building": "yes"
+  }
+},
+{
+  "type": "way",
+  "id": 441932389,
+  "bounds": {
+    "minlat": 45.7255069,
+    "minlon": -68.8196670,
+    "maxlat": 45.7256350,
+    "maxlon": -68.8194981
+  },
+  "geometry": [
+    { "lat": 45.7256350, "lon": -68.8195652 },
+    { "lat": 45.7255432, "lon": -68.8194981 },
+    { "lat": 45.7255069, "lon": -68.8196000 },
+    { "lat": 45.7255987, "lon": -68.8196670 },
+    { "lat": 45.7256350, "lon": -68.8195652 }
+  ],
+  "tags": {
+    "building": "yes"
+  }
+},
+{
+  "type": "way",
+  "id": 441932390,
+  "bounds": {
+    "minlat": 45.7252446,
+    "minlon": -68.8203162,
+    "maxlat": 45.7253713,
+    "maxlon": -68.8201314
+  },
+  "geometry": [
+    { "lat": 45.7253560, "lon": -68.8203162 },
+    { "lat": 45.7253713, "lon": -68.8201528 },
+    { "lat": 45.7252599, "lon": -68.8201314 },
+    { "lat": 45.7252446, "lon": -68.8202947 },
+    { "lat": 45.7253560, "lon": -68.8203162 }
+  ],
+  "tags": {
+    "building": "yes"
+  }
+},
+{
+  "type": "way",
+  "id": 441932391,
+  "bounds": {
+    "minlat": 45.7252127,
+    "minlon": -68.8199688,
+    "maxlat": 45.7252910,
+    "maxlon": -68.8198823
+  },
+  "geometry": [
+    { "lat": 45.7252783, "lon": -68.8199688 },
+    { "lat": 45.7252910, "lon": -68.8199132 },
+    { "lat": 45.7252255, "lon": -68.8198823 },
+    { "lat": 45.7252127, "lon": -68.8199380 },
+    { "lat": 45.7252783, "lon": -68.8199688 }
+  ],
+  "tags": {
+    "building": "yes"
+  }
+},
+{
+  "type": "way",
+  "id": 441932392,
+  "bounds": {
+    "minlat": 45.7230060,
+    "minlon": -68.8387242,
+    "maxlat": 45.7231468,
+    "maxlon": -68.8385290
+  },
+  "geometry": [
+    { "lat": 45.7231202, "lon": -68.8387242 },
+    { "lat": 45.7231468, "lon": -68.8385693 },
+    { "lat": 45.7230326, "lon": -68.8385290 },
+    { "lat": 45.7230060, "lon": -68.8386839 },
+    { "lat": 45.7231202, "lon": -68.8387242 }
+  ],
+  "tags": {
+    "addr:city": "T1 R9 Wels",
+    "addr:housenumber": "27",
+    "addr:state": "ME",
+    "addr:street": "Ambajejus Parkway",
+    "building": "yes"
+  }
+},
+{
+  "type": "way",
+  "id": 441932393,
+  "bounds": {
+    "minlat": 45.7257489,
+    "minlon": -68.8193130,
+    "maxlat": 45.7258568,
+    "maxlon": -68.8191592
+  },
+  "geometry": [
+    { "lat": 45.7257876, "lon": -68.8193130 },
+    { "lat": 45.7258568, "lon": -68.8192567 },
+    { "lat": 45.7258182, "lon": -68.8191592 },
+    { "lat": 45.7257489, "lon": -68.8192155 },
+    { "lat": 45.7257876, "lon": -68.8193130 }
+  ],
+  "tags": {
+    "building": "yes"
+  }
+},
+{
+  "type": "way",
+  "id": 441932394,
+  "bounds": {
+    "minlat": 45.7254154,
+    "minlon": -68.8208218,
+    "maxlat": 45.7254824,
+    "maxlon": -68.8207225
+  },
+  "geometry": [
+    { "lat": 45.7254824, "lon": -68.8207882 },
+    { "lat": 45.7254557, "lon": -68.8207225 },
+    { "lat": 45.7254154, "lon": -68.8207560 },
+    { "lat": 45.7254421, "lon": -68.8208218 },
+    { "lat": 45.7254824, "lon": -68.8207882 }
+  ],
+  "tags": {
+    "building": "yes"
+  }
+},
+{
+  "type": "way",
+  "id": 441932395,
+  "bounds": {
+    "minlat": 45.7227757,
+    "minlon": -68.8395503,
+    "maxlat": 45.7229014,
+    "maxlon": -68.8393904
+  },
+  "geometry": [
+    { "lat": 45.7228674, "lon": -68.8395503 },
+    { "lat": 45.7229014, "lon": -68.8394682 },
+    { "lat": 45.7228096, "lon": -68.8393904 },
+    { "lat": 45.7227757, "lon": -68.8394725 },
+    { "lat": 45.7228674, "lon": -68.8395503 }
+  ],
+  "tags": {
+    "addr:city": "T1 R9 Wels",
+    "addr:housenumber": "35",
+    "addr:state": "ME",
+    "addr:street": "Ambajejus Parkway",
+    "building": "yes"
+  }
+},
+{
+  "type": "way",
+  "id": 441932396,
+  "bounds": {
+    "minlat": 45.7251547,
+    "minlon": -68.8202961,
+    "maxlat": 45.7251978,
+    "maxlon": -68.8202397
+  },
+  "geometry": [
+    { "lat": 45.7251978, "lon": -68.8202961 },
+    { "lat": 45.7251978, "lon": -68.8202397 },
+    { "lat": 45.7251547, "lon": -68.8202397 },
+    { "lat": 45.7251547, "lon": -68.8202961 },
+    { "lat": 45.7251978, "lon": -68.8202961 }
+  ],
+  "tags": {
+    "building": "yes"
+  }
+},
+{
+  "type": "way",
+  "id": 441932397,
+  "bounds": {
+    "minlat": 45.7257886,
+    "minlon": -68.8196483,
+    "maxlat": 45.7259449,
+    "maxlon": -68.8194614
+  },
+  "geometry": [
+    { "lat": 45.7259449, "lon": -68.8195652 },
+    { "lat": 45.7259103, "lon": -68.8194614 },
+    { "lat": 45.7257886, "lon": -68.8195445 },
+    { "lat": 45.7258231, "lon": -68.8196483 },
+    { "lat": 45.7259449, "lon": -68.8195652 }
+  ],
+  "tags": {
+    "building": "yes"
+  }
+},
+{
+  "type": "way",
+  "id": 441932398,
+  "bounds": {
+    "minlat": 45.7261050,
+    "minlon": -68.8398507,
+    "maxlat": 45.7263072,
+    "maxlon": -68.8395085
+  },
+  "geometry": [
+    { "lat": 45.7261986, "lon": -68.8398507 },
+    { "lat": 45.7263072, "lon": -68.8395878 },
+    { "lat": 45.7262136, "lon": -68.8395085 },
+    { "lat": 45.7261050, "lon": -68.8397714 },
+    { "lat": 45.7261986, "lon": -68.8398507 }
+  ],
+  "tags": {
+    "addr:city": "T1 R9 Wels",
+    "addr:housenumber": "20",
+    "addr:state": "ME",
+    "addr:street": "Black Bear Lane",
+    "building": "yes"
+  }
+},
+{
+  "type": "way",
+  "id": 441932399,
+  "bounds": {
+    "minlat": 45.7326969,
+    "minlon": -68.8367568,
+    "maxlat": 45.7327928,
+    "maxlon": -68.8366201
+  },
+  "geometry": [
+    { "lat": 45.7327530, "lon": -68.8367568 },
+    { "lat": 45.7327928, "lon": -68.8366792 },
+    { "lat": 45.7327366, "lon": -68.8366201 },
+    { "lat": 45.7326969, "lon": -68.8366978 },
+    { "lat": 45.7327530, "lon": -68.8367568 }
+  ],
+  "tags": {
+    "building": "yes"
+  }
+},
+{
+  "type": "way",
+  "id": 441932400,
+  "bounds": {
+    "minlat": 45.7232417,
+    "minlon": -68.8373911,
+    "maxlat": 45.7233505,
+    "maxlon": -68.8372649
+  },
+  "geometry": [
+    { "lat": 45.7233505, "lon": -68.8373804 },
+    { "lat": 45.7233447, "lon": -68.8372649 },
+    { "lat": 45.7232417, "lon": -68.8372756 },
+    { "lat": 45.7232476, "lon": -68.8373911 },
+    { "lat": 45.7233505, "lon": -68.8373804 }
+  ],
+  "tags": {
+    "addr:city": "T1 R9 Wels",
+    "addr:housenumber": "3",
+    "addr:state": "ME",
+    "addr:street": "Ambajejus Parkway",
+    "building": "yes"
+  }
+},
+{
+  "type": "way",
+  "id": 441932401,
+  "bounds": {
+    "minlat": 45.7234180,
+    "minlon": -68.8374635,
+    "maxlat": 45.7234872,
+    "maxlon": -68.8373667
+  },
+  "geometry": [
+    { "lat": 45.7234872, "lon": -68.8374609 },
+    { "lat": 45.7234854, "lon": -68.8373667 },
+    { "lat": 45.7234180, "lon": -68.8373694 },
+    { "lat": 45.7234198, "lon": -68.8374635 },
+    { "lat": 45.7234872, "lon": -68.8374609 }
+  ],
+  "tags": {
+    "addr:city": "T1 R9 Wels",
+    "addr:housenumber": "1",
+    "addr:state": "ME",
+    "addr:street": "Ambajejus Parkway",
+    "building": "yes"
+  }
+},
+{
+  "type": "way",
+  "id": 441932402,
+  "bounds": {
+    "minlat": 45.7226259,
+    "minlon": -68.8407600,
+    "maxlat": 45.7227300,
+    "maxlon": -68.8406141
+  },
+  "geometry": [
+    { "lat": 45.7227101, "lon": -68.8407600 },
+    { "lat": 45.7227300, "lon": -68.8406436 },
+    { "lat": 45.7226457, "lon": -68.8406141 },
+    { "lat": 45.7226259, "lon": -68.8407305 },
+    { "lat": 45.7227101, "lon": -68.8407600 }
+  ],
+  "tags": {
+    "addr:city": "T1 R9 Wels",
+    "addr:housenumber": "47",
+    "addr:state": "ME",
+    "addr:street": "Ambajejus Parkway",
+    "building": "yes"
+  }
+},
+{
+  "type": "way",
+  "id": 441932403,
+  "bounds": {
+    "minlat": 45.7326791,
+    "minlon": -68.8365704,
+    "maxlat": 45.7327417,
+    "maxlon": -68.8364740
+  },
+  "geometry": [
+    { "lat": 45.7327147, "lon": -68.8365704 },
+    { "lat": 45.7327417, "lon": -68.8365035 },
+    { "lat": 45.7327061, "lon": -68.8364740 },
+    { "lat": 45.7326791, "lon": -68.8365409 },
+    { "lat": 45.7327147, "lon": -68.8365704 }
+  ],
+  "tags": {
+    "building": "yes"
+  }
+},
+{
+  "type": "way",
+  "id": 441932404,
+  "bounds": {
+    "minlat": 45.7227364,
+    "minlon": -68.8405025,
+    "maxlat": 45.7228772,
+    "maxlon": -68.8403104
+  },
+  "geometry": [
+    { "lat": 45.7228450, "lon": -68.8405025 },
+    { "lat": 45.7228772, "lon": -68.8403613 },
+    { "lat": 45.7227686, "lon": -68.8403104 },
+    { "lat": 45.7227364, "lon": -68.8404515 },
+    { "lat": 45.7228450, "lon": -68.8405025 }
+  ],
+  "tags": {
+    "building": "yes"
+  }
+},
+{
+  "type": "way",
+  "id": 441932405,
+  "bounds": {
+    "minlat": 45.7223207,
+    "minlon": -68.8406875,
+    "maxlat": 45.7224154,
+    "maxlon": -68.8405534
+  },
+  "geometry": [
+    { "lat": 45.7223881, "lon": -68.8406875 },
+    { "lat": 45.7224154, "lon": -68.8405937 },
+    { "lat": 45.7223480, "lon": -68.8405534 },
+    { "lat": 45.7223207, "lon": -68.8406473 },
+    { "lat": 45.7223881, "lon": -68.8406875 }
+  ],
+  "tags": {
+    "building": "yes"
+  }
+},
+{
+  "type": "way",
+  "id": 441932406,
+  "bounds": {
+    "minlat": 45.7282563,
+    "minlon": -68.8351112,
+    "maxlat": 45.7284533,
+    "maxlon": -68.8348292
+  },
+  "geometry": [
+    { "lat": 45.7284230, "lon": -68.8351112 },
+    { "lat": 45.7284533, "lon": -68.8349395 },
+    { "lat": 45.7283706, "lon": -68.8349096 },
+    { "lat": 45.7283800, "lon": -68.8348562 },
+    { "lat": 45.7283054, "lon": -68.8348292 },
+    { "lat": 45.7282934, "lon": -68.8348972 },
+    { "lat": 45.7282840, "lon": -68.8348938 },
+    { "lat": 45.7282563, "lon": -68.8350509 },
+    { "lat": 45.7284230, "lon": -68.8351112 }
+  ],
+  "tags": {
+    "addr:city": "T1 R9 Wels",
+    "addr:housenumber": "28",
+    "addr:state": "ME",
+    "addr:street": "Black Cat Road",
+    "building": "yes"
+  }
+},
+{
+  "type": "way",
+  "id": 441932407,
+  "bounds": {
+    "minlat": 45.7254505,
+    "minlon": -68.8207519,
+    "maxlat": 45.7255757,
+    "maxlon": -68.8205267
+  },
+  "geometry": [
+    { "lat": 45.7255348, "lon": -68.8205267 },
+    { "lat": 45.7254505, "lon": -68.8206126 },
+    { "lat": 45.7254828, "lon": -68.8206776 },
+    { "lat": 45.7254624, "lon": -68.8206984 },
+    { "lat": 45.7254890, "lon": -68.8207519 },
+    { "lat": 45.7255757, "lon": -68.8206636 },
+    { "lat": 45.7255559, "lon": -68.8206238 },
+    { "lat": 45.7255739, "lon": -68.8206055 },
+    { "lat": 45.7255348, "lon": -68.8205267 }
+  ],
+  "tags": {
+    "building": "yes"
+  }
+},
+{
+  "type": "way",
+  "id": 441981316,
+  "bounds": {
+    "minlat": 45.7292631,
+    "minlon": -68.8374242,
+    "maxlat": 45.7293811,
+    "maxlon": -68.8372701
+  },
+  "geometry": [
+    { "lat": 45.7293615, "lon": -68.8374242 },
+    { "lat": 45.7293811, "lon": -68.8373712 },
+    { "lat": 45.7293445, "lon": -68.8373433 },
+    { "lat": 45.7293492, "lon": -68.8373307 },
+    { "lat": 45.7293138, "lon": -68.8373037 },
+    { "lat": 45.7293188, "lon": -68.8372901 },
+    { "lat": 45.7292925, "lon": -68.8372701 },
+    { "lat": 45.7292631, "lon": -68.8373495 },
+    { "lat": 45.7293615, "lon": -68.8374242 }
+  ],
+  "tags": {
+    "addr:housename": "Antique Cabin",
+    "addr:housenumber": "A",
+    "addr:street": "Fredericka's Way",
+    "building": "cabin",
+    "name": "Antique"
+  }
+},
+{
+  "type": "way",
+  "id": 441981317,
+  "bounds": {
+    "minlat": 45.7293716,
+    "minlon": -68.8370970,
+    "maxlat": 45.7295150,
+    "maxlon": -68.8369299
+  },
+  "geometry": [
+    { "lat": 45.7295150, "lon": -68.8370112 },
+    { "lat": 45.7294016, "lon": -68.8369299 },
+    { "lat": 45.7293716, "lon": -68.8370157 },
+    { "lat": 45.7294851, "lon": -68.8370970 },
+    { "lat": 45.7295150, "lon": -68.8370112 }
+  ],
+  "tags": {
+    "addr:housename": "Black Bear",
+    "addr:housenumber": "2",
+    "building": "cabin",
+    "name": "Black Bear"
+  }
+},
+{
+  "type": "way",
+  "id": 441981318,
+  "bounds": {
+    "minlat": 45.7293349,
+    "minlon": -68.8364680,
+    "maxlat": 45.7294278,
+    "maxlon": -68.8363396
+  },
+  "geometry": [
+    { "lat": 45.7293870, "lon": -68.8364680 },
+    { "lat": 45.7294003, "lon": -68.8364168 },
+    { "lat": 45.7294149, "lon": -68.8364246 },
+    { "lat": 45.7294278, "lon": -68.8363752 },
+    { "lat": 45.7293612, "lon": -68.8363396 },
+    { "lat": 45.7293349, "lon": -68.8364402 },
+    { "lat": 45.7293870, "lon": -68.8364680 }
+  ],
+  "tags": {
+    "addr:housename": "Doubletop",
+    "addr:housenumber": "6",
+    "building": "cabin",
+    "name": "Doubletop"
+  }
+},
+{
+  "type": "way",
+  "id": 441981319,
+  "bounds": {
+    "minlat": 45.7293134,
+    "minlon": -68.8372901,
+    "maxlat": 45.7294514,
+    "maxlon": -68.8371040
+  },
+  "geometry": [
+    { "lat": 45.7294514, "lon": -68.8372083 },
+    { "lat": 45.7293882, "lon": -68.8371593 },
+    { "lat": 45.7293962, "lon": -68.8371380 },
+    { "lat": 45.7293524, "lon": -68.8371040 },
+    { "lat": 45.7293134, "lon": -68.8372072 },
+    { "lat": 45.7294205, "lon": -68.8372901 },
+    { "lat": 45.7294514, "lon": -68.8372083 }
+  ],
+  "tags": {
+    "addr:housename": "Fisher House",
+    "addr:housenumber": "1",
+    "building": "cabin",
+    "name": "Fisher House"
+  }
+},
+{
+  "type": "way",
+  "id": 441981320,
+  "bounds": {
+    "minlat": 45.7294454,
+    "minlon": -68.8365646,
+    "maxlat": 45.7295237,
+    "maxlon": -68.8364362
+  },
+  "geometry": [
+    { "lat": 45.7294975, "lon": -68.8365646 },
+    { "lat": 45.7295237, "lon": -68.8364640 },
+    { "lat": 45.7294716, "lon": -68.8364362 },
+    { "lat": 45.7294454, "lon": -68.8365367 },
+    { "lat": 45.7294975, "lon": -68.8365646 }
+  ],
+  "tags": {
+    "addr:housename": "Little Rocky",
+    "addr:housenumber": "5",
+    "building": "cabin",
+    "name": "Little Rocky"
+  }
+},
+{
+  "type": "way",
+  "id": 441981321,
+  "bounds": {
+    "minlat": 45.7286393,
+    "minlon": -68.8361504,
+    "maxlat": 45.7286931,
+    "maxlon": -68.8360628
+  },
+  "geometry": [
+    { "lat": 45.7286584, "lon": -68.8360628 },
+    { "lat": 45.7286393, "lon": -68.8361302 },
+    { "lat": 45.7286740, "lon": -68.8361504 },
+    { "lat": 45.7286931, "lon": -68.8360830 },
+    { "lat": 45.7286584, "lon": -68.8360628 }
+  ],
+  "tags": {
+    "addr:housename": "North Twin",
+    "building": "cabin",
+    "name": "South Twin"
+  }
+},
+{
+  "type": "way",
+  "id": 441981322,
+  "bounds": {
+    "minlat": 45.7286393,
+    "minlon": -68.8362823,
+    "maxlat": 45.7286793,
+    "maxlon": -68.8362070
+  },
+  "geometry": [
+    { "lat": 45.7286793, "lon": -68.8362796 },
+    { "lat": 45.7286768, "lon": -68.8362070 },
+    { "lat": 45.7286393, "lon": -68.8362096 },
+    { "lat": 45.7286419, "lon": -68.8362823 },
+    { "lat": 45.7286793, "lon": -68.8362796 }
+  ],
+  "tags": {
+    "addr:housename": "South Twin",
+    "building": "cabin",
+    "name": "North Twin"
+  }
+},
+{
+  "type": "way",
+  "id": 441981323,
+  "bounds": {
+    "minlat": 45.7295411,
+    "minlon": -68.8365983,
+    "maxlat": 45.7296193,
+    "maxlon": -68.8364699
+  },
+  "geometry": [
+    { "lat": 45.7295931, "lon": -68.8365983 },
+    { "lat": 45.7296193, "lon": -68.8364977 },
+    { "lat": 45.7295673, "lon": -68.8364699 },
+    { "lat": 45.7295411, "lon": -68.8365704 },
+    { "lat": 45.7295931, "lon": -68.8365983 }
+  ],
+  "tags": {
+    "addr:housename": "The Loon",
+    "addr:housenumber": "4",
+    "building": "cabin",
+    "name": "The Loon"
+  }
+},
+{
+  "type": "way",
+  "id": 441981324,
+  "bounds": {
+    "minlat": 45.7294536,
+    "minlon": -68.8369056,
+    "maxlat": 45.7295970,
+    "maxlon": -68.8367385
+  },
+  "geometry": [
+    { "lat": 45.7295970, "lon": -68.8368198 },
+    { "lat": 45.7294836, "lon": -68.8367385 },
+    { "lat": 45.7294536, "lon": -68.8368244 },
+    { "lat": 45.7295671, "lon": -68.8369056 },
+    { "lat": 45.7295970, "lon": -68.8368198 }
+  ],
+  "tags": {
+    "addr:housename": "The Owl",
+    "addr:housenumber": "3",
+    "addr:street": "Fredericka's Way",
+    "building": "cabin",
+    "name": "The Owl"
+  }
+},
+{
+  "type": "way",
+  "id": 441981325,
+  "bounds": {
+    "minlat": 45.7292376,
+    "minlon": -68.8364103,
+    "maxlat": 45.7293158,
+    "maxlon": -68.8362819
+  },
+  "geometry": [
+    { "lat": 45.7292896, "lon": -68.8364103 },
+    { "lat": 45.7293158, "lon": -68.8363098 },
+    { "lat": 45.7292638, "lon": -68.8362819 },
+    { "lat": 45.7292376, "lon": -68.8363825 },
+    { "lat": 45.7292896, "lon": -68.8364103 }
+  ],
+  "tags": {
+    "addr:housename": "Togue",
+    "addr:housenumber": "7",
+    "building": "cabin",
+    "name": "Toque"
+  }
+},
+{
+  "type": "way",
+  "id": 441981326,
+  "bounds": {
+    "minlat": 45.7288178,
+    "minlon": -68.8366950,
+    "maxlat": 45.7289976,
+    "maxlon": -68.8364942
+  },
+  "geometry": [
+    { "lat": 45.7289976, "lon": -68.8365344 },
+    { "lat": 45.7289824, "lon": -68.8366560 },
+    { "lat": 45.7289039, "lon": -68.8366359 },
+    { "lat": 45.7288965, "lon": -68.8366950 },
+    { "lat": 45.7288178, "lon": -68.8366748 },
+    { "lat": 45.7288403, "lon": -68.8364942 },
+    { "lat": 45.7289976, "lon": -68.8365344 }
+  ],
+  "tags": {
+    "building": "commercial",
+    "leisure": "sports_centre",
+    "name": "Northern Outdoors",
+    "sport": "rafting"
+  }
+},
+{
+  "type": "way",
+  "id": 441981327,
+  "bounds": {
+    "minlat": 45.7279312,
+    "minlon": -68.8365555,
+    "maxlat": 45.7280078,
+    "maxlon": -68.8364379
+  },
+  "geometry": [
+    { "lat": 45.7279808, "lon": -68.8365555 },
+    { "lat": 45.7280078, "lon": -68.8364701 },
+    { "lat": 45.7279582, "lon": -68.8364379 },
+    { "lat": 45.7279312, "lon": -68.8365234 },
+    { "lat": 45.7279808, "lon": -68.8365555 }
+  ],
+  "tags": {
+    "building": "cabin"
+  }
+},
+{
+  "type": "way",
+  "id": 441981328,
+  "bounds": {
+    "minlat": 45.7283824,
+    "minlon": -68.8365529,
+    "maxlat": 45.7284205,
+    "maxlon": -68.8364876
+  },
+  "geometry": [
+    { "lat": 45.7284012, "lon": -68.8365529 },
+    { "lat": 45.7284205, "lon": -68.8365024 },
+    { "lat": 45.7284018, "lon": -68.8364876 },
+    { "lat": 45.7283824, "lon": -68.8365381 },
+    { "lat": 45.7284012, "lon": -68.8365529 }
+  ],
+  "tags": {
+    "building": "house"
+  }
+},
+{
+  "type": "way",
+  "id": 441981329,
+  "bounds": {
+    "minlat": 45.7292799,
+    "minlon": -68.8367443,
+    "maxlat": 45.7293605,
+    "maxlon": -68.8366732
+  },
+  "geometry": [
+    { "lat": 45.7293520, "lon": -68.8367443 },
+    { "lat": 45.7293605, "lon": -68.8367118 },
+    { "lat": 45.7292883, "lon": -68.8366732 },
+    { "lat": 45.7292799, "lon": -68.8367057 },
+    { "lat": 45.7293520, "lon": -68.8367443 }
+  ],
+  "tags": {
+    "amenity": "shower",
+    "building": "detached"
+  }
+},
+{
+  "type": "way",
+  "id": 441981330,
+  "bounds": {
+    "minlat": 45.7280426,
+    "minlon": -68.8366615,
+    "maxlat": 45.7281189,
+    "maxlon": -68.8365862
+  },
+  "geometry": [
+    { "lat": 45.7281100, "lon": -68.8366615 },
+    { "lat": 45.7281189, "lon": -68.8366104 },
+    { "lat": 45.7280515, "lon": -68.8365862 },
+    { "lat": 45.7280426, "lon": -68.8366374 },
+    { "lat": 45.7281100, "lon": -68.8366615 }
+  ],
+  "tags": {
+    "building": "shed"
+  }
+},
+{
+  "type": "way",
+  "id": 441981331,
+  "bounds": {
+    "minlat": 45.7277692,
+    "minlon": -68.8364469,
+    "maxlat": 45.7278469,
+    "maxlon": -68.8363392
+  },
+  "geometry": [
+    { "lat": 45.7278217, "lon": -68.8364469 },
+    { "lat": 45.7278469, "lon": -68.8363794 },
+    { "lat": 45.7277945, "lon": -68.8363392 },
+    { "lat": 45.7277692, "lon": -68.8364067 },
+    { "lat": 45.7278217, "lon": -68.8364469 }
+  ],
+  "tags": {
+    "building": "cabin"
+  }
+},
+{
+  "type": "way",
+  "id": 441981332,
+  "bounds": {
+    "minlat": 45.7291167,
+    "minlon": -68.8373686,
+    "maxlat": 45.7292218,
+    "maxlon": -68.8372419
+  },
+  "geometry": [
+    { "lat": 45.7291981, "lon": -68.8373686 },
+    { "lat": 45.7292218, "lon": -68.8372983 },
+    { "lat": 45.7291404, "lon": -68.8372419 },
+    { "lat": 45.7291167, "lon": -68.8373123 },
+    { "lat": 45.7291981, "lon": -68.8373686 }
+  ],
+  "tags": {
+    "building": "yes"
+  }
+},
+{
+  "type": "way",
+  "id": 441981333,
+  "bounds": {
+    "minlat": 45.7282729,
+    "minlon": -68.8354491,
+    "maxlat": 45.7283634,
+    "maxlon": -68.8353114
+  },
+  "geometry": [
+    { "lat": 45.7283403, "lon": -68.8354491 },
+    { "lat": 45.7283634, "lon": -68.8353409 },
+    { "lat": 45.7282960, "lon": -68.8353114 },
+    { "lat": 45.7282729, "lon": -68.8354196 },
+    { "lat": 45.7283403, "lon": -68.8354491 }
+  ],
+  "tags": {
+    "building": "yes"
+  }
+},
+{
+  "type": "way",
+  "id": 442501627,
+  "bounds": {
+    "minlat": 45.7300705,
+    "minlon": -68.8401511,
+    "maxlat": 45.7304899,
+    "maxlon": -68.8395459
+  },
+  "geometry": [
+    { "lat": 45.7304638, "lon": -68.8396794 },
+    { "lat": 45.7304125, "lon": -68.8396129 },
+    { "lat": 45.7300983, "lon": -68.8400636 },
+    { "lat": 45.7301486, "lon": -68.8401357 },
+    { "lat": 45.7301379, "lon": -68.8401511 },
+    { "lat": 45.7300705, "lon": -68.8400547 },
+    { "lat": 45.7302341, "lon": -68.8398200 },
+    { "lat": 45.7301849, "lon": -68.8397495 },
+    { "lat": 45.7302028, "lon": -68.8397239 },
+    { "lat": 45.7302472, "lon": -68.8397874 },
+    { "lat": 45.7302690, "lon": -68.8397560 },
+    { "lat": 45.7302264, "lon": -68.8396950 },
+    { "lat": 45.7302434, "lon": -68.8396707 },
+    { "lat": 45.7302903, "lon": -68.8397378 },
+    { "lat": 45.7304240, "lon": -68.8395459 },
+    { "lat": 45.7304899, "lon": -68.8396408 },
+    { "lat": 45.7304638, "lon": -68.8396794 }
+  ],
+  "tags": {
+    "area": "yes",
+    "man_made": "pier"
+  }
+},
+{
+  "type": "way",
+  "id": 442501628,
+  "bounds": {
+    "minlat": 45.7288155,
+    "minlon": -68.8345242,
+    "maxlat": 45.7290742,
+    "maxlon": -68.8343566
+  },
+  "geometry": [
+    { "lat": 45.7288155, "lon": -68.8343566 },
+    { "lat": 45.7290742, "lon": -68.8345242 }
+  ],
+  "tags": {
+    "man_made": "pier"
+  }
+},
+{
+  "type": "way",
+  "id": 442501629,
+  "bounds": {
+    "minlat": 45.7290985,
+    "minlon": -68.8359310,
+    "maxlat": 45.7291790,
+    "maxlon": -68.8358358
+  },
+  "geometry": [
+    { "lat": 45.7290985, "lon": -68.8359310 },
+    { "lat": 45.7291790, "lon": -68.8358358 }
+  ],
+  "tags": {
+    "man_made": "pier"
+  }
+},
+{
+  "type": "way",
+  "id": 442501630,
+  "bounds": {
+    "minlat": 45.7289382,
+    "minlon": -68.8341393,
+    "maxlat": 45.7291462,
+    "maxlon": -68.8339917
+  },
+  "geometry": [
+    { "lat": 45.7289382, "lon": -68.8339917 },
+    { "lat": 45.7291462, "lon": -68.8341393 }
+  ],
+  "tags": {
+    "man_made": "pier"
+  }
+},
+{
+  "type": "way",
+  "id": 442501631,
+  "bounds": {
+    "minlat": 45.7288340,
+    "minlon": -68.8350278,
+    "maxlat": 45.7289801,
+    "maxlon": -68.8349903
+  },
+  "geometry": [
+    { "lat": 45.7288340, "lon": -68.8349903 },
+    { "lat": 45.7289801, "lon": -68.8350278 }
+  ],
+  "tags": {
+    "man_made": "pier"
+  }
+},
+{
+  "type": "way",
+  "id": 442501632,
+  "bounds": {
+    "minlat": 45.7286318,
+    "minlon": -68.8352907,
+    "maxlat": 45.7289604,
+    "maxlon": -68.8352652
+  },
+  "geometry": [
+    { "lat": 45.7286318, "lon": -68.8352907 },
+    { "lat": 45.7288003, "lon": -68.8352652 },
+    { "lat": 45.7288565, "lon": -68.8352719 },
+    { "lat": 45.7289071, "lon": -68.8352853 },
+    { "lat": 45.7289604, "lon": -68.8352732 }
+  ],
+  "tags": {
+    "man_made": "pier"
+  }
+},
+{
+  "type": "way",
+  "id": 442501634,
+  "bounds": {
+    "minlat": 45.7282369,
+    "minlon": -68.8372474,
+    "maxlat": 45.7284044,
+    "maxlon": -68.8370783
+  },
+  "geometry": [
+    { "lat": 45.7284035, "lon": -68.8372474 },
+    { "lat": 45.7284044, "lon": -68.8370803 },
+    { "lat": 45.7282378, "lon": -68.8370783 },
+    { "lat": 45.7282369, "lon": -68.8372455 },
+    { "lat": 45.7284035, "lon": -68.8372474 }
+  ],
+  "tags": {
+    "addr:housename": "Katahdin House",
+    "addr:housenumber": "KH",
+    "building": "house",
+    "name": "Katahdin House"
+  }
+},
+{
+  "type": "way",
+  "id": 442501641,
+  "bounds": {
+    "minlat": 45.7259469,
+    "minlon": -68.8359136,
+    "maxlat": 45.7259913,
+    "maxlon": -68.8358524
+  },
+  "geometry": [
+    { "lat": 45.7259628, "lon": -68.8358524 },
+    { "lat": 45.7259469, "lon": -68.8358797 },
+    { "lat": 45.7259755, "lon": -68.8359136 },
+    { "lat": 45.7259913, "lon": -68.8358864 },
+    { "lat": 45.7259628, "lon": -68.8358524 }
+  ],
+  "tags": {
+    "addr:housenumber": "4L",
+    "amenity": "shelter",
+    "building": "yes",
+    "name": "4",
+    "shelter_type": "lean_to"
+  }
+},
+{
+  "type": "way",
+  "id": 442501643,
+  "bounds": {
+    "minlat": 45.7255714,
+    "minlon": -68.8364395,
+    "maxlat": 45.7256158,
+    "maxlon": -68.8363783
+  },
+  "geometry": [
+    { "lat": 45.7255872, "lon": -68.8363783 },
+    { "lat": 45.7255714, "lon": -68.8364055 },
+    { "lat": 45.7255999, "lon": -68.8364395 },
+    { "lat": 45.7256158, "lon": -68.8364123 },
+    { "lat": 45.7255872, "lon": -68.8363783 }
+  ],
+  "tags": {
+    "addr:housenumber": "5L",
+    "amenity": "shelter",
+    "building": "yes",
+    "name": "5",
+    "shelter_type": "lean_to"
+  }
+},
+{
+  "type": "way",
+  "id": 442501646,
+  "bounds": {
+    "minlat": 45.7252633,
+    "minlon": -68.8366793,
+    "maxlat": 45.7253077,
+    "maxlon": -68.8366181
+  },
+  "geometry": [
+    { "lat": 45.7252792, "lon": -68.8366181 },
+    { "lat": 45.7252633, "lon": -68.8366453 },
+    { "lat": 45.7252919, "lon": -68.8366793 },
+    { "lat": 45.7253077, "lon": -68.8366521 },
+    { "lat": 45.7252792, "lon": -68.8366181 }
+  ],
+  "tags": {
+    "addr:housenumber": "7L",
+    "amenity": "shelter",
+    "building": "yes",
+    "name": "7",
+    "shelter_type": "lean_to"
+  }
+},
+{
+  "type": "way",
+  "id": 442501650,
+  "bounds": {
+    "minlat": 45.7289750,
+    "minlon": -68.8374717,
+    "maxlat": 45.7290004,
+    "maxlon": -68.8374179
+  },
+  "geometry": [
+    { "lat": 45.7289997, "lon": -68.8374179 },
+    { "lat": 45.7289750, "lon": -68.8374186 },
+    { "lat": 45.7289757, "lon": -68.8374717 },
+    { "lat": 45.7290004, "lon": -68.8374711 },
+    { "lat": 45.7289997, "lon": -68.8374179 }
+  ],
+  "tags": {
+    "addr:housenumber": "L1",
+    "amenity": "shelter",
+    "building": "yes",
+    "name": "1",
+    "shelter_type": "lean_to"
+  }
+},
+{
+  "type": "way",
+  "id": 442501651,
+  "bounds": {
+    "minlat": 45.7289627,
+    "minlon": -68.8372823,
+    "maxlat": 45.7289903,
+    "maxlon": -68.8372265
+  },
+  "geometry": [
+    { "lat": 45.7289903, "lon": -68.8372293 },
+    { "lat": 45.7289656, "lon": -68.8372265 },
+    { "lat": 45.7289627, "lon": -68.8372795 },
+    { "lat": 45.7289874, "lon": -68.8372823 },
+    { "lat": 45.7289903, "lon": -68.8372293 }
+  ],
+  "tags": {
+    "addr:housenumber": "L2",
+    "amenity": "shelter",
+    "building": "yes",
+    "name": "2",
+    "shelter_type": "lean_to"
+  }
+},
+{
+  "type": "way",
+  "id": 442501652,
+  "bounds": {
+    "minlat": 45.7290353,
+    "minlon": -68.8369238,
+    "maxlat": 45.7290787,
+    "maxlon": -68.8368608
+  },
+  "geometry": [
+    { "lat": 45.7290787, "lon": -68.8368850 },
+    { "lat": 45.7290606, "lon": -68.8368608 },
+    { "lat": 45.7290353, "lon": -68.8368996 },
+    { "lat": 45.7290533, "lon": -68.8369238 },
+    { "lat": 45.7290787, "lon": -68.8368850 }
+  ],
+  "tags": {
+    "addr:housenumber": "L3",
+    "amenity": "shelter",
+    "building": "yes",
+    "name": "3",
+    "shelter_type": "lean_to"
+  }
+},
+{
+  "type": "way",
+  "id": 442501653,
+  "bounds": {
+    "minlat": 45.7267753,
+    "minlon": -68.8300971,
+    "maxlat": 45.7269851,
+    "maxlon": -68.8299282
+  },
+  "geometry": [
+    { "lat": 45.7269775, "lon": -68.8300971 },
+    { "lat": 45.7269851, "lon": -68.8299497 },
+    { "lat": 45.7267829, "lon": -68.8299282 },
+    { "lat": 45.7267753, "lon": -68.8300756 },
+    { "lat": 45.7269775, "lon": -68.8300971 }
+  ],
+  "tags": {
+    "addr:city": "T1 R9 Wels",
+    "addr:housenumber": "89",
+    "addr:state": "ME",
+    "addr:street": "Black Cat Road",
+    "building": "yes"
+  }
+},
+{
+  "type": "way",
+  "id": 442501654,
+  "bounds": {
+    "minlat": 45.7282310,
+    "minlon": -68.8297229,
+    "maxlat": 45.7284021,
+    "maxlon": -68.8294982
+  },
+  "geometry": [
+    { "lat": 45.7283509, "lon": -68.8297229 },
+    { "lat": 45.7284021, "lon": -68.8296055 },
+    { "lat": 45.7282822, "lon": -68.8294982 },
+    { "lat": 45.7282310, "lon": -68.8296156 },
+    { "lat": 45.7283509, "lon": -68.8297229 }
+  ],
+  "tags": {
+    "addr:city": "Northern Piscataquis County",
+    "addr:housenumber": "13",
+    "addr:state": "ME",
+    "addr:street": "Sunrise Shores",
+    "building": "yes"
+  }
+},
+{
+  "type": "way",
+  "id": 442501655,
+  "bounds": {
+    "minlat": 45.7288166,
+    "minlon": -68.8305028,
+    "maxlat": 45.7288940,
+    "maxlon": -68.8303728
+  },
+  "geometry": [
+    { "lat": 45.7288522, "lon": -68.8305028 },
+    { "lat": 45.7288940, "lon": -68.8304720 },
+    { "lat": 45.7288584, "lon": -68.8303728 },
+    { "lat": 45.7288166, "lon": -68.8304035 },
+    { "lat": 45.7288522, "lon": -68.8305028 }
+  ],
+  "tags": {
+    "building": "yes"
+  }
+},
+{
+  "type": "way",
+  "id": 442501656,
+  "bounds": {
+    "minlat": 45.7285733,
+    "minlon": -68.8338523,
+    "maxlat": 45.7286488,
+    "maxlon": -68.8337500
+  },
+  "geometry": [
+    { "lat": 45.7286276, "lon": -68.8338523 },
+    { "lat": 45.7286488, "lon": -68.8338171 },
+    { "lat": 45.7285945, "lon": -68.8337500 },
+    { "lat": 45.7285733, "lon": -68.8337853 },
+    { "lat": 45.7286276, "lon": -68.8338523 }
+  ],
+  "tags": {
+    "building": "yes"
+  }
+},
+{
+  "type": "way",
+  "id": 442501657,
+  "bounds": {
+    "minlat": 45.7285658,
+    "minlon": -68.8336565,
+    "maxlat": 45.7286604,
+    "maxlon": -68.8335366
+  },
+  "geometry": [
+    { "lat": 45.7286351, "lon": -68.8336565 },
+    { "lat": 45.7286604, "lon": -68.8335956 },
+    { "lat": 45.7285911, "lon": -68.8335366 },
+    { "lat": 45.7285658, "lon": -68.8335975 },
+    { "lat": 45.7286351, "lon": -68.8336565 }
+  ],
+  "tags": {
+    "addr:city": "T1 R9 Wels",
+    "addr:housenumber": "7",
+    "addr:state": "ME",
+    "addr:street": "Skips Way",
+    "building": "yes"
+  }
+},
+{
+  "type": "way",
+  "id": 442501658,
+  "bounds": {
+    "minlat": 45.7285152,
+    "minlon": -68.8342064,
+    "maxlat": 45.7286108,
+    "maxlon": -68.8340618
+  },
+  "geometry": [
+    { "lat": 45.7285677, "lon": -68.8342064 },
+    { "lat": 45.7286108, "lon": -68.8341098 },
+    { "lat": 45.7285582, "lon": -68.8340618 },
+    { "lat": 45.7285152, "lon": -68.8341583 },
+    { "lat": 45.7285677, "lon": -68.8342064 }
+  ],
+  "tags": {
+    "building": "yes"
+  }
+},
+{
+  "type": "way",
+  "id": 442501659,
+  "bounds": {
+    "minlat": 45.7289914,
+    "minlon": -68.8303070,
+    "maxlat": 45.7291424,
+    "maxlon": -68.8300811
+  },
+  "geometry": [
+    { "lat": 45.7291424, "lon": -68.8302426 },
+    { "lat": 45.7291078, "lon": -68.8301405 },
+    { "lat": 45.7290924, "lon": -68.8301512 },
+    { "lat": 45.7290687, "lon": -68.8300811 },
+    { "lat": 45.7289914, "lon": -68.8301348 },
+    { "lat": 45.7290497, "lon": -68.8303070 },
+    { "lat": 45.7291424, "lon": -68.8302426 }
+  ],
+  "tags": {
+    "addr:city": "T1 R9 Wels",
+    "addr:housenumber": "17",
+    "addr:state": "ME",
+    "addr:street": "Sunrise Shores",
+    "building": "yes"
+  }
+},
+{
+  "type": "way",
+  "id": 498108303,
+  "bounds": {
+    "minlat": 45.7262512,
+    "minlon": -68.8184142,
+    "maxlat": 45.7264515,
+    "maxlon": -68.8180273
+  },
+  "geometry": [
+    { "lat": 45.7263523, "lon": -68.8184142 },
+    { "lat": 45.7262512, "lon": -68.8183505 },
+    { "lat": 45.7263505, "lon": -68.8180273 },
+    { "lat": 45.7264515, "lon": -68.8180910 },
+    { "lat": 45.7263523, "lon": -68.8184142 }
+  ],
+  "tags": {
+    "building": "yes",
+    "building:levels": "2",
+    "name": "New England Outdoor Center",
+    "name_1": "Twin Pines"
+  }
+},
+{
+  "type": "way",
+  "id": 594387604,
+  "bounds": {
+    "minlat": 45.7265477,
+    "minlon": -68.8188614,
+    "maxlat": 45.7267368,
+    "maxlon": -68.8186160
+  },
+  "geometry": [
+    { "lat": 45.7265477, "lon": -68.8187428 },
+    { "lat": 45.7265811, "lon": -68.8186650 },
+    { "lat": 45.7266022, "lon": -68.8186160 },
+    { "lat": 45.7267278, "lon": -68.8187267 },
+    { "lat": 45.7267368, "lon": -68.8187346 },
+    { "lat": 45.7266823, "lon": -68.8188614 },
+    { "lat": 45.7265477, "lon": -68.8187428 }
+  ],
+  "tags": {
+    "building": "yes",
+    "internet_access": "wlan",
+    "name": "Trout Mountain",
+    "operator": "New England Outdoor Center",
+    "smoking": "outside",
+    "tourism": "chalet"
+  }
+},
+{
+  "type": "way",
+  "id": 594387611,
+  "bounds": {
+    "minlat": 45.7267952,
+    "minlon": -68.8199501,
+    "maxlat": 45.7270012,
+    "maxlon": -68.8195842
+  },
+  "geometry": [
+    { "lat": 45.7270012, "lon": -68.8196641 },
+    { "lat": 45.7269121, "lon": -68.8195842 },
+    { "lat": 45.7267952, "lon": -68.8198779 },
+    { "lat": 45.7268798, "lon": -68.8199501 },
+    { "lat": 45.7270012, "lon": -68.8196641 }
+  ],
+  "tags": {
+    "building": "yes",
+    "building:levels": "2",
+    "name": "Recreation Hall"
+  }
+},
+{
+  "type": "way",
+  "id": 594391462,
+  "bounds": {
+    "minlat": 45.7272033,
+    "minlon": -68.8202081,
+    "maxlat": 45.7273272,
+    "maxlon": -68.8200329
+  },
+  "geometry": [
+    { "lat": 45.7272826, "lon": -68.8202081 },
+    { "lat": 45.7273272, "lon": -68.8201002 },
+    { "lat": 45.7272479, "lon": -68.8200329 },
+    { "lat": 45.7272033, "lon": -68.8201408 },
+    { "lat": 45.7272826, "lon": -68.8202081 }
+  ],
+  "tags": {
+    "building": "yes",
+    "internet_access": "wlan",
+    "name": "Sandy Stream",
+    "operator": "New England Outdoor Center",
+    "smoking": "outside",
+    "tourism": "chalet"
+  }
+},
+{
+  "type": "way",
+  "id": 594391465,
+  "bounds": {
+    "minlat": 45.7267702,
+    "minlon": -68.8191151,
+    "maxlat": 45.7268887,
+    "maxlon": -68.8188830
+  },
+  "geometry": [
+    { "lat": 45.7268092, "lon": -68.8191151 },
+    { "lat": 45.7268887, "lon": -68.8189148 },
+    { "lat": 45.7268497, "lon": -68.8188830 },
+    { "lat": 45.7268053, "lon": -68.8189955 },
+    { "lat": 45.7267932, "lon": -68.8190249 },
+    { "lat": 45.7267702, "lon": -68.8190833 },
+    { "lat": 45.7268092, "lon": -68.8191151 }
+  ],
+  "tags": {
+    "building": "yes",
+    "name": "Guides Cabin",
+    "operator": "New England Outdoor Center",
+    "tourism": "chalet"
+  }
+},
+{
+  "type": "way",
+  "id": 594391466,
+  "bounds": {
+    "minlat": 45.7267278,
+    "minlon": -68.8190249,
+    "maxlat": 45.7268123,
+    "maxlon": -68.8188735
+  },
+  "geometry": [
+    { "lat": 45.7267932, "lon": -68.8190249 },
+    { "lat": 45.7267278, "lon": -68.8189698 },
+    { "lat": 45.7267673, "lon": -68.8188735 },
+    { "lat": 45.7268123, "lon": -68.8189115 },
+    { "lat": 45.7267849, "lon": -68.8189783 },
+    { "lat": 45.7268053, "lon": -68.8189955 },
+    { "lat": 45.7267932, "lon": -68.8190249 }
+  ],
+  "tags": {
+    "building": "yes",
+    "name": "Housekeeping",
+    "operator": "New England Outdoor Center"
+  }
+},
+{
+  "type": "way",
+  "id": 594391467,
+  "bounds": {
+    "minlat": 45.7262326,
+    "minlon": -68.8187498,
+    "maxlat": 45.7263688,
+    "maxlon": -68.8185886
+  },
+  "geometry": [
+    { "lat": 45.7263394, "lon": -68.8187498 },
+    { "lat": 45.7263688, "lon": -68.8186617 },
+    { "lat": 45.7262619, "lon": -68.8185886 },
+    { "lat": 45.7262326, "lon": -68.8186766 },
+    { "lat": 45.7263394, "lon": -68.8187498 }
+  ],
+  "tags": {
+    "building": "yes",
+    "internet_access": "wlan",
+    "name": "Lookout",
+    "operator": "New England Outdoor Center",
+    "smoking": "outside",
+    "tourism": "chalet"
+  }
+},
+{
+  "type": "way",
+  "id": 594391468,
+  "bounds": {
+    "minlat": 45.7272923,
+    "minlon": -68.8199436,
+    "maxlat": 45.7274165,
+    "maxlon": -68.8197947
+  },
+  "geometry": [
+    { "lat": 45.7273889, "lon": -68.8199436 },
+    { "lat": 45.7272923, "lon": -68.8198606 },
+    { "lat": 45.7273199, "lon": -68.8197947 },
+    { "lat": 45.7274165, "lon": -68.8198778 },
+    { "lat": 45.7273889, "lon": -68.8199436 }
+  ],
+  "tags": {
+    "building": "yes",
+    "internet_access": "wlan",
+    "name": "Big Mud",
+    "operator": "New England Outdoor Center",
+    "smoking": "outside",
+    "tourism": "chalet"
+  }
+},
+{
+  "type": "way",
+  "id": 595227923,
+  "bounds": {
+    "minlat": 45.7268517,
+    "minlon": -68.8161050,
+    "maxlat": 45.7269331,
+    "maxlon": -68.8158688
+  },
+  "geometry": [
+    { "lat": 45.7269060, "lon": -68.8161050 },
+    { "lat": 45.7268520, "lon": -68.8160914 },
+    { "lat": 45.7268622, "lon": -68.8160091 },
+    { "lat": 45.7268517, "lon": -68.8160064 },
+    { "lat": 45.7268686, "lon": -68.8158688 },
+    { "lat": 45.7269331, "lon": -68.8158851 },
+    { "lat": 45.7269060, "lon": -68.8161050 }
+  ],
+  "tags": {
+    "addr:housenumber": "1",
+    "building": "yes",
+    "internet_access": "wlan",
+    "name": "Bobcat",
+    "operator": "New England Outdoor Center",
+    "smoking": "outside",
+    "tourism": "chalet"
+  }
+},
+{
+  "type": "way",
+  "id": 595227924,
+  "bounds": {
+    "minlat": 45.7266089,
+    "minlon": -68.8160746,
+    "maxlat": 45.7267379,
+    "maxlon": -68.8158047
+  },
+  "geometry": [
+    { "lat": 45.7266615, "lon": -68.8160746 },
+    { "lat": 45.7266089, "lon": -68.8160379 },
+    { "lat": 45.7266434, "lon": -68.8159360 },
+    { "lat": 45.7266315, "lon": -68.8159277 },
+    { "lat": 45.7266733, "lon": -68.8158047 },
+    { "lat": 45.7267379, "lon": -68.8158497 },
+    { "lat": 45.7266615, "lon": -68.8160746 }
+  ],
+  "tags": {
+    "addr:housenumber": "2",
+    "building": "yes",
+    "internet_access": "wlan",
+    "name": "Eagle",
+    "operator": "New England Outdoor Center",
+    "smoking": "outside",
+    "tourism": "chalet"
+  }
+},
+{
+  "type": "way",
+  "id": 595227925,
+  "bounds": {
+    "minlat": 45.7263352,
+    "minlon": -68.8160402,
+    "maxlat": 45.7264138,
+    "maxlon": -68.8157671
+  },
+  "geometry": [
+    { "lat": 45.7264138, "lon": -68.8160383 },
+    { "lat": 45.7263590, "lon": -68.8160402 },
+    { "lat": 45.7263578, "lon": -68.8159709 },
+    { "lat": 45.7263386, "lon": -68.8159715 },
+    { "lat": 45.7263352, "lon": -68.8157697 },
+    { "lat": 45.7264092, "lon": -68.8157671 },
+    { "lat": 45.7264138, "lon": -68.8160383 }
+  ],
+  "tags": {
+    "addr:housenumber": "3",
+    "building": "yes",
+    "internet_access": "wlan",
+    "name": "Loon",
+    "operator": "New England Outdoor Center",
+    "smoking": "outside",
+    "tourism": "chalet"
+  }
+},
+{
+  "type": "way",
+  "id": 595227926,
+  "bounds": {
+    "minlat": 45.7260382,
+    "minlon": -68.8159952,
+    "maxlat": 45.7261846,
+    "maxlon": -68.8157198
+  },
+  "geometry": [
+    { "lat": 45.7260891, "lon": -68.8159952 },
+    { "lat": 45.7260382, "lon": -68.8159477 },
+    { "lat": 45.7260587, "lon": -68.8159026 },
+    { "lat": 45.7260398, "lon": -68.8158849 },
+    { "lat": 45.7261148, "lon": -68.8157198 },
+    { "lat": 45.7261846, "lon": -68.8157849 },
+    { "lat": 45.7260891, "lon": -68.8159952 }
+  ],
+  "tags": {
+    "addr:housenumber": "4",
+    "building": "yes",
+    "internet_access": "wlan",
+    "name": "Moose",
+    "operator": "New England Outdoor Center",
+    "smoking": "outside",
+    "tourism": "chalet"
+  }
+},
+{
+  "type": "way",
+  "id": 595227927,
+  "bounds": {
+    "minlat": 45.7257493,
+    "minlon": -68.8157139,
+    "maxlat": 45.7259370,
+    "maxlon": -68.8154463
+  },
+  "geometry": [
+    { "lat": 45.7257943, "lon": -68.8157139 },
+    { "lat": 45.7257493, "lon": -68.8156268 },
+    { "lat": 45.7258175, "lon": -68.8155544 },
+    { "lat": 45.7258024, "lon": -68.8155252 },
+    { "lat": 45.7258768, "lon": -68.8154463 },
+    { "lat": 45.7259370, "lon": -68.8155625 },
+    { "lat": 45.7257943, "lon": -68.8157139 }
+  ],
+  "tags": {
+    "addr:housenumber": "5",
+    "building": "yes",
+    "internet_access": "wlan",
+    "name": "Otter",
+    "operator": "New England Outdoor Center",
+    "smoking": "outside",
+    "tourism": "chalet"
+  }
+},
+{
+  "type": "way",
+  "id": 595227928,
+  "bounds": {
+    "minlat": 45.7256456,
+    "minlon": -68.8153786,
+    "maxlat": 45.7257971,
+    "maxlon": -68.8151401
+  },
+  "geometry": [
+    { "lat": 45.7256796, "lon": -68.8153786 },
+    { "lat": 45.7256456, "lon": -68.8153266 },
+    { "lat": 45.7256971, "lon": -68.8152577 },
+    { "lat": 45.7256781, "lon": -68.8152287 },
+    { "lat": 45.7257442, "lon": -68.8151401 },
+    { "lat": 45.7257971, "lon": -68.8152211 },
+    { "lat": 45.7256796, "lon": -68.8153786 }
+  ],
+  "tags": {
+    "addr:housenumber": "6",
+    "building": "yes",
+    "internet_access": "wlan",
+    "name": "Partridge",
+    "operator": "New England Outdoor Center",
+    "smoking": "outside",
+    "tourism": "chalet"
+  }
+},
+{
+  "type": "way",
+  "id": 595227929,
+  "bounds": {
+    "minlat": 45.7255265,
+    "minlon": -68.8151119,
+    "maxlat": 45.7256779,
+    "maxlon": -68.8148734
+  },
+  "geometry": [
+    { "lat": 45.7255604, "lon": -68.8151119 },
+    { "lat": 45.7255265, "lon": -68.8150599 },
+    { "lat": 45.7255779, "lon": -68.8149910 },
+    { "lat": 45.7255589, "lon": -68.8149620 },
+    { "lat": 45.7256250, "lon": -68.8148734 },
+    { "lat": 45.7256779, "lon": -68.8149544 },
+    { "lat": 45.7255604, "lon": -68.8151119 }
+  ],
+  "tags": {
+    "addr:housenumber": "7",
+    "building": "yes",
+    "internet_access": "wlan",
+    "name": "Raven",
+    "operator": "New England Outdoor Center",
+    "smoking": "outside",
+    "tourism": "chalet"
+  }
+},
+{
+  "type": "way",
+  "id": 595227930,
+  "bounds": {
+    "minlat": 45.7254034,
+    "minlon": -68.8150276,
+    "maxlat": 45.7254977,
+    "maxlon": -68.8147793
+  },
+  "geometry": [
+    { "lat": 45.7254647, "lon": -68.8150276 },
+    { "lat": 45.7254161, "lon": -68.8150130 },
+    { "lat": 45.7254305, "lon": -68.8149143 },
+    { "lat": 45.7254034, "lon": -68.8149062 },
+    { "lat": 45.7254219, "lon": -68.8147793 },
+    { "lat": 45.7254977, "lon": -68.8148021 },
+    { "lat": 45.7254647, "lon": -68.8150276 }
+  ],
+  "tags": {
+    "addr:housenumber": "8",
+    "building": "yes",
+    "internet_access": "wlan",
+    "name": "Snowy Owl",
+    "operator": "New England Outdoor Center",
+    "smoking": "outside",
+    "tourism": "chalet"
+  }
+},
+{
+  "type": "way",
+  "id": 595227931,
+  "bounds": {
+    "minlat": 45.7251694,
+    "minlon": -68.8151931,
+    "maxlat": 45.7252959,
+    "maxlon": -68.8149521
+  },
+  "geometry": [
+    { "lat": 45.7252959, "lon": -68.8151695 },
+    { "lat": 45.7252490, "lon": -68.8151931 },
+    { "lat": 45.7252256, "lon": -68.8150980 },
+    { "lat": 45.7251994, "lon": -68.8151112 },
+    { "lat": 45.7251694, "lon": -68.8149890 },
+    { "lat": 45.7252424, "lon": -68.8149521 },
+    { "lat": 45.7252959, "lon": -68.8151695 }
+  ],
+  "tags": {
+    "addr:housenumber": "9",
+    "building": "yes",
+    "internet_access": "wlan",
+    "name": "Wax Wing",
+    "operator": "New England Outdoor Center",
+    "smoking": "outside",
+    "tourism": "chalet"
+  }
+},
+{
+  "type": "way",
+  "id": 595227942,
+  "bounds": {
+    "minlat": 45.7252344,
+    "minlon": -68.8160784,
+    "maxlat": 45.7253288,
+    "maxlon": -68.8159515
+  },
+  "geometry": [
+    { "lat": 45.7252988, "lon": -68.8160784 },
+    { "lat": 45.7253288, "lon": -68.8160078 },
+    { "lat": 45.7252646, "lon": -68.8159515 },
+    { "lat": 45.7252344, "lon": -68.8160222 },
+    { "lat": 45.7252988, "lon": -68.8160784 }
+  ],
+  "tags": {
+    "addr:housenumber": "10",
+    "building": "yes",
+    "internet_access": "wlan",
+    "name": "Fox Den",
+    "operator": "New England Outdoor Center",
+    "smoking": "outside",
+    "tourism": "chalet"
+  }
+},
+{
+  "type": "way",
+  "id": 595227944,
+  "bounds": {
+    "minlat": 45.7273747,
+    "minlon": -68.8197199,
+    "maxlat": 45.7274989,
+    "maxlon": -68.8195710
+  },
+  "geometry": [
+    { "lat": 45.7274713, "lon": -68.8197199 },
+    { "lat": 45.7273747, "lon": -68.8196369 },
+    { "lat": 45.7274023, "lon": -68.8195710 },
+    { "lat": 45.7274989, "lon": -68.8196541 },
+    { "lat": 45.7274713, "lon": -68.8197199 }
+  ],
+  "tags": {
+    "building": "yes",
+    "internet_access": "wlan",
+    "name": "Little Mud",
+    "operator": "New England Outdoor Center",
+    "smoking": "outside",
+    "tourism": "chalet"
+  }
+},
+{
+  "type": "way",
+  "id": 595237549,
+  "bounds": {
+    "minlat": 45.7272933,
+    "minlon": -68.8194872,
+    "maxlat": 45.7274457,
+    "maxlon": -68.8192783
+  },
+  "geometry": [
+    { "lat": 45.7272933, "lon": -68.8193951 },
+    { "lat": 45.7273457, "lon": -68.8192783 },
+    { "lat": 45.7274457, "lon": -68.8193704 },
+    { "lat": 45.7273933, "lon": -68.8194872 },
+    { "lat": 45.7272933, "lon": -68.8193951 }
+  ],
+  "tags": {
+    "building": "yes",
+    "internet_access": "wlan",
+    "name": "Millinocket Stream",
+    "operator": "New England Outdoor Center",
+    "smoking": "outside",
+    "tourism": "chalet"
+  }
+},
+{
+  "type": "way",
+  "id": 595237550,
+  "bounds": {
+    "minlat": 45.7271202,
+    "minlon": -68.8194713,
+    "maxlat": 45.7272036,
+    "maxlon": -68.8193647
+  },
+  "geometry": [
+    { "lat": 45.7271807, "lon": -68.8194713 },
+    { "lat": 45.7271202, "lon": -68.8194162 },
+    { "lat": 45.7271431, "lon": -68.8193647 },
+    { "lat": 45.7272036, "lon": -68.8194198 },
+    { "lat": 45.7271807, "lon": -68.8194713 }
+  ],
+  "tags": {
+    "building": "shed"
+  }
+},
+{
+  "type": "way",
+  "id": 595237551,
+  "bounds": {
+    "minlat": 45.7268435,
+    "minlon": -68.8201563,
+    "maxlat": 45.7269466,
+    "maxlon": -68.8199771
+  },
+  "geometry": [
+    { "lat": 45.7269466, "lon": -68.8200146 },
+    { "lat": 45.7269030, "lon": -68.8199771 },
+    { "lat": 45.7268435, "lon": -68.8201187 },
+    { "lat": 45.7268871, "lon": -68.8201563 },
+    { "lat": 45.7269466, "lon": -68.8200146 }
+  ],
+  "tags": {
+    "building": "yes",
+    "internet_access": "wlan",
+    "name": "Wadleigh Stream",
+    "operator": "New England Outdoor Center",
+    "smoking": "outside",
+    "tourism": "chalet"
+  }
+},
+{
+  "type": "way",
+  "id": 595237552,
+  "bounds": {
+    "minlat": 45.7270066,
+    "minlon": -68.8202108,
+    "maxlat": 45.7271097,
+    "maxlon": -68.8200316
+  },
+  "geometry": [
+    { "lat": 45.7271097, "lon": -68.8200691 },
+    { "lat": 45.7270661, "lon": -68.8200316 },
+    { "lat": 45.7270066, "lon": -68.8201732 },
+    { "lat": 45.7270501, "lon": -68.8202108 },
+    { "lat": 45.7271097, "lon": -68.8200691 }
+  ],
+  "tags": {
+    "building": "yes",
+    "internet_access": "wlan",
+    "name": "Grant Brook",
+    "operator": "New England Outdoor Center",
+    "smoking": "outside",
+    "tourism": "chalet"
+  }
+},
+{
+  "type": "way",
+  "id": 595237553,
+  "bounds": {
+    "minlat": 45.7268214,
+    "minlon": -68.8195979,
+    "maxlat": 45.7269384,
+    "maxlon": -68.8194050
+  },
+  "geometry": [
+    { "lat": 45.7268750, "lon": -68.8195979 },
+    { "lat": 45.7268214, "lon": -68.8195497 },
+    { "lat": 45.7268849, "lon": -68.8194050 },
+    { "lat": 45.7269384, "lon": -68.8194532 },
+    { "lat": 45.7268750, "lon": -68.8195979 }
+  ],
+  "tags": {
+    "building": "yes",
+    "building:levels": "1",
+    "name": "Hammond Ridge",
+    "operator": "New England Outdoor Center",
+    "shop": "snowmobile",
+    "snowmobile": "rental"
+  }
+},
+{
+  "type": "way",
+  "id": 595237559,
+  "bounds": {
+    "minlat": 45.7274142,
+    "minlon": -68.8192002,
+    "maxlat": 45.7274856,
+    "maxlon": -68.8191333
+  },
+  "geometry": [
+    { "lat": 45.7274778, "lon": -68.8192002 },
+    { "lat": 45.7274251, "lon": -68.8191807 },
+    { "lat": 45.7274142, "lon": -68.8191767 },
+    { "lat": 45.7274220, "lon": -68.8191333 },
+    { "lat": 45.7274856, "lon": -68.8191569 },
+    { "lat": 45.7274797, "lon": -68.8191894 },
+    { "lat": 45.7274778, "lon": -68.8192002 }
+  ],
+  "tags": {
+    "building": "yes"
+  }
+},
+{
+  "type": "way",
+  "id": 595237560,
+  "bounds": {
+    "minlat": 45.7269741,
+    "minlon": -68.8191232,
+    "maxlat": 45.7270586,
+    "maxlon": -68.8190060
+  },
+  "geometry": [
+    { "lat": 45.7270586, "lon": -68.8190709 },
+    { "lat": 45.7270049, "lon": -68.8190060 },
+    { "lat": 45.7269741, "lon": -68.8190583 },
+    { "lat": 45.7270278, "lon": -68.8191232 },
+    { "lat": 45.7270586, "lon": -68.8190709 }
+  ],
+  "tags": {
+    "building": "yes"
+  }
+},
+{
+  "type": "way",
+  "id": 595239203,
+  "bounds": {
+    "minlat": 45.7279838,
+    "minlon": -68.8203327,
+    "maxlat": 45.7280773,
+    "maxlon": -68.8202274
+  },
+  "geometry": [
+    { "lat": 45.7279838, "lon": -68.8202697 },
+    { "lat": 45.7280609, "lon": -68.8203327 },
+    { "lat": 45.7280773, "lon": -68.8202855 },
+    { "lat": 45.7280019, "lon": -68.8202274 },
+    { "lat": 45.7279838, "lon": -68.8202697 }
+  ],
+  "tags": {
+    "area": "yes",
+    "description": "View of Mount Katahdin, tallest peak in Maine.",
+    "direction": "292-67",
+    "man_made": "pier",
+    "tourism": "viewpoint"
+  }
+},
+{
+  "type": "way",
+  "id": 601353679,
+  "bounds": {
+    "minlat": 45.7278111,
+    "minlon": -68.7986474,
+    "maxlat": 45.7278855,
+    "maxlon": -68.7984787
+  },
+  "geometry": [
+    { "lat": 45.7278855, "lon": -68.7986443 },
+    { "lat": 45.7278144, "lon": -68.7986474 },
+    { "lat": 45.7278111, "lon": -68.7984857 },
+    { "lat": 45.7278820, "lon": -68.7984787 },
+    { "lat": 45.7278855, "lon": -68.7986443 }
+  ],
+  "tags": {
+    "addr:housenumber": "494",
+    "addr:postcode": "04462",
+    "addr:state": "ME",
+    "addr:street": "Black Cat Road",
+    "building": "house",
+    "building:levels": "2"
+  }
+},
+{
+  "type": "way",
+  "id": 601353680,
+  "bounds": {
+    "minlat": 45.7277787,
+    "minlon": -68.7986860,
+    "maxlat": 45.7278971,
+    "maxlon": -68.7984783
+  },
+  "geometry": [
+    { "lat": 45.7278111, "lon": -68.7984857 },
+    { "lat": 45.7277787, "lon": -68.7984870 },
+    { "lat": 45.7277828, "lon": -68.7986860 },
+    { "lat": 45.7278971, "lon": -68.7986811 },
+    { "lat": 45.7278928, "lon": -68.7984783 },
+    { "lat": 45.7278820, "lon": -68.7984787 },
+    { "lat": 45.7278855, "lon": -68.7986443 },
+    { "lat": 45.7278144, "lon": -68.7986474 },
+    { "lat": 45.7278111, "lon": -68.7984857 }
+  ],
+  "tags": {
+    "building": "roof"
+  }
+},
+{
+  "type": "way",
+  "id": 601353681,
+  "bounds": {
+    "minlat": 45.7276693,
+    "minlon": -68.7984967,
+    "maxlat": 45.7277416,
+    "maxlon": -68.7983553
+  },
+  "geometry": [
+    { "lat": 45.7277416, "lon": -68.7984945 },
+    { "lat": 45.7276714, "lon": -68.7984967 },
+    { "lat": 45.7276693, "lon": -68.7983574 },
+    { "lat": 45.7277395, "lon": -68.7983553 },
+    { "lat": 45.7277416, "lon": -68.7984945 }
+  ],
+  "tags": {
+    "building": "barn"
+  }
+},
+{
+  "type": "way",
+  "id": 601353682,
+  "bounds": {
+    "minlat": 45.7278981,
+    "minlon": -68.7984780,
+    "maxlat": 45.7279187,
+    "maxlon": -68.7984268
+  },
+  "geometry": [
+    { "lat": 45.7278998, "lon": -68.7984780 },
+    { "lat": 45.7279187, "lon": -68.7984767 },
+    { "lat": 45.7279170, "lon": -68.7984268 },
+    { "lat": 45.7278981, "lon": -68.7984282 },
+    { "lat": 45.7278998, "lon": -68.7984780 }
+  ],
+  "tags": {
+    "building": "shed"
+  }
+},
+{
+  "type": "way",
+  "id": 603751140,
+  "bounds": {
+    "minlat": 45.7269234,
+    "minlon": -68.8206616,
+    "maxlat": 45.7269502,
+    "maxlon": -68.8203745
+  },
+  "geometry": [
+    { "lat": 45.7269234, "lon": -68.8206616 },
+    { "lat": 45.7269502, "lon": -68.8203745 }
+  ],
+  "tags": {
+    "access": "no",
+    "foot": "yes",
+    "man_made": "pier",
+    "surface": "wood",
+    "width": "1"
+  }
+},
+{
+  "type": "way",
+  "id": 603751143,
+  "bounds": {
+    "minlat": 45.7259746,
+    "minlon": -68.8214863,
+    "maxlat": 45.7261120,
+    "maxlon": -68.8212331
+  },
+  "geometry": [
+    { "lat": 45.7259910, "lon": -68.8214346 },
+    { "lat": 45.7260319, "lon": -68.8213607 },
+    { "lat": 45.7259746, "lon": -68.8212957 },
+    { "lat": 45.7260092, "lon": -68.8212331 },
+    { "lat": 45.7261120, "lon": -68.8213499 },
+    { "lat": 45.7260366, "lon": -68.8214863 },
+    { "lat": 45.7259910, "lon": -68.8214346 }
+  ],
+  "tags": {
+    "building": "house"
+  }
+},
+{
+  "type": "way",
+  "id": 603751144,
+  "bounds": {
+    "minlat": 45.7258939,
+    "minlon": -68.8213255,
+    "maxlat": 45.7259551,
+    "maxlon": -68.8212361
+  },
+  "geometry": [
+    { "lat": 45.7258939, "lon": -68.8212706 },
+    { "lat": 45.7259285, "lon": -68.8212361 },
+    { "lat": 45.7259551, "lon": -68.8212910 },
+    { "lat": 45.7259205, "lon": -68.8213255 },
+    { "lat": 45.7258939, "lon": -68.8212706 }
+  ],
+  "tags": {
+    "building": "yes"
+  }
+},
+{
+  "type": "way",
+  "id": 603751145,
+  "bounds": {
+    "minlat": 45.7272150,
+    "minlon": -68.8241531,
+    "maxlat": 45.7273346,
+    "maxlon": -68.8239979
+  },
+  "geometry": [
+    { "lat": 45.7272391, "lon": -68.8241531 },
+    { "lat": 45.7272150, "lon": -68.8240396 },
+    { "lat": 45.7273105, "lon": -68.8239979 },
+    { "lat": 45.7273346, "lon": -68.8241114 },
+    { "lat": 45.7272391, "lon": -68.8241531 }
+  ],
+  "tags": {
+    "addr:city": "T1 R8 Wels",
+    "addr:housenumber": "15",
+    "addr:state": "ME",
+    "addr:street": "Carr Road",
+    "building": "house"
+  }
+},
+{
+  "type": "way",
+  "id": 603751146,
+  "bounds": {
+    "minlat": 45.7271752,
+    "minlon": -68.8243111,
+    "maxlat": 45.7272212,
+    "maxlon": -68.8242291
+  },
+  "geometry": [
+    { "lat": 45.7271752, "lon": -68.8242429 },
+    { "lat": 45.7272066, "lon": -68.8242291 },
+    { "lat": 45.7272212, "lon": -68.8242974 },
+    { "lat": 45.7271898, "lon": -68.8243111 },
+    { "lat": 45.7271752, "lon": -68.8242429 }
+  ],
+  "tags": {
+    "building": "yes"
+  }
+},
+{
+  "type": "way",
+  "id": 603751147,
+  "bounds": {
+    "minlat": 45.7273596,
+    "minlon": -68.8247294,
+    "maxlat": 45.7274801,
+    "maxlon": -68.8246328
+  },
+  "geometry": [
+    { "lat": 45.7274777, "lon": -68.8246328 },
+    { "lat": 45.7273805, "lon": -68.8246396 },
+    { "lat": 45.7273811, "lon": -68.8246573 },
+    { "lat": 45.7273596, "lon": -68.8246587 },
+    { "lat": 45.7273620, "lon": -68.8247294 },
+    { "lat": 45.7273975, "lon": -68.8247270 },
+    { "lat": 45.7273969, "lon": -68.8247092 },
+    { "lat": 45.7274801, "lon": -68.8247035 },
+    { "lat": 45.7274777, "lon": -68.8246328 }
+  ],
+  "tags": {
+    "addr:city": "T1 R8 Wels",
+    "addr:housenumber": "19",
+    "addr:state": "ME",
+    "addr:street": "Carr Road",
+    "building": "house"
+  }
+},
+{
+  "type": "way",
+  "id": 603909074,
+  "bounds": {
+    "minlat": 45.7505766,
+    "minlon": -68.7389552,
+    "maxlat": 45.7506324,
+    "maxlon": -68.7388616
+  },
+  "geometry": [
+    { "lat": 45.7505766, "lon": -68.7389500 },
+    { "lat": 45.7505810, "lon": -68.7388616 },
+    { "lat": 45.7506324, "lon": -68.7388668 },
+    { "lat": 45.7506280, "lon": -68.7389552 },
+    { "lat": 45.7505766, "lon": -68.7389500 }
+  ],
+  "tags": {
+    "building": "house"
+  }
+},
+{
+  "type": "way",
+  "id": 603927355,
+  "bounds": {
+    "minlat": 45.7285227,
+    "minlon": -68.8168004,
+    "maxlat": 45.7286833,
+    "maxlon": -68.8165714
+  },
+  "geometry": [
+    { "lat": 45.7285915, "lon": -68.8168004 },
+    { "lat": 45.7285227, "lon": -68.8166983 },
+    { "lat": 45.7286145, "lon": -68.8165714 },
+    { "lat": 45.7286833, "lon": -68.8166736 },
+    { "lat": 45.7285915, "lon": -68.8168004 }
+  ],
+  "tags": {
+    "addr:city": "T1 R8 Wels",
+    "addr:housenumber": "32",
+    "addr:state": "ME",
+    "addr:street": "Richardson Way",
+    "building": "house"
+  }
+},
+{
+  "type": "way",
+  "id": 611247404,
+  "bounds": {
+    "minlat": 45.7271288,
+    "minlon": -68.8207090,
+    "maxlat": 45.7271871,
+    "maxlon": -68.8206741
+  },
+  "geometry": [
+    { "lat": 45.7271288, "lon": -68.8206741 },
+    { "lat": 45.7271871, "lon": -68.8207090 }
+  ],
+  "tags": {
+    "access": "no",
+    "foot": "yes",
+    "man_made": "pier",
+    "surface": "wood",
+    "width": "1"
+  }
+},
+{
+  "type": "way",
+  "id": 611307496,
+  "bounds": {
+    "minlat": 45.7283889,
+    "minlon": -68.8298387,
+    "maxlat": 45.7284590,
+    "maxlon": -68.8297194
+  },
+  "geometry": [
+    { "lat": 45.7283889, "lon": -68.8298130 },
+    { "lat": 45.7284314, "lon": -68.8297194 },
+    { "lat": 45.7284590, "lon": -68.8297451 },
+    { "lat": 45.7284165, "lon": -68.8298387 },
+    { "lat": 45.7283889, "lon": -68.8298130 }
+  ],
+  "tags": {
+    "building": "yes"
+  }
+},
+{
+  "type": "way",
+  "id": 611307499,
+  "bounds": {
+    "minlat": 45.7280553,
+    "minlon": -68.8290578,
+    "maxlat": 45.7281509,
+    "maxlon": -68.8288076
+  },
+  "geometry": [
+    { "lat": 45.7280553, "lon": -68.8290578 },
+    { "lat": 45.7281509, "lon": -68.8288076 }
+  ],
+  "tags": {
+    "man_made": "pier",
+    "surface": "metal"
+  }
+},
+{
+  "type": "way",
+  "id": 611307500,
+  "bounds": {
+    "minlat": 45.7279170,
+    "minlon": -68.8293904,
+    "maxlat": 45.7280396,
+    "maxlon": -68.8292257
+  },
+  "geometry": [
+    { "lat": 45.7280396, "lon": -68.8293023 },
+    { "lat": 45.7279999, "lon": -68.8293904 },
+    { "lat": 45.7279170, "lon": -68.8293137 },
+    { "lat": 45.7279566, "lon": -68.8292257 },
+    { "lat": 45.7280396, "lon": -68.8293023 }
+  ],
+  "tags": {
+    "addr:city": "T1 R9 Wels",
+    "addr:housenumber": "11",
+    "addr:state": "ME",
+    "addr:street": "Clear Water Lane",
+    "building": "yes"
+  }
+},
+{
+  "type": "way",
+  "id": 611307505,
+  "bounds": {
+    "minlat": 45.7278396,
+    "minlon": -68.8283475,
+    "maxlat": 45.7279894,
+    "maxlon": -68.8283083
+  },
+  "geometry": [
+    { "lat": 45.7278396, "lon": -68.8283475 },
+    { "lat": 45.7279894, "lon": -68.8283083 }
+  ],
+  "tags": {
+    "man_made": "pier",
+    "surface": "wood"
+  }
+},
+{
+  "type": "way",
+  "id": 611307506,
+  "bounds": {
+    "minlat": 45.7277773,
+    "minlon": -68.8279355,
+    "maxlat": 45.7278845,
+    "maxlon": -68.8278619
+  },
+  "geometry": [
+    { "lat": 45.7277773, "lon": -68.8279355 },
+    { "lat": 45.7278845, "lon": -68.8278619 }
+  ],
+  "tags": {
+    "man_made": "pier"
+  }
+},
+{
+  "type": "way",
+  "id": 611307507,
+  "bounds": {
+    "minlat": 45.7274405,
+    "minlon": -68.8270631,
+    "maxlat": 45.7276177,
+    "maxlon": -68.8270192
+  },
+  "geometry": [
+    { "lat": 45.7274405, "lon": -68.8270552 },
+    { "lat": 45.7276155, "lon": -68.8270631 },
+    { "lat": 45.7276177, "lon": -68.8270192 }
+  ],
+  "tags": {
+    "man_made": "pier"
+  }
+},
+{
+  "type": "way",
+  "id": 611307509,
+  "bounds": {
+    "minlat": 45.7276409,
+    "minlon": -68.8277137,
+    "maxlat": 45.7276801,
+    "maxlon": -68.8276510
+  },
+  "geometry": [
+    { "lat": 45.7276409, "lon": -68.8277137 },
+    { "lat": 45.7276801, "lon": -68.8276510 }
+  ],
+  "tags": {
+    "man_made": "pier"
+  }
+},
+{
+  "type": "way",
+  "id": 611316040,
+  "bounds": {
+    "minlat": 45.7295843,
+    "minlon": -68.8336404,
+    "maxlat": 45.7297057,
+    "maxlon": -68.8334554
+  },
+  "geometry": [
+    { "lat": 45.7296456, "lon": -68.8336404 },
+    { "lat": 45.7295843, "lon": -68.8335795 },
+    { "lat": 45.7296444, "lon": -68.8334554 },
+    { "lat": 45.7297057, "lon": -68.8335163 },
+    { "lat": 45.7296456, "lon": -68.8336404 }
+  ],
+  "tags": {
+    "building": "yes"
+  }
+},
+{
+  "type": "way",
+  "id": 611316041,
+  "bounds": {
+    "minlat": 45.7238922,
+    "minlon": -68.8205334,
+    "maxlat": 45.7240354,
+    "maxlon": -68.8203113
+  },
+  "geometry": [
+    { "lat": 45.7239510, "lon": -68.8205334 },
+    { "lat": 45.7238922, "lon": -68.8204687 },
+    { "lat": 45.7239766, "lon": -68.8203113 },
+    { "lat": 45.7240354, "lon": -68.8203760 },
+    { "lat": 45.7239510, "lon": -68.8205334 }
+  ],
+  "tags": {
+    "building": "yes"
+  }
+},
+{
+  "type": "way",
+  "id": 611316043,
+  "bounds": {
+    "minlat": 45.7299210,
+    "minlon": -68.8326048,
+    "maxlat": 45.7300731,
+    "maxlon": -68.8323738
+  },
+  "geometry": [
+    { "lat": 45.7299210, "lon": -68.8324840 },
+    { "lat": 45.7299881, "lon": -68.8325825 },
+    { "lat": 45.7300070, "lon": -68.8325559 },
+    { "lat": 45.7300403, "lon": -68.8326048 },
+    { "lat": 45.7300731, "lon": -68.8325590 },
+    { "lat": 45.7300360, "lon": -68.8325046 },
+    { "lat": 45.7300631, "lon": -68.8324667 },
+    { "lat": 45.7299999, "lon": -68.8323738 },
+    { "lat": 45.7299210, "lon": -68.8324840 }
+  ],
+  "tags": {
+    "addr:city": "Northern Piscataquis County",
+    "addr:housenumber": "25",
+    "addr:state": "ME",
+    "addr:street": "Pine Drive",
+    "building": "yes"
+  }
+},
+{
+  "type": "way",
+  "id": 611316044,
+  "bounds": {
+    "minlat": 45.7297820,
+    "minlon": -68.8327816,
+    "maxlat": 45.7298764,
+    "maxlon": -68.8326449
+  },
+  "geometry": [
+    { "lat": 45.7298764, "lon": -68.8326917 },
+    { "lat": 45.7298157, "lon": -68.8326449 },
+    { "lat": 45.7297820, "lon": -68.8327348 },
+    { "lat": 45.7298427, "lon": -68.8327816 },
+    { "lat": 45.7298764, "lon": -68.8326917 }
+  ],
+  "tags": {
+    "building": "yes"
+  }
+},
+{
+  "type": "way",
+  "id": 611316045,
+  "bounds": {
+    "minlat": 45.7297017,
+    "minlon": -68.8316989,
+    "maxlat": 45.7297875,
+    "maxlon": -68.8315566
+  },
+  "geometry": [
+    { "lat": 45.7297017, "lon": -68.8315840 },
+    { "lat": 45.7297623, "lon": -68.8315566 },
+    { "lat": 45.7297875, "lon": -68.8316715 },
+    { "lat": 45.7297269, "lon": -68.8316989 },
+    { "lat": 45.7297017, "lon": -68.8315840 }
+  ],
+  "tags": {
+    "building": "yes"
+  }
+},
+{
+  "type": "way",
+  "id": 611316046,
+  "bounds": {
+    "minlat": 45.7299289,
+    "minlon": -68.8315557,
+    "maxlat": 45.7300626,
+    "maxlon": -68.8313396
+  },
+  "geometry": [
+    { "lat": 45.7299289, "lon": -68.8313696 },
+    { "lat": 45.7300093, "lon": -68.8313396 },
+    { "lat": 45.7300265, "lon": -68.8314339 },
+    { "lat": 45.7300460, "lon": -68.8314267 },
+    { "lat": 45.7300626, "lon": -68.8315184 },
+    { "lat": 45.7299627, "lon": -68.8315557 },
+    { "lat": 45.7299289, "lon": -68.8313696 }
+  ],
+  "tags": {
+    "addr:city": "Northern Piscataquis County",
+    "addr:housenumber": "5",
+    "addr:state": "ME",
+    "addr:street": "Boulder Way",
+    "building": "yes"
+  }
+},
+{
+  "type": "way",
+  "id": 611316047,
+  "bounds": {
+    "minlat": 45.7300381,
+    "minlon": -68.8316195,
+    "maxlat": 45.7300770,
+    "maxlon": -68.8315701
+  },
+  "geometry": [
+    { "lat": 45.7300381, "lon": -68.8315891 },
+    { "lat": 45.7300674, "lon": -68.8315701 },
+    { "lat": 45.7300770, "lon": -68.8316005 },
+    { "lat": 45.7300477, "lon": -68.8316195 },
+    { "lat": 45.7300381, "lon": -68.8315891 }
+  ],
+  "tags": {
+    "building": "yes"
+  }
+},
+{
+  "type": "way",
+  "id": 611316048,
+  "bounds": {
+    "minlat": 45.7295305,
+    "minlon": -68.8308882,
+    "maxlat": 45.7296482,
+    "maxlon": -68.8307215
+  },
+  "geometry": [
+    { "lat": 45.7295305, "lon": -68.8308030 },
+    { "lat": 45.7295805, "lon": -68.8307215 },
+    { "lat": 45.7296482, "lon": -68.8308068 },
+    { "lat": 45.7295981, "lon": -68.8308882 },
+    { "lat": 45.7295305, "lon": -68.8308030 }
+  ],
+  "tags": {
+    "addr:city": "T1 R9 Wels",
+    "addr:housenumber": "1",
+    "addr:state": "ME",
+    "addr:street": "Boulder Way",
+    "building": "yes"
+  }
+},
+{
+  "type": "way",
+  "id": 611665895,
+  "bounds": {
+    "minlat": 45.7487778,
+    "minlon": -68.7488947,
+    "maxlat": 45.7488716,
+    "maxlon": -68.7488357
+  },
+  "geometry": [
+    { "lat": 45.7487778, "lon": -68.7488947 },
+    { "lat": 45.7488716, "lon": -68.7488357 }
+  ],
+  "tags": {
+    "man_made": "pier"
+  }
+},
+{
+  "type": "way",
+  "id": 611665896,
+  "bounds": {
+    "minlat": 45.7488022,
+    "minlon": -68.7489462,
+    "maxlat": 45.7488523,
+    "maxlon": -68.7489168
+  },
+  "geometry": [
+    { "lat": 45.7488022, "lon": -68.7489462 },
+    { "lat": 45.7488523, "lon": -68.7489168 }
+  ],
+  "tags": {
+    "man_made": "pier"
+  }
+},
+{
+  "type": "way",
+  "id": 611665898,
+  "bounds": {
+    "minlat": 45.7490644,
+    "minlon": -68.7497586,
+    "maxlat": 45.7491595,
+    "maxlon": -68.7496407
+  },
+  "geometry": [
+    { "lat": 45.7490644, "lon": -68.7497586 },
+    { "lat": 45.7491595, "lon": -68.7496407 }
+  ],
+  "tags": {
+    "man_made": "pier"
+  }
+},
+{
+  "type": "way",
+  "id": 611665899,
+  "bounds": {
+    "minlat": 45.7492071,
+    "minlon": -68.7468959,
+    "maxlat": 45.7492765,
+    "maxlon": -68.7468664
+  },
+  "geometry": [
+    { "lat": 45.7492071, "lon": -68.7468664 },
+    { "lat": 45.7492765, "lon": -68.7468959 }
+  ],
+  "tags": {
+    "man_made": "pier"
+  }
+},
+{
+  "type": "way",
+  "id": 611665900,
+  "bounds": {
+    "minlat": 45.7471323,
+    "minlon": -68.7426159,
+    "maxlat": 45.7471496,
+    "maxlon": -68.7425372
+  },
+  "geometry": [
+    { "lat": 45.7471323, "lon": -68.7426159 },
+    { "lat": 45.7471496, "lon": -68.7425372 }
+  ],
+  "tags": {
+    "man_made": "pier"
+  }
+},
+{
+  "type": "way",
+  "id": 611665901,
+  "bounds": {
+    "minlat": 45.7458964,
+    "minlon": -68.7424879,
+    "maxlat": 45.7460069,
+    "maxlon": -68.7424016
+  },
+  "geometry": [
+    { "lat": 45.7458964, "lon": -68.7424879 },
+    { "lat": 45.7460069, "lon": -68.7424016 }
+  ],
+  "tags": {
+    "man_made": "pier"
+  }
+},
+{
+  "type": "way",
+  "id": 611817894,
+  "bounds": {
+    "minlat": 45.7160489,
+    "minlon": -68.7977254,
+    "maxlat": 45.7160910,
+    "maxlon": -68.7976751
+  },
+  "geometry": [
+    { "lat": 45.7160910, "lon": -68.7976967 },
+    { "lat": 45.7160580, "lon": -68.7976751 },
+    { "lat": 45.7160489, "lon": -68.7977038 },
+    { "lat": 45.7160819, "lon": -68.7977254 },
+    { "lat": 45.7160910, "lon": -68.7976967 }
+  ],
+  "tags": {
+    "addr:city": "North Penobscot County",
+    "addr:housenumber": "199",
+    "addr:state": "ME",
+    "addr:street": "Gravity Lane",
+    "building": "yes"
+  }
+},
+{
+  "type": "way",
+  "id": 612800279,
+  "bounds": {
+    "minlat": 45.7255881,
+    "minlon": -68.8203449,
+    "maxlat": 45.7257374,
+    "maxlon": -68.8203079
+  },
+  "geometry": [
+    { "lat": 45.7255881, "lon": -68.8203079 },
+    { "lat": 45.7257374, "lon": -68.8203449 }
+  ],
+  "tags": {
+    "man_made": "pier"
+  }
+},
+{
+  "type": "way",
+  "id": 612800280,
+  "bounds": {
+    "minlat": 45.7261993,
+    "minlon": -68.8211737,
+    "maxlat": 45.7262662,
+    "maxlon": -68.8210925
+  },
+  "geometry": [
+    { "lat": 45.7261993, "lon": -68.8211737 },
+    { "lat": 45.7262662, "lon": -68.8210925 }
+  ],
+  "tags": {
+    "man_made": "pier"
+  }
+},
+{
+  "type": "way",
+  "id": 612800281,
+  "bounds": {
+    "minlat": 45.7264396,
+    "minlon": -68.8218476,
+    "maxlat": 45.7265518,
+    "maxlon": -68.8217908
+  },
+  "geometry": [
+    { "lat": 45.7264396, "lon": -68.8218476 },
+    { "lat": 45.7265518, "lon": -68.8217908 }
+  ],
+  "tags": {
+    "man_made": "pier"
+  }
+},
+{
+  "type": "way",
+  "id": 612800283,
+  "bounds": {
+    "minlat": 45.7269327,
+    "minlon": -68.8232523,
+    "maxlat": 45.7269939,
+    "maxlon": -68.8231418
+  },
+  "geometry": [
+    { "lat": 45.7269327, "lon": -68.8232523 },
+    { "lat": 45.7269826, "lon": -68.8232052 },
+    { "lat": 45.7269939, "lon": -68.8231418 }
+  ],
+  "tags": {
+    "man_made": "pier"
+  }
+},
+{
+  "type": "way",
+  "id": 612800284,
+  "bounds": {
+    "minlat": 45.7273601,
+    "minlon": -68.8236517,
+    "maxlat": 45.7274485,
+    "maxlon": -68.8236225
+  },
+  "geometry": [
+    { "lat": 45.7273601, "lon": -68.8236517 },
+    { "lat": 45.7274485, "lon": -68.8236225 }
+  ],
+  "tags": {
+    "man_made": "pier"
+  }
+},
+{
+  "type": "way",
+  "id": 612800285,
+  "bounds": {
+    "minlat": 45.7273079,
+    "minlon": -68.8251262,
+    "maxlat": 45.7273113,
+    "maxlon": -68.8249752
+  },
+  "geometry": [
+    { "lat": 45.7273079, "lon": -68.8249752 },
+    { "lat": 45.7273113, "lon": -68.8251262 }
+  ],
+  "tags": {
+    "man_made": "pier"
+  }
+},
+{
+  "type": "way",
+  "id": 612800287,
+  "bounds": {
+    "minlat": 45.7269996,
+    "minlon": -68.8252074,
+    "maxlat": 45.7270789,
+    "maxlon": -68.8251035
+  },
+  "geometry": [
+    { "lat": 45.7269996, "lon": -68.8251035 },
+    { "lat": 45.7270789, "lon": -68.8252074 }
+  ],
+  "tags": {
+    "man_made": "pier"
+  }
+},
+{
+  "type": "way",
+  "id": 612800288,
+  "bounds": {
+    "minlat": 45.7268545,
+    "minlon": -68.8254704,
+    "maxlat": 45.7269406,
+    "maxlon": -68.8254331
+  },
+  "geometry": [
+    { "lat": 45.7268545, "lon": -68.8254558 },
+    { "lat": 45.7269384, "lon": -68.8254704 },
+    { "lat": 45.7269406, "lon": -68.8254331 }
+  ],
+  "tags": {
+    "man_made": "pier"
+  }
+},
+{
+  "type": "way",
+  "id": 612800289,
+  "bounds": {
+    "minlat": 45.7257654,
+    "minlon": -68.8208050,
+    "maxlat": 45.7257747,
+    "maxlon": -68.8207243
+  },
+  "geometry": [
+    { "lat": 45.7257654, "lon": -68.8208050 },
+    { "lat": 45.7257747, "lon": -68.8207243 }
+  ],
+  "tags": {
+    "man_made": "pier"
+  }
+},
+{
+  "type": "way",
+  "id": 612800291,
+  "bounds": {
+    "minlat": 45.7256764,
+    "minlon": -68.8206497,
+    "maxlat": 45.7257184,
+    "maxlon": -68.8206485
+  },
+  "geometry": [
+    { "lat": 45.7256764, "lon": -68.8206497 },
+    { "lat": 45.7257184, "lon": -68.8206485 }
+  ],
+  "tags": {
+    "man_made": "pier"
+  }
+},
+{
+  "type": "way",
+  "id": 612800292,
+  "bounds": {
+    "minlat": 45.7255785,
+    "minlon": -68.8201697,
+    "maxlat": 45.7256432,
+    "maxlon": -68.8201535
+  },
+  "geometry": [
+    { "lat": 45.7255785, "lon": -68.8201697 },
+    { "lat": 45.7256432, "lon": -68.8201535 }
+  ],
+  "tags": {
+    "man_made": "pier"
+  }
+},
+{
+  "type": "way",
+  "id": 612800294,
+  "bounds": {
+    "minlat": 45.7259536,
+    "minlon": -68.8198953,
+    "maxlat": 45.7259762,
+    "maxlon": -68.8197737
+  },
+  "geometry": [
+    { "lat": 45.7259536, "lon": -68.8197737 },
+    { "lat": 45.7259762, "lon": -68.8198953 }
+  ],
+  "tags": {
+    "man_made": "pier"
+  }
+},
+{
+  "type": "way",
+  "id": 612800302,
+  "bounds": {
+    "minlat": 45.7263535,
+    "minlon": -68.8201709,
+    "maxlat": 45.7263873,
+    "maxlon": -68.8198241
+  },
+  "geometry": [
+    { "lat": 45.7263873, "lon": -68.8198241 },
+    { "lat": 45.7263535, "lon": -68.8201709 }
+  ],
+  "tags": {
+    "man_made": "pier"
+  }
+},
+{
+  "type": "way",
+  "id": 615546941,
+  "bounds": {
+    "minlat": 45.7375025,
+    "minlon": -68.8308244,
+    "maxlat": 45.7376576,
+    "maxlon": -68.8306822
+  },
+  "geometry": [
+    { "lat": 45.7376576, "lon": -68.8306822 },
+    { "lat": 45.7375025, "lon": -68.8308244 }
+  ],
+  "tags": {
+    "man_made": "pier",
+    "surface": "wood"
+  }
+},
+{
+  "type": "way",
+  "id": 617179918,
+  "bounds": {
+    "minlat": 45.7256070,
+    "minlon": -68.8194819,
+    "maxlat": 45.7256761,
+    "maxlon": -68.8193771
+  },
+  "geometry": [
+    { "lat": 45.7256475, "lon": -68.8194819 },
+    { "lat": 45.7256761, "lon": -68.8194487 },
+    { "lat": 45.7256356, "lon": -68.8193771 },
+    { "lat": 45.7256070, "lon": -68.8194102 },
+    { "lat": 45.7256475, "lon": -68.8194819 }
+  ],
+  "tags": {
+    "building": "yes"
+  }
+},
+{
+  "type": "way",
+  "id": 620139803,
+  "bounds": {
+    "minlat": 45.7305534,
+    "minlon": -68.8361589,
+    "maxlat": 45.7305534,
+    "maxlon": -68.8360140
+  },
+  "geometry": [
+    { "lat": 45.7305534, "lon": -68.8361589 },
+    { "lat": 45.7305534, "lon": -68.8360140 }
+  ],
+  "tags": {
+    "man_made": "pier"
+  }
+},
+{
+  "type": "way",
+  "id": 621203433,
+  "bounds": {
+    "minlat": 45.7884116,
+    "minlon": -68.8214988,
+    "maxlat": 45.7885233,
+    "maxlon": -68.8213274
+  },
+  "geometry": [
+    { "lat": 45.7884116, "lon": -68.8214566 },
+    { "lat": 45.7884890, "lon": -68.8214988 },
+    { "lat": 45.7885233, "lon": -68.8213696 },
+    { "lat": 45.7884459, "lon": -68.8213274 },
+    { "lat": 45.7884116, "lon": -68.8214566 }
+  ],
+  "tags": {
+    "addr:city": "North Penobscot County",
+    "addr:housenumber": "357",
+    "addr:state": "ME",
+    "addr:street": "North Shore Road",
+    "building": "detached"
+  }
+},
+{
+  "type": "way",
+  "id": 621203434,
+  "bounds": {
+    "minlat": 45.7881088,
+    "minlon": -68.8215648,
+    "maxlat": 45.7881840,
+    "maxlon": -68.8214257
+  },
+  "geometry": [
+    { "lat": 45.7881840, "lon": -68.8214599 },
+    { "lat": 45.7881233, "lon": -68.8214257 },
+    { "lat": 45.7881088, "lon": -68.8214784 },
+    { "lat": 45.7881273, "lon": -68.8214888 },
+    { "lat": 45.7881110, "lon": -68.8215482 },
+    { "lat": 45.7881404, "lon": -68.8215648 },
+    { "lat": 45.7881553, "lon": -68.8215105 },
+    { "lat": 45.7881681, "lon": -68.8215178 },
+    { "lat": 45.7881840, "lon": -68.8214599 }
+  ],
+  "tags": {
+    "addr:city": "North Penobscot County",
+    "addr:housenumber": "358",
+    "addr:state": "ME",
+    "addr:street": "North Shore Road",
+    "building": "detached"
+  }
+},
+{
+  "type": "way",
+  "id": 621203435,
+  "bounds": {
+    "minlat": 45.7877807,
+    "minlon": -68.8213609,
+    "maxlat": 45.7879080,
+    "maxlon": -68.8213014
+  },
+  "geometry": [
+    { "lat": 45.7879080, "lon": -68.8213609 },
+    { "lat": 45.7878985, "lon": -68.8213565 },
+    { "lat": 45.7877807, "lon": -68.8213014 }
+  ],
+  "tags": {
+    "man_made": "pier"
+  }
+},
+{
+  "type": "way",
+  "id": 621203436,
+  "bounds": {
+    "minlat": 45.7883355,
+    "minlon": -68.8212180,
+    "maxlat": 45.7883990,
+    "maxlon": -68.8210965
+  },
+  "geometry": [
+    { "lat": 45.7883732, "lon": -68.8212180 },
+    { "lat": 45.7883355, "lon": -68.8211983 },
+    { "lat": 45.7883613, "lon": -68.8210965 },
+    { "lat": 45.7883990, "lon": -68.8211162 },
+    { "lat": 45.7883732, "lon": -68.8212180 }
+  ],
+  "tags": {
+    "addr:city": "North Penobscot County",
+    "addr:housenumber": "354",
+    "addr:state": "ME",
+    "addr:street": "North Shore Road",
+    "building": "detached"
+  }
+},
+{
+  "type": "way",
+  "id": 662611752,
+  "bounds": {
+    "minlat": 45.7292602,
+    "minlon": -68.7948851,
+    "maxlat": 45.7294313,
+    "maxlon": -68.7946812
+  },
+  "geometry": [
+    { "lat": 45.7293471, "lon": -68.7948444 },
+    { "lat": 45.7293349, "lon": -68.7948851 },
+    { "lat": 45.7292602, "lon": -68.7948389 },
+    { "lat": 45.7292749, "lon": -68.7947903 },
+    { "lat": 45.7293163, "lon": -68.7948159 },
+    { "lat": 45.7293569, "lon": -68.7946812 },
+    { "lat": 45.7294313, "lon": -68.7947272 },
+    { "lat": 45.7293883, "lon": -68.7948699 },
+    { "lat": 45.7293471, "lon": -68.7948444 }
+  ],
+  "tags": {
+    "addr:city": "T1 R8 Wels",
+    "addr:housenumber": "68",
+    "addr:state": "ME",
+    "addr:street": "Muriel Boulevard",
+    "building": "yes",
+    "name": "Camp Rhodora",
+    "tourism": "chalet"
+  }
+},
+{
+  "type": "way",
+  "id": 662611753,
+  "bounds": {
+    "minlat": 45.7292232,
+    "minlon": -68.7946700,
+    "maxlat": 45.7293242,
+    "maxlon": -68.7945258
+  },
+  "geometry": [
+    { "lat": 45.7292232, "lon": -68.7946588 },
+    { "lat": 45.7292660, "lon": -68.7945258 },
+    { "lat": 45.7293242, "lon": -68.7945642 },
+    { "lat": 45.7292933, "lon": -68.7946601 },
+    { "lat": 45.7292522, "lon": -68.7946329 },
+    { "lat": 45.7292402, "lon": -68.7946700 },
+    { "lat": 45.7292232, "lon": -68.7946588 }
+  ],
+  "tags": {
+    "building": "yes",
+    "tourism": "chalet"
+  }
+},
+{
+  "type": "way",
+  "id": 822258104,
+  "bounds": {
+    "minlat": 45.7290986,
+    "minlon": -68.8367364,
+    "maxlat": 45.7291772,
+    "maxlon": -68.8366318
+  },
+  "geometry": [
+    { "lat": 45.7291548, "lon": -68.8367364 },
+    { "lat": 45.7291772, "lon": -68.8366774 },
+    { "lat": 45.7291211, "lon": -68.8366318 },
+    { "lat": 45.7290986, "lon": -68.8366908 },
+    { "lat": 45.7291548, "lon": -68.8367364 }
+  ],
+  "tags": {
+    "building": "cabin",
+    "name": "Little Pine"
+  }
+},
+{
+  "type": "way",
+  "id": 822258105,
+  "bounds": {
+    "minlat": 45.7287476,
+    "minlon": -68.8385635,
+    "maxlat": 45.7288429,
+    "maxlon": -68.8384319
+  },
+  "geometry": [
+    { "lat": 45.7288226, "lon": -68.8385635 },
+    { "lat": 45.7288429, "lon": -68.8384630 },
+    { "lat": 45.7287679, "lon": -68.8384319 },
+    { "lat": 45.7287476, "lon": -68.8385324 },
+    { "lat": 45.7288226, "lon": -68.8385635 }
+  ],
+  "tags": {
+    "building": "cabin",
+    "name": "Knife's Edge"
+  }
+},
+{
+  "type": "way",
+  "id": 876128288,
+  "bounds": {
+    "minlat": 45.7270840,
+    "minlon": -68.8192040,
+    "maxlat": 45.7271650,
+    "maxlon": -68.8190920
+  },
+  "geometry": [
+    { "lat": 45.7271140, "lon": -68.8190920 },
+    { "lat": 45.7271650, "lon": -68.8191470 },
+    { "lat": 45.7271360, "lon": -68.8192040 },
+    { "lat": 45.7270840, "lon": -68.8191480 },
+    { "lat": 45.7271140, "lon": -68.8190920 }
+  ],
+  "tags": {
+    "building": "yes",
+    "source": "microsoft/BuildingFootprints"
+  }
+},
+{
+  "type": "way",
+  "id": 876128289,
+  "bounds": {
+    "minlat": 45.7292970,
+    "minlon": -68.8334770,
+    "maxlat": 45.7293630,
+    "maxlon": -68.8333820
+  },
+  "geometry": [
+    { "lat": 45.7293240, "lon": -68.8334770 },
+    { "lat": 45.7292970, "lon": -68.8334370 },
+    { "lat": 45.7293360, "lon": -68.8333820 },
+    { "lat": 45.7293630, "lon": -68.8334220 },
+    { "lat": 45.7293240, "lon": -68.8334770 }
+  ],
+  "tags": {
+    "building": "yes",
+    "source": "microsoft/BuildingFootprints"
+  }
+},
+{
+  "type": "way",
+  "id": 876128290,
+  "bounds": {
+    "minlat": 45.7269110,
+    "minlon": -68.8188180,
+    "maxlat": 45.7270460,
+    "maxlon": -68.8185580
+  },
+  "geometry": [
+    { "lat": 45.7269920, "lon": -68.8188180 },
+    { "lat": 45.7269110, "lon": -68.8185990 },
+    { "lat": 45.7269650, "lon": -68.8185580 },
+    { "lat": 45.7270460, "lon": -68.8187770 },
+    { "lat": 45.7269920, "lon": -68.8188180 }
+  ],
+  "tags": {
+    "building": "yes",
+    "source": "microsoft/BuildingFootprints"
+  }
+},
+{
+  "type": "way",
+  "id": 876128291,
+  "bounds": {
+    "minlat": 45.7259840,
+    "minlon": -68.8165620,
+    "maxlat": 45.7260850,
+    "maxlon": -68.8164180
+  },
+  "geometry": [
+    { "lat": 45.7260270, "lon": -68.8165620 },
+    { "lat": 45.7259840, "lon": -68.8164990 },
+    { "lat": 45.7260420, "lon": -68.8164180 },
+    { "lat": 45.7260850, "lon": -68.8164820 },
+    { "lat": 45.7260270, "lon": -68.8165620 }
+  ],
+  "tags": {
+    "building": "yes",
+    "source": "microsoft/BuildingFootprints"
+  }
+},
+{
+  "type": "way",
+  "id": 876128292,
+  "bounds": {
+    "minlat": 45.7269840,
+    "minlon": -68.8184830,
+    "maxlat": 45.7270350,
+    "maxlon": -68.8184100
+  },
+  "geometry": [
+    { "lat": 45.7270100, "lon": -68.8184830 },
+    { "lat": 45.7269840, "lon": -68.8184430 },
+    { "lat": 45.7270090, "lon": -68.8184100 },
+    { "lat": 45.7270350, "lon": -68.8184490 },
+    { "lat": 45.7270100, "lon": -68.8184830 }
+  ],
+  "tags": {
+    "building": "yes",
+    "source": "microsoft/BuildingFootprints"
+  }
+},
+{
+  "type": "way",
+  "id": 876128293,
+  "bounds": {
+    "minlat": 45.7275670,
+    "minlon": -68.8287560,
+    "maxlat": 45.7276880,
+    "maxlon": -68.8285880
+  },
+  "geometry": [
+    { "lat": 45.7275670, "lon": -68.8286690 },
+    { "lat": 45.7276420, "lon": -68.8285880 },
+    { "lat": 45.7276880, "lon": -68.8286750 },
+    { "lat": 45.7276130, "lon": -68.8287560 },
+    { "lat": 45.7275670, "lon": -68.8286690 }
+  ],
+  "tags": {
+    "building": "yes",
+    "source": "microsoft/BuildingFootprints"
+  }
+},
+{
+  "type": "way",
+  "id": 876128294,
+  "bounds": {
+    "minlat": 45.7267900,
+    "minlon": -68.8187240,
+    "maxlat": 45.7268790,
+    "maxlon": -68.8185790
+  },
+  "geometry": [
+    { "lat": 45.7267900, "lon": -68.8186880 },
+    { "lat": 45.7268360, "lon": -68.8185790 },
+    { "lat": 45.7268790, "lon": -68.8186160 },
+    { "lat": 45.7268330, "lon": -68.8187240 },
+    { "lat": 45.7267900, "lon": -68.8186880 }
+  ],
+  "tags": {
+    "building": "yes",
+    "source": "microsoft/BuildingFootprints"
+  }
+},
+{
+  "type": "way",
+  "id": 876128295,
+  "bounds": {
+    "minlat": 45.7285960,
+    "minlon": -68.8157330,
+    "maxlat": 45.7286560,
+    "maxlon": -68.8155990
+  },
+  "geometry": [
+    { "lat": 45.7285960, "lon": -68.8155990 },
+    { "lat": 45.7286560, "lon": -68.8155990 },
+    { "lat": 45.7286560, "lon": -68.8157330 },
+    { "lat": 45.7285960, "lon": -68.8157330 },
+    { "lat": 45.7285960, "lon": -68.8155990 }
+  ],
+  "tags": {
+    "building": "yes",
+    "source": "microsoft/BuildingFootprints"
+  }
+},
+{
+  "type": "way",
+  "id": 876212806,
+  "bounds": {
+    "minlat": 45.7430760,
+    "minlon": -68.7396010,
+    "maxlat": 45.7431830,
+    "maxlon": -68.7394090
+  },
+  "geometry": [
+    { "lat": 45.7431770, "lon": -68.7395490 },
+    { "lat": 45.7431340, "lon": -68.7395400 },
+    { "lat": 45.7431280, "lon": -68.7396010 },
+    { "lat": 45.7430760, "lon": -68.7395910 },
+    { "lat": 45.7430930, "lon": -68.7394090 },
+    { "lat": 45.7431460, "lon": -68.7394190 },
+    { "lat": 45.7431400, "lon": -68.7394830 },
+    { "lat": 45.7431830, "lon": -68.7394910 },
+    { "lat": 45.7431770, "lon": -68.7395490 }
+  ],
+  "tags": {
+    "building": "yes",
+    "source": "microsoft/BuildingFootprints"
+  }
+},
+{
+  "type": "way",
+  "id": 876212807,
+  "bounds": {
+    "minlat": 45.7442450,
+    "minlon": -68.7400320,
+    "maxlat": 45.7443840,
+    "maxlon": -68.7398720
+  },
+  "geometry": [
+    { "lat": 45.7442720, "lon": -68.7400320 },
+    { "lat": 45.7442450, "lon": -68.7399380 },
+    { "lat": 45.7443570, "lon": -68.7398720 },
+    { "lat": 45.7443840, "lon": -68.7399650 },
+    { "lat": 45.7442720, "lon": -68.7400320 }
+  ],
+  "tags": {
+    "building": "yes",
+    "source": "microsoft/BuildingFootprints"
+  }
+},
+{
+  "type": "way",
+  "id": 876212812,
+  "bounds": {
+    "minlat": 45.7434580,
+    "minlon": -68.7399330,
+    "maxlat": 45.7435660,
+    "maxlon": -68.7397650
+  },
+  "geometry": [
+    { "lat": 45.7434880, "lon": -68.7397650 },
+    { "lat": 45.7435660, "lon": -68.7398010 },
+    { "lat": 45.7435360, "lon": -68.7399330 },
+    { "lat": 45.7434580, "lon": -68.7398970 },
+    { "lat": 45.7434880, "lon": -68.7397650 }
+  ],
+  "tags": {
+    "building": "yes",
+    "source": "microsoft/BuildingFootprints"
+  }
+},
+{
+  "type": "way",
+  "id": 886679684,
+  "bounds": {
+    "minlat": 45.7177443,
+    "minlon": -68.8459674,
+    "maxlat": 45.7178661,
+    "maxlon": -68.8458008
+  },
+  "geometry": [
+    { "lat": 45.7178661, "lon": -68.8458467 },
+    { "lat": 45.7178370, "lon": -68.8458008 },
+    { "lat": 45.7177443, "lon": -68.8459215 },
+    { "lat": 45.7177734, "lon": -68.8459674 },
+    { "lat": 45.7178661, "lon": -68.8458467 }
+  ],
+  "tags": {
+    "building": "yes"
+  }
+},
+{
+  "type": "way",
+  "id": 886681557,
+  "bounds": {
+    "minlat": 45.7316480,
+    "minlon": -68.8348590,
+    "maxlat": 45.7317750,
+    "maxlon": -68.8347260
+  },
+  "geometry": [
+    { "lat": 45.7317590, "lon": -68.8348590 },
+    { "lat": 45.7316480, "lon": -68.8348210 },
+    { "lat": 45.7316640, "lon": -68.8347260 },
+    { "lat": 45.7317750, "lon": -68.8347640 },
+    { "lat": 45.7317590, "lon": -68.8348590 }
+  ],
+  "tags": {
+    "building": "yes",
+    "source": "microsoft/BuildingFootprints"
+  }
+},
+{
+  "type": "way",
+  "id": 886681558,
+  "bounds": {
+    "minlat": 45.7281560,
+    "minlon": -68.7964970,
+    "maxlat": 45.7282530,
+    "maxlon": -68.7964030
+  },
+  "geometry": [
+    { "lat": 45.7282530, "lon": -68.7964970 },
+    { "lat": 45.7281560, "lon": -68.7964970 },
+    { "lat": 45.7281560, "lon": -68.7964030 },
+    { "lat": 45.7282530, "lon": -68.7964030 },
+    { "lat": 45.7282530, "lon": -68.7964970 }
+  ],
+  "tags": {
+    "building": "yes",
+    "source": "microsoft/BuildingFootprints"
+  }
+},
+{
+  "type": "way",
+  "id": 886681559,
+  "bounds": {
+    "minlat": 45.7301500,
+    "minlon": -68.7938940,
+    "maxlat": 45.7302590,
+    "maxlon": -68.7937360
+  },
+  "geometry": [
+    { "lat": 45.7302120, "lon": -68.7938940 },
+    { "lat": 45.7301500, "lon": -68.7938310 },
+    { "lat": 45.7301970, "lon": -68.7937360 },
+    { "lat": 45.7302590, "lon": -68.7937990 },
+    { "lat": 45.7302120, "lon": -68.7938940 }
+  ],
+  "tags": {
+    "building": "yes",
+    "source": "microsoft/BuildingFootprints"
+  }
+},
+{
+  "type": "way",
+  "id": 886681560,
+  "bounds": {
+    "minlat": 45.7316740,
+    "minlon": -68.8391500,
+    "maxlat": 45.7317770,
+    "maxlon": -68.8389320
+  },
+  "geometry": [
+    { "lat": 45.7317490, "lon": -68.8389320 },
+    { "lat": 45.7317770, "lon": -68.8391280 },
+    { "lat": 45.7317010, "lon": -68.8391500 },
+    { "lat": 45.7316740, "lon": -68.8389540 },
+    { "lat": 45.7317490, "lon": -68.8389320 }
+  ],
+  "tags": {
+    "addr:city": "T1 R9 Wels",
+    "addr:housenumber": "12",
+    "addr:state": "ME",
+    "addr:street": "Old Park Road",
+    "building": "yes",
+    "source": "microsoft/BuildingFootprints"
+  }
+},
+{
+  "type": "way",
+  "id": 886681561,
+  "bounds": {
+    "minlat": 45.7313110,
+    "minlon": -68.8393870,
+    "maxlat": 45.7314430,
+    "maxlon": -68.8392130
+  },
+  "geometry": [
+    { "lat": 45.7314030, "lon": -68.8393870 },
+    { "lat": 45.7313110, "lon": -68.8393030 },
+    { "lat": 45.7313500, "lon": -68.8392130 },
+    { "lat": 45.7314430, "lon": -68.8392960 },
+    { "lat": 45.7314030, "lon": -68.8393870 }
+  ],
+  "tags": {
+    "building": "yes",
+    "source": "microsoft/BuildingFootprints"
+  }
+},
+{
+  "type": "way",
+  "id": 886681562,
+  "bounds": {
+    "minlat": 45.7313260,
+    "minlon": -68.8351020,
+    "maxlat": 45.7314130,
+    "maxlon": -68.8349520
+  },
+  "geometry": [
+    { "lat": 45.7313570, "lon": -68.8349520 },
+    { "lat": 45.7314130, "lon": -68.8349820 },
+    { "lat": 45.7313820, "lon": -68.8351020 },
+    { "lat": 45.7313260, "lon": -68.8350720 },
+    { "lat": 45.7313570, "lon": -68.8349520 }
+  ],
+  "tags": {
+    "building": "yes",
+    "source": "microsoft/BuildingFootprints"
+  }
+},
+{
+  "type": "way",
+  "id": 886681563,
+  "bounds": {
+    "minlat": 45.7314260,
+    "minlon": -68.8346790,
+    "maxlat": 45.7315630,
+    "maxlon": -68.8344490
+  },
+  "geometry": [
+    { "lat": 45.7315060, "lon": -68.8346790 },
+    { "lat": 45.7314260, "lon": -68.8346260 },
+    { "lat": 45.7314830, "lon": -68.8344490 },
+    { "lat": 45.7315630, "lon": -68.8345030 },
+    { "lat": 45.7315060, "lon": -68.8346790 }
+  ],
+  "tags": {
+    "addr:city": "Northern Piscataquis County",
+    "addr:housenumber": "49",
+    "addr:state": "ME",
+    "addr:street": "Loon Lane",
+    "building": "yes",
+    "source": "microsoft/BuildingFootprints"
+  }
+},
+{
+  "type": "way",
+  "id": 886681564,
+  "bounds": {
+    "minlat": 45.7253260,
+    "minlon": -68.7981140,
+    "maxlat": 45.7253730,
+    "maxlon": -68.7979930
+  },
+  "geometry": [
+    { "lat": 45.7253730, "lon": -68.7979930 },
+    { "lat": 45.7253730, "lon": -68.7981140 },
+    { "lat": 45.7253260, "lon": -68.7981140 },
+    { "lat": 45.7253260, "lon": -68.7979930 },
+    { "lat": 45.7253730, "lon": -68.7979930 }
+  ],
+  "tags": {
+    "building": "yes",
+    "source": "microsoft/BuildingFootprints"
+  }
+},
+{
+  "type": "way",
+  "id": 886682406,
+  "bounds": {
+    "minlat": 45.7314170,
+    "minlon": -68.8414400,
+    "maxlat": 45.7314790,
+    "maxlon": -68.8413650
+  },
+  "geometry": [
+    { "lat": 45.7314170, "lon": -68.8414400 },
+    { "lat": 45.7314170, "lon": -68.8413650 },
+    { "lat": 45.7314790, "lon": -68.8413650 },
+    { "lat": 45.7314790, "lon": -68.8414400 },
+    { "lat": 45.7314170, "lon": -68.8414400 }
+  ],
+  "tags": {
+    "addr:city": "T1 R9 Wels",
+    "addr:housenumber": "18",
+    "addr:state": "ME",
+    "addr:street": "Spencer Cove Road",
+    "building": "yes",
+    "source": "microsoft/BuildingFootprints"
+  }
+},
+{
+  "type": "way",
+  "id": 886682407,
+  "bounds": {
+    "minlat": 45.7217550,
+    "minlon": -68.8517720,
+    "maxlat": 45.7218410,
+    "maxlon": -68.8516300
+  },
+  "geometry": [
+    { "lat": 45.7218100, "lon": -68.8516300 },
+    { "lat": 45.7218410, "lon": -68.8517420 },
+    { "lat": 45.7217860, "lon": -68.8517720 },
+    { "lat": 45.7217550, "lon": -68.8516600 },
+    { "lat": 45.7218100, "lon": -68.8516300 }
+  ],
+  "tags": {
+    "addr:city": "T1 R9 Wels",
+    "addr:housenumber": "35",
+    "addr:state": "ME",
+    "addr:street": "Breezy Point Drive",
+    "building": "yes",
+    "source": "microsoft/BuildingFootprints"
+  }
+},
+{
+  "type": "way",
+  "id": 886682408,
+  "bounds": {
+    "minlat": 45.7236580,
+    "minlon": -68.8543800,
+    "maxlat": 45.7237890,
+    "maxlon": -68.8542140
+  },
+  "geometry": [
+    { "lat": 45.7237700, "lon": -68.8543800 },
+    { "lat": 45.7236580, "lon": -68.8543460 },
+    { "lat": 45.7236780, "lon": -68.8542140 },
+    { "lat": 45.7237890, "lon": -68.8542480 },
+    { "lat": 45.7237700, "lon": -68.8543800 }
+  ],
+  "tags": {
+    "building": "yes",
+    "source": "microsoft/BuildingFootprints"
+  }
+},
+{
+  "type": "way",
+  "id": 886682409,
+  "bounds": {
+    "minlat": 45.7221540,
+    "minlon": -68.8430040,
+    "maxlat": 45.7222330,
+    "maxlon": -68.8428690
+  },
+  "geometry": [
+    { "lat": 45.7221540, "lon": -68.8430040 },
+    { "lat": 45.7221540, "lon": -68.8428690 },
+    { "lat": 45.7222330, "lon": -68.8428690 },
+    { "lat": 45.7222330, "lon": -68.8430040 },
+    { "lat": 45.7221540, "lon": -68.8430040 }
+  ],
+  "tags": {
+    "addr:city": "T1 R9 Wels",
+    "addr:housenumber": "3",
+    "addr:state": "ME",
+    "addr:street": "Rocky Top Circle",
+    "building": "yes",
+    "source": "microsoft/BuildingFootprints"
+  }
+},
+{
+  "type": "way",
+  "id": 886682410,
+  "bounds": {
+    "minlat": 45.7165170,
+    "minlon": -68.8523620,
+    "maxlat": 45.7166750,
+    "maxlon": -68.8521900
+  },
+  "geometry": [
+    { "lat": 45.7166480, "lon": -68.8523620 },
+    { "lat": 45.7165170, "lon": -68.8522940 },
+    { "lat": 45.7165440, "lon": -68.8521900 },
+    { "lat": 45.7166750, "lon": -68.8522570 },
+    { "lat": 45.7166480, "lon": -68.8523620 }
+  ],
+  "tags": {
+    "building": "yes",
+    "source": "microsoft/BuildingFootprints"
+  }
+},
+{
+  "type": "way",
+  "id": 886682411,
+  "bounds": {
+    "minlat": 45.7233540,
+    "minlon": -68.8539790,
+    "maxlat": 45.7235020,
+    "maxlon": -68.8538430
+  },
+  "geometry": [
+    { "lat": 45.7235020, "lon": -68.8538720 },
+    { "lat": 45.7234910, "lon": -68.8539790 },
+    { "lat": 45.7233540, "lon": -68.8539510 },
+    { "lat": 45.7233640, "lon": -68.8538430 },
+    { "lat": 45.7235020, "lon": -68.8538720 }
+  ],
+  "tags": {
+    "addr:city": "T1 R9 Wels",
+    "addr:housenumber": "343",
+    "addr:state": "ME",
+    "addr:street": "Sawdust Pile Road",
+    "building": "yes",
+    "source": "microsoft/BuildingFootprints"
+  }
+},
+{
+  "type": "way",
+  "id": 886682412,
+  "bounds": {
+    "minlat": 45.7221170,
+    "minlon": -68.8516300,
+    "maxlat": 45.7221990,
+    "maxlon": -68.8515020
+  },
+  "geometry": [
+    { "lat": 45.7221860, "lon": -68.8515020 },
+    { "lat": 45.7221990, "lon": -68.8516140 },
+    { "lat": 45.7221300, "lon": -68.8516300 },
+    { "lat": 45.7221170, "lon": -68.8515180 },
+    { "lat": 45.7221860, "lon": -68.8515020 }
+  ],
+  "tags": {
+    "building": "yes",
+    "source": "microsoft/BuildingFootprints"
+  }
+},
+{
+  "type": "way",
+  "id": 886682413,
+  "bounds": {
+    "minlat": 45.7220310,
+    "minlon": -68.8438990,
+    "maxlat": 45.7221600,
+    "maxlon": -68.8437140
+  },
+  "geometry": [
+    { "lat": 45.7220910, "lon": -68.8437140 },
+    { "lat": 45.7221600, "lon": -68.8438140 },
+    { "lat": 45.7221000, "lon": -68.8438990 },
+    { "lat": 45.7220310, "lon": -68.8438000 },
+    { "lat": 45.7220910, "lon": -68.8437140 }
+  ],
+  "tags": {
+    "addr:city": "T1 R9 Wels",
+    "addr:housenumber": "6",
+    "addr:state": "ME",
+    "addr:street": "Rocky Top Circle",
+    "building": "yes",
+    "source": "microsoft/BuildingFootprints"
+  }
+},
+{
+  "type": "way",
+  "id": 886682414,
+  "bounds": {
+    "minlat": 45.7235010,
+    "minlon": -68.8532870,
+    "maxlat": 45.7236820,
+    "maxlon": -68.8530670
+  },
+  "geometry": [
+    { "lat": 45.7236070, "lon": -68.8532830 },
+    { "lat": 45.7235060, "lon": -68.8532870 },
+    { "lat": 45.7235010, "lon": -68.8530710 },
+    { "lat": 45.7236040, "lon": -68.8530670 },
+    { "lat": 45.7236050, "lon": -68.8530900 },
+    { "lat": 45.7236800, "lon": -68.8530860 },
+    { "lat": 45.7236820, "lon": -68.8532090 },
+    { "lat": 45.7236060, "lon": -68.8532130 },
+    { "lat": 45.7236070, "lon": -68.8532830 }
+  ],
+  "tags": {
+    "addr:city": "T1 R9 Wels",
+    "addr:housenumber": "351",
+    "addr:state": "ME",
+    "addr:street": "Sawdust Pile Road",
+    "building": "yes",
+    "source": "microsoft/BuildingFootprints"
+  }
+},
+{
+  "type": "way",
+  "id": 886682415,
+  "bounds": {
+    "minlat": 45.7310010,
+    "minlon": -68.8428630,
+    "maxlat": 45.7311540,
+    "maxlon": -68.8426970
+  },
+  "geometry": [
+    { "lat": 45.7311290, "lon": -68.8428630 },
+    { "lat": 45.7310010, "lon": -68.8427940 },
+    { "lat": 45.7310260, "lon": -68.8426970 },
+    { "lat": 45.7311540, "lon": -68.8427670 },
+    { "lat": 45.7311290, "lon": -68.8428630 }
+  ],
+  "tags": {
+    "addr:housename": "Wagner",
+    "building": "cabin",
+    "source": "microsoft/BuildingFootprints"
+  }
+},
+{
+  "type": "way",
+  "id": 886682416,
+  "bounds": {
+    "minlat": 45.7148580,
+    "minlon": -68.8521060,
+    "maxlat": 45.7149570,
+    "maxlon": -68.8520010
+  },
+  "geometry": [
+    { "lat": 45.7149560, "lon": -68.8520010 },
+    { "lat": 45.7149570, "lon": -68.8521030 },
+    { "lat": 45.7148600, "lon": -68.8521060 },
+    { "lat": 45.7148580, "lon": -68.8520040 },
+    { "lat": 45.7149560, "lon": -68.8520010 }
+  ],
+  "tags": {
+    "addr:city": "T1 R9 Wels",
+    "addr:housenumber": "28",
+    "addr:state": "ME",
+    "addr:street": "Doc Moreys Lane",
+    "building": "yes",
+    "source": "microsoft/BuildingFootprints"
+  }
+},
+{
+  "type": "way",
+  "id": 886682417,
+  "bounds": {
+    "minlat": 45.7233750,
+    "minlon": -68.8537240,
+    "maxlat": 45.7234820,
+    "maxlon": -68.8535820
+  },
+  "geometry": [
+    { "lat": 45.7234820, "lon": -68.8537240 },
+    { "lat": 45.7233750, "lon": -68.8537240 },
+    { "lat": 45.7233750, "lon": -68.8536470 },
+    { "lat": 45.7233960, "lon": -68.8536470 },
+    { "lat": 45.7233960, "lon": -68.8535820 },
+    { "lat": 45.7234820, "lon": -68.8535820 },
+    { "lat": 45.7234820, "lon": -68.8537240 }
+  ],
+  "tags": {
+    "addr:city": "T1 R9 Wels",
+    "addr:housenumber": "347",
+    "addr:state": "ME",
+    "addr:street": "Sawdust Pile Road",
+    "building": "yes",
+    "source": "microsoft/BuildingFootprints"
+  }
+},
+{
+  "type": "way",
+  "id": 886682418,
+  "bounds": {
+    "minlat": 45.7234970,
+    "minlon": -68.8545300,
+    "maxlat": 45.7237000,
+    "maxlon": -68.8543580
+  },
+  "geometry": [
+    { "lat": 45.7234970, "lon": -68.8544850 },
+    { "lat": 45.7235120, "lon": -68.8543580 },
+    { "lat": 45.7237000, "lon": -68.8544030 },
+    { "lat": 45.7236850, "lon": -68.8545300 },
+    { "lat": 45.7234970, "lon": -68.8544850 }
+  ],
+  "tags": {
+    "addr:city": "T1 R9 Wels",
+    "addr:housenumber": "337",
+    "addr:state": "ME",
+    "addr:street": "Sawdust Pile Road",
+    "building": "yes",
+    "source": "microsoft/BuildingFootprints"
+  }
+},
+{
+  "type": "way",
+  "id": 886682419,
+  "bounds": {
+    "minlat": 45.7164870,
+    "minlon": -68.8454500,
+    "maxlat": 45.7165740,
+    "maxlon": -68.8453880
+  },
+  "geometry": [
+    { "lat": 45.7164870, "lon": -68.8453880 },
+    { "lat": 45.7165740, "lon": -68.8453880 },
+    { "lat": 45.7165740, "lon": -68.8454500 },
+    { "lat": 45.7164870, "lon": -68.8454500 },
+    { "lat": 45.7164870, "lon": -68.8453880 }
+  ],
+  "tags": {
+    "building": "yes",
+    "source": "microsoft/BuildingFootprints"
+  }
+},
+{
+  "type": "way",
+  "id": 886682420,
+  "bounds": {
+    "minlat": 45.7211572,
+    "minlon": -68.8441258,
+    "maxlat": 45.7213217,
+    "maxlon": -68.8439479
+  },
+  "geometry": [
+    { "lat": 45.7212852, "lon": -68.8439479 },
+    { "lat": 45.7213217, "lon": -68.8440880 },
+    { "lat": 45.7212509, "lon": -68.8441258 },
+    { "lat": 45.7212361, "lon": -68.8440690 },
+    { "lat": 45.7211789, "lon": -68.8440996 },
+    { "lat": 45.7211572, "lon": -68.8440164 },
+    { "lat": 45.7212852, "lon": -68.8439479 }
+  ],
+  "tags": {
+    "addr:city": "T1 R9 Wels",
+    "addr:housenumber": "85",
+    "addr:state": "ME",
+    "addr:street": "Ambajejus Parkway",
+    "building": "yes",
+    "source": "microsoft/BuildingFootprints"
+  }
+},
+{
+  "type": "way",
+  "id": 886682421,
+  "bounds": {
+    "minlat": 45.7230500,
+    "minlon": -68.8508970,
+    "maxlat": 45.7231360,
+    "maxlon": -68.8507750
+  },
+  "geometry": [
+    { "lat": 45.7230500, "lon": -68.8508420 },
+    { "lat": 45.7231000, "lon": -68.8507750 },
+    { "lat": 45.7231360, "lon": -68.8508300 },
+    { "lat": 45.7230850, "lon": -68.8508970 },
+    { "lat": 45.7230500, "lon": -68.8508420 }
+  ],
+  "tags": {
+    "addr:city": "T1 R9 Wels",
+    "addr:housenumber": "18",
+    "addr:state": "ME",
+    "addr:street": "Breezy Point Drive",
+    "building": "yes",
+    "source": "microsoft/BuildingFootprints"
+  }
+},
+{
+  "type": "way",
+  "id": 886682422,
+  "bounds": {
+    "minlat": 45.7164390,
+    "minlon": -68.8455600,
+    "maxlat": 45.7165380,
+    "maxlon": -68.8454850
+  },
+  "geometry": [
+    { "lat": 45.7164390, "lon": -68.8455600 },
+    { "lat": 45.7164390, "lon": -68.8454850 },
+    { "lat": 45.7165380, "lon": -68.8454850 },
+    { "lat": 45.7165380, "lon": -68.8455600 },
+    { "lat": 45.7164390, "lon": -68.8455600 }
+  ],
+  "tags": {
+    "building": "yes",
+    "source": "microsoft/BuildingFootprints"
+  }
+},
+{
+  "type": "way",
+  "id": 886682423,
+  "bounds": {
+    "minlat": 45.7220670,
+    "minlon": -68.8426240,
+    "maxlat": 45.7221680,
+    "maxlon": -68.8424320
+  },
+  "geometry": [
+    { "lat": 45.7221680, "lon": -68.8424430 },
+    { "lat": 45.7221580, "lon": -68.8426240 },
+    { "lat": 45.7220670, "lon": -68.8426130 },
+    { "lat": 45.7220770, "lon": -68.8424320 },
+    { "lat": 45.7221680, "lon": -68.8424430 }
+  ],
+  "tags": {
+    "addr:city": "T1 R9 Wels",
+    "addr:housenumber": "69",
+    "addr:state": "ME",
+    "addr:street": "Ambajejus Parkway",
+    "building": "yes",
+    "source": "microsoft/BuildingFootprints"
+  }
+},
+{
+  "type": "way",
+  "id": 886682424,
+  "bounds": {
+    "minlat": 45.7203296,
+    "minlon": -68.8445017,
+    "maxlat": 45.7204738,
+    "maxlon": -68.8442933
+  },
+  "geometry": [
+    { "lat": 45.7204738, "lon": -68.8444253 },
+    { "lat": 45.7203809, "lon": -68.8445017 },
+    { "lat": 45.7203296, "lon": -68.8443768 },
+    { "lat": 45.7203589, "lon": -68.8443527 },
+    { "lat": 45.7203484, "lon": -68.8443266 },
+    { "lat": 45.7203889, "lon": -68.8442933 },
+    { "lat": 45.7203994, "lon": -68.8443194 },
+    { "lat": 45.7204227, "lon": -68.8443002 },
+    { "lat": 45.7204738, "lon": -68.8444253 }
+  ],
+  "tags": {
+    "addr:city": "Northern Piscataquis County",
+    "addr:housenumber": "12",
+    "addr:state": "ME",
+    "addr:street": "Sunset Drive",
+    "building": "yes",
+    "source": "microsoft/BuildingFootprints"
+  }
+},
+{
+  "type": "way",
+  "id": 886682425,
+  "bounds": {
+    "minlat": 45.7163740,
+    "minlon": -68.8505270,
+    "maxlat": 45.7164340,
+    "maxlon": -68.8503960
+  },
+  "geometry": [
+    { "lat": 45.7163740, "lon": -68.8503960 },
+    { "lat": 45.7164340, "lon": -68.8503960 },
+    { "lat": 45.7164340, "lon": -68.8505270 },
+    { "lat": 45.7163740, "lon": -68.8505270 },
+    { "lat": 45.7163740, "lon": -68.8503960 }
+  ],
+  "tags": {
+    "addr:city": "Northern Piscataquis County",
+    "addr:housenumber": "55",
+    "addr:state": "ME",
+    "addr:street": "Doc Moreys Lane",
+    "building": "yes",
+    "source": "microsoft/BuildingFootprints"
+  }
+},
+{
+  "type": "way",
+  "id": 886682426,
+  "bounds": {
+    "minlat": 45.7249100,
+    "minlon": -68.8402690,
+    "maxlat": 45.7250190,
+    "maxlon": -68.8401130
+  },
+  "geometry": [
+    { "lat": 45.7250190, "lon": -68.8401770 },
+    { "lat": 45.7249760, "lon": -68.8402690 },
+    { "lat": 45.7249100, "lon": -68.8402060 },
+    { "lat": 45.7249530, "lon": -68.8401130 },
+    { "lat": 45.7250190, "lon": -68.8401770 }
+  ],
+  "tags": {
+    "building": "yes",
+    "source": "microsoft/BuildingFootprints"
+  }
+},
+{
+  "type": "way",
+  "id": 886682427,
+  "bounds": {
+    "minlat": 45.7168250,
+    "minlon": -68.8524990,
+    "maxlat": 45.7169630,
+    "maxlon": -68.8523210
+  },
+  "geometry": [
+    { "lat": 45.7168250, "lon": -68.8524170 },
+    { "lat": 45.7169240, "lon": -68.8523210 },
+    { "lat": 45.7169630, "lon": -68.8524040 },
+    { "lat": 45.7168640, "lon": -68.8524990 },
+    { "lat": 45.7168250, "lon": -68.8524170 }
+  ],
+  "tags": {
+    "addr:city": "Northern Piscataquis County",
+    "addr:housenumber": "91",
+    "addr:state": "ME",
+    "addr:street": "Doc Moreys Lane",
+    "building": "yes",
+    "source": "microsoft/BuildingFootprints"
+  }
+},
+{
+  "type": "way",
+  "id": 886682428,
+  "bounds": {
+    "minlat": 45.7248230,
+    "minlon": -68.8509110,
+    "maxlat": 45.7248740,
+    "maxlon": -68.8508440
+  },
+  "geometry": [
+    { "lat": 45.7248740, "lon": -68.8508820 },
+    { "lat": 45.7248380, "lon": -68.8509110 },
+    { "lat": 45.7248230, "lon": -68.8508730 },
+    { "lat": 45.7248590, "lon": -68.8508440 },
+    { "lat": 45.7248740, "lon": -68.8508820 }
+  ],
+  "tags": {
+    "building": "yes",
+    "source": "microsoft/BuildingFootprints"
+  }
+},
+{
+  "type": "way",
+  "id": 886682429,
+  "bounds": {
+    "minlat": 45.7314781,
+    "minlon": -68.8411372,
+    "maxlat": 45.7315711,
+    "maxlon": -68.8409799
+  },
+  "geometry": [
+    { "lat": 45.7314807, "lon": -68.8411372 },
+    { "lat": 45.7314781, "lon": -68.8410679 },
+    { "lat": 45.7314896, "lon": -68.8410670 },
+    { "lat": 45.7314866, "lon": -68.8409861 },
+    { "lat": 45.7315654, "lon": -68.8409799 },
+    { "lat": 45.7315711, "lon": -68.8411302 },
+    { "lat": 45.7314807, "lon": -68.8411372 }
+  ],
+  "tags": {
+    "addr:city": "T1 R9 Wels",
+    "addr:housename": "Bonnell",
+    "addr:housenumber": "12",
+    "addr:state": "ME",
+    "addr:street": "Spencer Cove Road",
+    "building": "cabin",
+    "source": "microsoft/BuildingFootprints"
+  }
+},
+{
+  "type": "way",
+  "id": 886682430,
+  "bounds": {
+    "minlat": 45.7169670,
+    "minlon": -68.8516800,
+    "maxlat": 45.7170460,
+    "maxlon": -68.8515700
+  },
+  "geometry": [
+    { "lat": 45.7169670, "lon": -68.8515700 },
+    { "lat": 45.7170460, "lon": -68.8515700 },
+    { "lat": 45.7170460, "lon": -68.8516800 },
+    { "lat": 45.7169670, "lon": -68.8516800 },
+    { "lat": 45.7169670, "lon": -68.8515700 }
+  ],
+  "tags": {
+    "addr:city": "Northern Piscataquis County",
+    "addr:housenumber": "87",
+    "addr:state": "ME",
+    "addr:street": "Doc Moreys Lane",
+    "building": "yes",
+    "source": "microsoft/BuildingFootprints"
+  }
+},
+{
+  "type": "way",
+  "id": 886682431,
+  "bounds": {
+    "minlat": 45.7218760,
+    "minlon": -68.8420160,
+    "maxlat": 45.7220190,
+    "maxlon": -68.8418490
+  },
+  "geometry": [
+    { "lat": 45.7219890, "lon": -68.8420160 },
+    { "lat": 45.7218760, "lon": -68.8419280 },
+    { "lat": 45.7219060, "lon": -68.8418490 },
+    { "lat": 45.7220190, "lon": -68.8419370 },
+    { "lat": 45.7219890, "lon": -68.8420160 }
+  ],
+  "tags": {
+    "building": "yes",
+    "source": "microsoft/BuildingFootprints"
+  }
+},
+{
+  "type": "way",
+  "id": 886682432,
+  "bounds": {
+    "minlat": 45.7235970,
+    "minlon": -68.8510770,
+    "maxlat": 45.7237950,
+    "maxlon": -68.8507700
+  },
+  "geometry": [
+    { "lat": 45.7237950, "lon": -68.8508870 },
+    { "lat": 45.7237260, "lon": -68.8510770 },
+    { "lat": 45.7236490, "lon": -68.8510190 },
+    { "lat": 45.7236760, "lon": -68.8509440 },
+    { "lat": 45.7235970, "lon": -68.8508850 },
+    { "lat": 45.7236390, "lon": -68.8507700 },
+    { "lat": 45.7237950, "lon": -68.8508870 }
+  ],
+  "tags": {
+    "building": "yes",
+    "source": "microsoft/BuildingFootprints"
+  }
+},
+{
+  "type": "way",
+  "id": 886682433,
+  "bounds": {
+    "minlat": 45.7240690,
+    "minlon": -68.8530560,
+    "maxlat": 45.7241530,
+    "maxlon": -68.8528450
+  },
+  "geometry": [
+    { "lat": 45.7241530, "lon": -68.8528500 },
+    { "lat": 45.7241460, "lon": -68.8530560 },
+    { "lat": 45.7240690, "lon": -68.8530510 },
+    { "lat": 45.7240750, "lon": -68.8528450 },
+    { "lat": 45.7241530, "lon": -68.8528500 }
+  ],
+  "tags": {
+    "building": "yes",
+    "source": "microsoft/BuildingFootprints"
+  }
+},
+{
+  "type": "way",
+  "id": 886684722,
+  "bounds": {
+    "minlat": 45.7128540,
+    "minlon": -68.8560840,
+    "maxlat": 45.7129600,
+    "maxlon": -68.8559020
+  },
+  "geometry": [
+    { "lat": 45.7129160, "lon": -68.8560840 },
+    { "lat": 45.7128540, "lon": -68.8560460 },
+    { "lat": 45.7128990, "lon": -68.8559020 },
+    { "lat": 45.7129600, "lon": -68.8559400 },
+    { "lat": 45.7129160, "lon": -68.8560840 }
+  ],
+  "tags": {
+    "addr:city": "Northern Piscataquis County",
+    "addr:housenumber": "17",
+    "addr:state": "ME",
+    "addr:street": "Windy Point Road",
+    "building": "yes",
+    "source": "microsoft/BuildingFootprints"
+  }
+},
+{
+  "type": "way",
+  "id": 886684734,
+  "bounds": {
+    "minlat": 45.7142210,
+    "minlon": -68.8478160,
+    "maxlat": 45.7143020,
+    "maxlon": -68.8476630
+  },
+  "geometry": [
+    { "lat": 45.7142720, "lon": -68.8476630 },
+    { "lat": 45.7143020, "lon": -68.8477920 },
+    { "lat": 45.7142510, "lon": -68.8478160 },
+    { "lat": 45.7142210, "lon": -68.8476860 },
+    { "lat": 45.7142720, "lon": -68.8476630 }
+  ],
+  "tags": {
+    "building": "yes",
+    "source": "microsoft/BuildingFootprints"
+  }
+},
+{
+  "type": "way",
+  "id": 886684739,
+  "bounds": {
+    "minlat": 45.7116540,
+    "minlon": -68.8577980,
+    "maxlat": 45.7117660,
+    "maxlon": -68.8576350
+  },
+  "geometry": [
+    { "lat": 45.7116730, "lon": -68.8576350 },
+    { "lat": 45.7117660, "lon": -68.8576620 },
+    { "lat": 45.7117470, "lon": -68.8577980 },
+    { "lat": 45.7116540, "lon": -68.8577720 },
+    { "lat": 45.7116730, "lon": -68.8576350 }
+  ],
+  "tags": {
+    "addr:city": "T1 R9 Wels",
+    "addr:housenumber": "31",
+    "addr:state": "ME",
+    "addr:street": "Bayside Drive",
+    "building": "yes",
+    "source": "microsoft/BuildingFootprints"
+  }
+},
+{
+  "type": "way",
+  "id": 886689062,
+  "bounds": {
+    "minlat": 45.7289450,
+    "minlon": -68.8691040,
+    "maxlat": 45.7290760,
+    "maxlon": -68.8689500
+  },
+  "geometry": [
+    { "lat": 45.7289730, "lon": -68.8689500 },
+    { "lat": 45.7290760, "lon": -68.8690330 },
+    { "lat": 45.7290480, "lon": -68.8691040 },
+    { "lat": 45.7289450, "lon": -68.8690210 },
+    { "lat": 45.7289730, "lon": -68.8689500 }
+  ],
+  "tags": {
+    "building": "yes",
+    "source": "microsoft/BuildingFootprints"
+  }
+},
+{
+  "type": "way",
+  "id": 886689066,
+  "bounds": {
+    "minlat": 45.7267300,
+    "minlon": -68.8608160,
+    "maxlat": 45.7268400,
+    "maxlon": -68.8606220
+  },
+  "geometry": [
+    { "lat": 45.7267680, "lon": -68.8608160 },
+    { "lat": 45.7267300, "lon": -68.8606570 },
+    { "lat": 45.7268030, "lon": -68.8606220 },
+    { "lat": 45.7268400, "lon": -68.8607810 },
+    { "lat": 45.7267680, "lon": -68.8608160 }
+  ],
+  "tags": {
+    "building": "yes",
+    "source": "microsoft/BuildingFootprints"
+  }
+},
+{
+  "type": "way",
+  "id": 886689073,
+  "bounds": {
+    "minlat": 45.7485180,
+    "minlon": -68.7492430,
+    "maxlat": 45.7486620,
+    "maxlon": -68.7490280
+  },
+  "geometry": [
+    { "lat": 45.7485910, "lon": -68.7492430 },
+    { "lat": 45.7485180, "lon": -68.7491040 },
+    { "lat": 45.7485890, "lon": -68.7490280 },
+    { "lat": 45.7486620, "lon": -68.7491670 },
+    { "lat": 45.7485910, "lon": -68.7492430 }
+  ],
+  "tags": {
+    "building": "yes",
+    "source": "microsoft/BuildingFootprints"
+  }
+},
+{
+  "type": "way",
+  "id": 886689077,
+  "bounds": {
+    "minlat": 45.7289010,
+    "minlon": -68.8695310,
+    "maxlat": 45.7289780,
+    "maxlon": -68.8694500
+  },
+  "geometry": [
+    { "lat": 45.7289010, "lon": -68.8694500 },
+    { "lat": 45.7289780, "lon": -68.8694500 },
+    { "lat": 45.7289780, "lon": -68.8695310 },
+    { "lat": 45.7289010, "lon": -68.8695310 },
+    { "lat": 45.7289010, "lon": -68.8694500 }
+  ],
+  "tags": {
+    "building": "yes",
+    "source": "microsoft/BuildingFootprints"
+  }
+},
+{
+  "type": "way",
+  "id": 886689078,
+  "bounds": {
+    "minlat": 45.7279370,
+    "minlon": -68.8654720,
+    "maxlat": 45.7280290,
+    "maxlon": -68.8652600
+  },
+  "geometry": [
+    { "lat": 45.7279560, "lon": -68.8654720 },
+    { "lat": 45.7279370, "lon": -68.8652740 },
+    { "lat": 45.7280100, "lon": -68.8652600 },
+    { "lat": 45.7280290, "lon": -68.8654570 },
+    { "lat": 45.7279560, "lon": -68.8654720 }
+  ],
+  "tags": {
+    "addr:city": "T1 R9 Wels",
+    "addr:housenumber": "39",
+    "addr:state": "ME",
+    "addr:street": "Birch Point",
+    "building": "yes",
+    "source": "microsoft/BuildingFootprints"
+  }
+},
+{
+  "type": "way",
+  "id": 886689080,
+  "bounds": {
+    "minlat": 45.7272620,
+    "minlon": -68.8659540,
+    "maxlat": 45.7273950,
+    "maxlon": -68.8657360
+  },
+  "geometry": [
+    { "lat": 45.7272620, "lon": -68.8657910 },
+    { "lat": 45.7273300, "lon": -68.8657360 },
+    { "lat": 45.7273950, "lon": -68.8658990 },
+    { "lat": 45.7273270, "lon": -68.8659540 },
+    { "lat": 45.7272620, "lon": -68.8657910 }
+  ],
+  "tags": {
+    "addr:city": "T1 R9 Wels",
+    "addr:housenumber": "48",
+    "addr:state": "ME",
+    "addr:street": "Birch Point",
+    "building": "yes",
+    "source": "microsoft/BuildingFootprints"
+  }
+},
+{
+  "type": "way",
+  "id": 886689087,
+  "bounds": {
+    "minlat": 45.7492610,
+    "minlon": -68.7514570,
+    "maxlat": 45.7493340,
+    "maxlon": -68.7512830
+  },
+  "geometry": [
+    { "lat": 45.7493340, "lon": -68.7512830 },
+    { "lat": 45.7493340, "lon": -68.7514570 },
+    { "lat": 45.7492610, "lon": -68.7514570 },
+    { "lat": 45.7492610, "lon": -68.7512830 },
+    { "lat": 45.7493340, "lon": -68.7512830 }
+  ],
+  "tags": {
+    "building": "yes",
+    "source": "microsoft/BuildingFootprints"
+  }
+},
+{
+  "type": "way",
+  "id": 886689090,
+  "bounds": {
+    "minlat": 45.7269850,
+    "minlon": -68.8629890,
+    "maxlat": 45.7270640,
+    "maxlon": -68.8627930
+  },
+  "geometry": [
+    { "lat": 45.7269850, "lon": -68.8629890 },
+    { "lat": 45.7269850, "lon": -68.8627930 },
+    { "lat": 45.7270640, "lon": -68.8627930 },
+    { "lat": 45.7270640, "lon": -68.8629890 },
+    { "lat": 45.7269850, "lon": -68.8629890 }
+  ],
+  "tags": {
+    "building": "yes",
+    "source": "microsoft/BuildingFootprints"
+  }
+},
+{
+  "type": "way",
+  "id": 886689091,
+  "bounds": {
+    "minlat": 45.7265360,
+    "minlon": -68.8605910,
+    "maxlat": 45.7267040,
+    "maxlon": -68.8603070
+  },
+  "geometry": [
+    { "lat": 45.7266400, "lon": -68.8603070 },
+    { "lat": 45.7267040, "lon": -68.8605290 },
+    { "lat": 45.7265990, "lon": -68.8605910 },
+    { "lat": 45.7265360, "lon": -68.8603680 },
+    { "lat": 45.7266400, "lon": -68.8603070 }
+  ],
+  "tags": {
+    "addr:city": "T1 R9 Wels",
+    "addr:housenumber": "259",
+    "addr:state": "ME",
+    "addr:street": "Sawdust Pile Road",
+    "building": "yes",
+    "source": "microsoft/BuildingFootprints"
+  }
+},
+{
+  "type": "way",
+  "id": 886689094,
+  "bounds": {
+    "minlat": 45.7488520,
+    "minlon": -68.7503530,
+    "maxlat": 45.7489540,
+    "maxlon": -68.7502170
+  },
+  "geometry": [
+    { "lat": 45.7489540, "lon": -68.7502810 },
+    { "lat": 45.7488840, "lon": -68.7503530 },
+    { "lat": 45.7488520, "lon": -68.7502890 },
+    { "lat": 45.7489220, "lon": -68.7502170 },
+    { "lat": 45.7489540, "lon": -68.7502810 }
+  ],
+  "tags": {
+    "building": "yes",
+    "source": "microsoft/BuildingFootprints"
+  }
+},
+{
+  "type": "way",
+  "id": 886689096,
+  "bounds": {
+    "minlat": 45.7265280,
+    "minlon": -68.8642460,
+    "maxlat": 45.7266570,
+    "maxlon": -68.8640440
+  },
+  "geometry": [
+    { "lat": 45.7265280, "lon": -68.8641860 },
+    { "lat": 45.7265920, "lon": -68.8640440 },
+    { "lat": 45.7266570, "lon": -68.8641040 },
+    { "lat": 45.7265930, "lon": -68.8642460 },
+    { "lat": 45.7265280, "lon": -68.8641860 }
+  ],
+  "tags": {
+    "addr:city": "T1 R9 Wels",
+    "addr:housenumber": "28",
+    "addr:state": "ME",
+    "addr:street": "Birch Point",
+    "building": "yes",
+    "source": "microsoft/BuildingFootprints"
+  }
+},
+{
+  "type": "way",
+  "id": 886689101,
+  "bounds": {
+    "minlat": 45.7257190,
+    "minlon": -68.8589410,
+    "maxlat": 45.7259200,
+    "maxlon": -68.8587380
+  },
+  "geometry": [
+    { "lat": 45.7258910, "lon": -68.8587380 },
+    { "lat": 45.7259200, "lon": -68.8588270 },
+    { "lat": 45.7257470, "lon": -68.8589410 },
+    { "lat": 45.7257190, "lon": -68.8588530 },
+    { "lat": 45.7258910, "lon": -68.8587380 }
+  ],
+  "tags": {
+    "addr:city": "T1 R9 Wels",
+    "addr:housenumber": "285",
+    "addr:state": "ME",
+    "addr:street": "Sawdust Pile Road",
+    "building": "yes",
+    "source": "microsoft/BuildingFootprints"
+  }
+},
+{
+  "type": "way",
+  "id": 1243251463,
+  "bounds": {
+    "minlat": 45.7160927,
+    "minlon": -68.8175327,
+    "maxlat": 45.7163569,
+    "maxlon": -68.8169511
+  },
+  "geometry": [
+    { "lat": 45.7163569, "lon": -68.8174455 },
+    { "lat": 45.7163441, "lon": -68.8173213 },
+    { "lat": 45.7163428, "lon": -68.8172251 },
+    { "lat": 45.7163454, "lon": -68.8171364 },
+    { "lat": 45.7163518, "lon": -68.8170550 },
+    { "lat": 45.7163544, "lon": -68.8170254 },
+    { "lat": 45.7162868, "lon": -68.8170225 },
+    { "lat": 45.7162873, "lon": -68.8169511 },
+    { "lat": 45.7162072, "lon": -68.8169514 },
+    { "lat": 45.7162066, "lon": -68.8170556 },
+    { "lat": 45.7161542, "lon": -68.8170550 },
+    { "lat": 45.7161607, "lon": -68.8170994 },
+    { "lat": 45.7161697, "lon": -68.8172399 },
+    { "lat": 45.7161722, "lon": -68.8172937 },
+    { "lat": 45.7161710, "lon": -68.8173583 },
+    { "lat": 45.7160927, "lon": -68.8173577 },
+    { "lat": 45.7160935, "lon": -68.8175322 },
+    { "lat": 45.7161751, "lon": -68.8175327 },
+    { "lat": 45.7161749, "lon": -68.8174658 },
+    { "lat": 45.7162059, "lon": -68.8174656 },
+    { "lat": 45.7162059, "lon": -68.8174878 },
+    { "lat": 45.7162853, "lon": -68.8174913 },
+    { "lat": 45.7162871, "lon": -68.8174434 },
+    { "lat": 45.7163569, "lon": -68.8174455 }
+  ],
+  "tags": {
+    "addr:city": "Millinocket",
+    "addr:housenumber": "200",
+    "addr:state": "ME",
+    "addr:street": "Katahdin View Drive",
+    "building": "detached"
+  }
+},
+{
+  "type": "way",
+  "id": 1324653139,
+  "bounds": {
+    "minlat": 45.7214757,
+    "minlon": -68.8379774,
+    "maxlat": 45.7298758,
+    "maxlon": -68.8329740
+  },
+  "geometry": [
+    { "lat": 45.7293225, "lon": -68.8378440 },
+    { "lat": 45.7295187, "lon": -68.8371314 },
+    { "lat": 45.7297308, "lon": -68.8372620 },
+    { "lat": 45.7298758, "lon": -68.8362866 },
+    { "lat": 45.7297576, "lon": -68.8362352 },
+    { "lat": 45.7297102, "lon": -68.8362735 },
+    { "lat": 45.7296963, "lon": -68.8362848 },
+    { "lat": 45.7296680, "lon": -68.8362874 },
+    { "lat": 45.7296414, "lon": -68.8362679 },
+    { "lat": 45.7296011, "lon": -68.8362505 },
+    { "lat": 45.7295449, "lon": -68.8362425 },
+    { "lat": 45.7295150, "lon": -68.8362351 },
+    { "lat": 45.7294532, "lon": -68.8361700 },
+    { "lat": 45.7293987, "lon": -68.8361413 },
+    { "lat": 45.7290831, "lon": -68.8358779 },
+    { "lat": 45.7288627, "lon": -68.8355727 },
+    { "lat": 45.7280817, "lon": -68.8358480 },
+    { "lat": 45.7274699, "lon": -68.8354698 },
+    { "lat": 45.7265848, "lon": -68.8349271 },
+    { "lat": 45.7258984, "lon": -68.8346067 },
+    { "lat": 45.7255288, "lon": -68.8345800 },
+    { "lat": 45.7251717, "lon": -68.8346379 },
+    { "lat": 45.7248052, "lon": -68.8346112 },
+    { "lat": 45.7244884, "lon": -68.8344599 },
+    { "lat": 45.7241685, "lon": -68.8343532 },
+    { "lat": 45.7240008, "lon": -68.8343309 },
+    { "lat": 45.7236561, "lon": -68.8343443 },
+    { "lat": 45.7232368, "lon": -68.8342820 },
+    { "lat": 45.7230442, "lon": -68.8341797 },
+    { "lat": 45.7228672, "lon": -68.8339528 },
+    { "lat": 45.7223982, "lon": -68.8334323 },
+    { "lat": 45.7221808, "lon": -68.8331831 },
+    { "lat": 45.7220193, "lon": -68.8330452 },
+    { "lat": 45.7218174, "lon": -68.8329740 },
+    { "lat": 45.7216869, "lon": -68.8329874 },
+    { "lat": 45.7215410, "lon": -68.8331431 },
+    { "lat": 45.7214757, "lon": -68.8334056 },
+    { "lat": 45.7215285, "lon": -68.8336324 },
+    { "lat": 45.7216217, "lon": -68.8338149 },
+    { "lat": 45.7218236, "lon": -68.8340862 },
+    { "lat": 45.7220069, "lon": -68.8343309 },
+    { "lat": 45.7222740, "lon": -68.8346868 },
+    { "lat": 45.7224448, "lon": -68.8348470 },
+    { "lat": 45.7226467, "lon": -68.8350338 },
+    { "lat": 45.7229107, "lon": -68.8352874 },
+    { "lat": 45.7231560, "lon": -68.8354342 },
+    { "lat": 45.7235971, "lon": -68.8355276 },
+    { "lat": 45.7239511, "lon": -68.8355988 },
+    { "lat": 45.7241250, "lon": -68.8356967 },
+    { "lat": 45.7245940, "lon": -68.8360526 },
+    { "lat": 45.7247276, "lon": -68.8363373 },
+    { "lat": 45.7250226, "lon": -68.8367110 },
+    { "lat": 45.7253052, "lon": -68.8368089 },
+    { "lat": 45.7256127, "lon": -68.8367822 },
+    { "lat": 45.7259450, "lon": -68.8363462 },
+    { "lat": 45.7262494, "lon": -68.8359369 },
+    { "lat": 45.7265009, "lon": -68.8357456 },
+    { "lat": 45.7267400, "lon": -68.8357189 },
+    { "lat": 45.7270506, "lon": -68.8358569 },
+    { "lat": 45.7272866, "lon": -68.8361327 },
+    { "lat": 45.7274512, "lon": -68.8363729 },
+    { "lat": 45.7275755, "lon": -68.8367911 },
+    { "lat": 45.7276345, "lon": -68.8368979 },
+    { "lat": 45.7281034, "lon": -68.8374718 },
+    { "lat": 45.7284481, "lon": -68.8376987 },
+    { "lat": 45.7290071, "lon": -68.8378855 },
+    { "lat": 45.7292852, "lon": -68.8379774 },
+    { "lat": 45.7293225, "lon": -68.8378440 }
+  ],
+  "tags": {
+    "name": "Big Moose Campground",
+    "tourism": "camp_site"
+  }
+},
+{
+  "type": "way",
+  "id": 1331449556,
+  "bounds": {
+    "minlat": 45.7315981,
+    "minlon": -68.8412073,
+    "maxlat": 45.7316764,
+    "maxlon": -68.8411153
+  },
+  "geometry": [
+    { "lat": 45.7315981, "lon": -68.8411165 },
+    { "lat": 45.7316757, "lon": -68.8411153 },
+    { "lat": 45.7316764, "lon": -68.8412062 },
+    { "lat": 45.7315988, "lon": -68.8412073 },
+    { "lat": 45.7315981, "lon": -68.8411165 }
+  ],
+  "tags": {
+    "addr:housename": "Bonnell",
+    "building": "cabin",
+    "source": "microsoft/BuildingFootprints"
+  }
+}
+
+  ]
+}

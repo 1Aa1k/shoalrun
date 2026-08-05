@@ -62,6 +62,8 @@ def main():
             rocks = json.loads(path.read_text())
             break
     contours = json.loads((DATA / "contours.geojson").read_text())
+    sp = DATA / "structures.geojson"
+    structures = json.loads(sp.read_text()) if sp.exists() else {"features": []}
 
     # Rocks ship as centroids only: the app alerts on proximity to a point, and
     # the full outlines would multiply the payload for no navigational gain.
@@ -95,6 +97,7 @@ def main():
         "lake": round_coords(lake),
         "rocks": round_coords(slim),
         "contours": round_coords(contours),
+        "structures": round_coords(structures),
         "meta": {
             "summary": (
                 f"{LAKE_NAME}: {sum(counts.values())} candidates "

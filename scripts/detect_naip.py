@@ -238,3 +238,22 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+# --- NOTE ON SIGNATURE, added after visually inspecting Apple Maps imagery ----
+#
+# Looking at this lake in a commercial satellite basemap, the rocks are obvious:
+# small BRIGHT WHITE specks scattered around the islands and shorelines, brighter
+# than the surrounding forest. Bare granite has very high albedo, so a rock that
+# breaks or nearly breaks the surface is one of the highest-reflectance things in
+# the scene -- across ALL bands, not just green.
+#
+# The detector here keys on green-vs-local-water (bottom brightness) and NIR
+# (dry surface). That is the right physics for a submerged shoal seen through the
+# water column, and it is what produced 88% recall. But it under-weights the
+# easiest signal available: a bare rock is simply BRIGHT. An all-band brightness
+# channel would sharpen small-rock detection and, more importantly, tighten
+# centroids -- the current 12 m positional scatter is the live complaint.
+#
+# Not implemented yet; recorded here so the reasoning is not lost. The 0.3 m run
+# should be evaluated first, since finer pixels address the same scatter.

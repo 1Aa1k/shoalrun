@@ -71,8 +71,15 @@ def main():
             return []
         return json.loads(path.read_text())["features"]
 
-    # Prefer the finer NAIP pass when both exist; they detect the same population.
-    naip = load(NAIP03) or load(NAIP)
+    # MEASURED: the 1 m pass beats the 0.3 m pass, and it is not close.
+    #   naip-1m    12841 det, 97% recall (20% random), median error 11.5 m
+    #   naip-0.3m   3562 det, 56% recall (10% random), median error 18.8 m
+    # Finer pixels did not help; more DATES did. The 1 m run stacks six flights
+    # (2011-2023) while 0.3 m imagery only exists from 2018, so the persistence
+    # test had three chances instead of six. Temporal depth is worth more than
+    # spatial resolution for this problem, which is the opposite of the intuition
+    # that sent the 0.3 m job to a 24-core box in the first place.
+    naip = load(NAIP)
 
     # Size floor, measured rather than guessed. Against the 32 hand-mapped rocks:
     #   all           10442 features, 97% recall (18% random baseline)

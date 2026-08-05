@@ -6,6 +6,8 @@ const COLORS = {
   water: "#0b2942",
   waterDeep: "#081f33",
   land: "#141a1f",
+  building: "#6b7a86",
+  pier: "#8a7250",
   shore: "#3f6d94",
   track: "rgba(120, 200, 255, 0.35)",
   boat: "#ffffff",
@@ -120,6 +122,7 @@ export class MapView {
     }
 
     if (state.contours) this._drawContours(state.contours);
+    if (state.structures) this._drawStructures(state.structures);
     if (state.track && state.track.length > 1) this._drawTrack(state.track);
     if (state.corridor) this._drawCorridor(state.corridor);
     this._drawRocks(state);
@@ -141,6 +144,56 @@ export class MapView {
         else ctx.lineTo(sx, sy);
       }
       ctx.stroke();
+    }
+  }
+
+  // Structures are drawn on the land side, under the hazards. Names appear only
+  // when zoomed in enough to read them without covering the water.
+  _drawStructures(items) {
+    const ctx = this.ctx;
+    const showNames = this.scale > 0.25;
+    for (const s of items) {
+      if (s.type === "Point") {
+        const [x, y] = this.toScreen(s.pts[0][0], s.pts[0][1]);
+        if (x < -20 || y < -20 || x > this.w + 20 || y > this.h + 20) continue;
+        ctx.fillStyle = COLORS.building;
+        ctx.fillRect(x - 2, y - 2, 4, 4);
+        if (showNames && s.name) {
+          ctx.fillStyle = "rgba(200,210,220,0.75)";
+          ctx.font = "10px sans-serif";
+          ctx.fillText(s.name, x + 6, y + 3);
+        }
+        continue;
+      }
+      ctx.beginPath();
+      let vis = false;
+      for (let i = 0; i < s.pts.length; i++) {
+        const [x, y] = this.toScreen(s.pts[i][0], s.pts[i][1]);
+        if (x > -40 && y > -40 && x < this.w + 40 && y < this.h + 40) vis = true;
+        if (i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      }
+      if (!vis) continue;
+      if (s.type === "Polygon") {
+        ctx.closePath();
+        ctx.fillStyle = COLORS.building;
+        ctx.globalAlpha = 0.55;
+        ctx.fill();
+        ctx.globalAlpha = 1;
+        ctx.strokeStyle = COLORS.building;
+        ctx.lineWidth = 1;
+        ctx.stroke();
+      } else {
+        ctx.strokeStyle = s.kind === "pier" ? COLORS.pier : COLORS.building;
+        ctx.lineWidth = 2;
+        ctx.stroke();
+      }
+      if (showNames && s.name) {
+        const [x, y] = this.toScreen(s.pts[0][0], s.pts[0][1]);
+        ctx.fillStyle = "rgba(200,210,220,0.8)";
+        ctx.font = "10px sans-serif";
+        ctx.fillText(s.name, x + 5, y - 4);
+      }
     }
   }
 

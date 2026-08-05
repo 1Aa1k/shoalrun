@@ -5,7 +5,7 @@ import { logFix, allMarks, setMark, clearMark, exportAll, trackCount } from "./s
 
 // DATA is injected at build time so the app is one self-contained file with no
 // network dependency of any kind. There is no cell service on this lake.
-const { lake: LAKE_GEO, rocks: ROCK_GEO, contours: CONTOUR_GEO, meta: DATA_META } = window.SHOALRUN_DATA;
+const { lake: LAKE_GEO, rocks: ROCK_GEO, contours: CONTOUR_GEO, structures: STRUCT_GEO, meta: DATA_META } = window.SHOALRUN_DATA;
 
 const el = (id) => document.getElementById(id);
 const state = {
@@ -15,6 +15,7 @@ const state = {
   track: [],
   contours: [],
   showShore: false,
+  structures: [],
   fix: null,
   heading: null,
   speed: 0,
@@ -44,6 +45,20 @@ for (const f of (CONTOUR_GEO ? CONTOUR_GEO.features : [])) {
     depth: f.properties.depth_ft,
     pts: f.geometry.coordinates.map(([lon, lat]) => proj.fwd(lon, lat)),
   });
+}
+
+// Camps, buildings and piers as orientation landmarks. A hazard cloud on a bare
+// shoreline is hard to place; people read this lake by its camps.
+for (const f of (STRUCT_GEO ? STRUCT_GEO.features : [])) {
+  const g = f.geometry;
+  if (!g) continue;
+  const conv = (ring) => ring.map(([lon, lat]) => proj.fwd(lon, lat));
+  let pts = null;
+  let type = g.type;
+  if (g.type === "Polygon") pts = conv(g.coordinates[0]);
+  else if (g.type === "LineString") pts = conv(g.coordinates);
+  else if (g.type === "Point") pts = [proj.fwd(g.coordinates[0], g.coordinates[1])];
+  if (pts) state.structures.push({ type, pts, kind: f.properties.kind, name: f.properties.name });
 }
 
 const index = new GridIndex(200);
