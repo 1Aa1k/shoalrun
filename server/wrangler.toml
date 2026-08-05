@@ -1,0 +1,9 @@
+name = "shoalrun-sync"
+main = "worker.js"
+compatibility_date = "2026-01-01"
+
+# Created by: npx wrangler kv namespace create SHOALRUN
+# Paste the returned id here before deploying.
+[[kv_namespaces]]
+binding = "SHOALRUN"
+id = "REPLACE_WITH_YOUR_KV_NAMESPACE_ID"
