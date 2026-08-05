@@ -104,6 +104,16 @@ def main():
     for f in rocks["features"]:
         counts[f["properties"].get("class", "?")] = counts.get(f["properties"].get("class", "?"), 0) + 1
 
+    # Evidence tiers matter more than class now. The imagery was measured to
+    # carry no depth information on this lake, so a "shoal" -- bottom seen
+    # through water -- is unevidenced unless something else backs it up. The
+    # summary has to say so; a boater reading "3548 shoals" would reasonably
+    # think they had been surveyed.
+    tiers = {}
+    for f in rocks["features"]:
+        t = f["properties"].get("tier", "unverified")
+        tiers[t] = tiers.get(t, 0) + 1
+
     # Spot soundings as the chart theme draws them -- the actual 1954 numbers,
     # not the interpolated surface. On a real chart the printed sounding is the
     # measurement and the contour is the inference, and keeping that distinction
@@ -126,7 +136,13 @@ def main():
                 f"{LAKE_NAME}: {sum(counts.values())} candidates "
                 f"({', '.join(f'{v} {k}' for k, v in sorted(counts.items()))}) "
                 "from NAIP aerial persistence (6 flights 2011-2023, quality-weighted) "
-                "plus Sentinel-2 and hand-mapped rock. Unverified - aid, not a chart."
+                "plus Sentinel-2 and hand-mapped rock. "
+                f"{tiers.get('confirmed', 0)} confirmed above the waterline, "
+                f"{tiers.get('likely', 0)} likely (infrared says dry surface), "
+                f"{tiers.get('unverified', 0)} UNVERIFIED. Aerial imagery carries no "
+                "depth information on this lake (measured: cannot separate 10 ft "
+                "from 25 ft), so submerged hazards are NOT reliably mapped. "
+                "Aid, not a chart."
             ),
             "counts": counts,
         },

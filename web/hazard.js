@@ -25,8 +25,22 @@ export const CORRIDOR_HALF_W = 35;
 // and `island` are things you can see out the windshield.
 const SEVERITY = { shoal: 4, drawdown: 3, rock: 2, exposed: 1, island: 1 };
 
-export function severityOf(cls) {
-  return SEVERITY[cls] ?? 1;
+// How much the evidence behind a candidate is worth. Aerial imagery on this
+// lake was measured to carry NO depth information -- it cannot tell 10 ft of
+// water from 25 ft (AUC 0.507 against 260 soundings). So a "shoal", which by
+// definition means bottom seen through water, is not evidenced at all unless
+// something else backs it up, and 72% of the map is in that state.
+//
+// Those candidates are not dropped: something did persist across six flights.
+// But left at full weight they outrank every confirmed hazard on the lake, and
+// 3,549 markers crying wolf teaches a boater to ignore the alert -- which is
+// worse than shipping no alert. Weighting by evidence keeps them visible and
+// stops them from drowning out the hazards we can actually stand behind.
+const TIER_WEIGHT = { confirmed: 1.0, likely: 0.75, unverified: 0.4 };
+
+export function severityOf(cls, tier) {
+  const base = SEVERITY[cls] ?? 1;
+  return base * (TIER_WEIGHT[tier] ?? TIER_WEIGHT.unverified);
 }
 
 // A candidate an independent 0.3 m sensor could not see is still worth showing,
@@ -78,7 +92,7 @@ export function scan(pos, headingRad, speedMs, index, dismissed) {
     const range = Math.hypot(rock.x - ax, rock.y - ay);
     const ttc = moving && speedMs > 0 ? range / speedMs : Infinity;
 
-    hits.push({ rock, offTrack: d, range, ttc, severity: severityOf(rock.cls), confirmed: isConfirmed(rock) });
+    hits.push({ rock, offTrack: d, range, ttc, severity: severityOf(rock.cls, rock.tier), confirmed: isConfirmed(rock) });
   }
 
   // Rank by time-to-contact first -- what you will hit soonest is what matters,

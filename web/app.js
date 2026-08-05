@@ -97,6 +97,8 @@ ROCK_GEO.features.forEach((f, i) => {
     area_m2: p.area_m2,
     confidence: p.confidence,
     verdict: p.verdict || "unchecked",
+    tier: p.tier || "unverified",
+    basis: p.basis,
     evidence: p.evidence || "sentinel_only",
     shore_m: p.shore_m,
     offshore: p.offshore !== false,

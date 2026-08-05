@@ -148,3 +148,38 @@ test("empty index is safe", () => {
   assert.equal(worst, null);
   assert.equal(list.length, 0);
 });
+
+// --- evidence weighting ----------------------------------------------------
+// The imagery on this lake cannot tell 10 ft of water from 25 ft (AUC 0.507
+// against the soundings), so a "shoal" -- bottom seen through water -- is
+// unevidenced unless something else backs it up. 72% of the map is in that
+// state. Left at full weight those candidates outrank every confirmed hazard,
+// and thousands of false alarms train the user to ignore the app.
+
+test("an unverified shoal does not outrank a confirmed rock at the same range", () => {
+  assert.ok(
+    severityOf("shoal", "unverified") < severityOf("rock", "confirmed"),
+    "unverified shoal must rank below a confirmed rock",
+  );
+});
+
+test("evidence never reorders hazards ahead of time-to-collision", () => {
+  // The safety-critical invariant: whatever the evidence, the thing you are
+  // about to hit is reported first. A confirmed hazard 600 m away must never
+  // displace an unverified one 20 m dead ahead.
+  const idx = indexOf(
+    { id: "near", cls: "shoal", tier: "unverified", x: 20, y: 0, area_m2: 500 },
+    { id: "far", cls: "island", tier: "confirmed", x: 300, y: 0, area_m2: 500 },
+  );
+  const { list } = scan({ x: 0, y: 0 }, EAST, 10, idx, new Set());
+  assert.equal(list[0].rock.id, "near", "nearest hazard must be reported first");
+});
+
+test("same class ranks by evidence", () => {
+  assert.ok(severityOf("shoal", "confirmed") > severityOf("shoal", "likely"));
+  assert.ok(severityOf("shoal", "likely") > severityOf("shoal", "unverified"));
+});
+
+test("a missing tier is treated as unverified, not as trusted", () => {
+  assert.equal(severityOf("shoal", undefined), severityOf("shoal", "unverified"));
+});
