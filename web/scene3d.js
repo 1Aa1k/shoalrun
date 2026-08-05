@@ -27,27 +27,47 @@ function hash(n) {
 //
 // Rebuilt on the CPU when the terrace changes, because the risers are real
 // geometry and cannot be faked from a per-vertex depth.
-export function buildSteppedMesh(grid, cx, cz, terraceFt) {
+export function buildSteppedMesh(grid, cx, cz, terraceFt, blockCells = 1) {
   const pos = [];
   const norm = [];
   const dep = [];
   const step = Math.max(1, terraceFt);
-  const nx = grid.nx;
-  const ny = grid.ny;
+  const bs = Math.max(1, Math.round(blockCells));
 
-  // Terraced depth per cell, or null for land. floor() keeps every shelf at or
-  // shallower than the interpolated depth; on a boat that is the only safe
-  // direction to round.
+  // Blocks of source cells collapsed into one voxel. At the raw 25 m grid the
+  // terrace edges are a cell wide, which reads as noise rather than as steps --
+  // the model wants blocks you can see, not the finest the data supports.
+  //
+  // The block takes the MINIMUM depth it covers, not the mean. A voxel that
+  // averages a 2 ft rock shelf with the 30 ft hole beside it reports 16 ft of
+  // water over a place with 2, and coarsening the display must never invent
+  // depth that is not there.
+  const nx = Math.ceil((grid.nx - 1) / bs);
+  const ny = Math.ceil((grid.ny - 1) / bs);
+
   const lvl = new Float32Array(nx * ny).fill(NaN);
   for (let row = 0; row < ny; row++) {
     for (let col = 0; col < nx; col++) {
-      const ft = grid.at(col, row);
-      if (ft === null) continue;
-      lvl[row * nx + col] = Math.floor(ft / step) * step;
+      let min = Infinity;
+      for (let r = row * bs; r < Math.min((row + 1) * bs, grid.ny); r++) {
+        for (let c = col * bs; c < Math.min((col + 1) * bs, grid.nx); c++) {
+          const ft = grid.at(c, r);
+          if (ft !== null && ft < min) min = ft;
+        }
+      }
+      // A block is water only if some of it is. A block that is mostly land but
+      // touches the lake still has to carry its shallow edge.
+      if (min !== Infinity) lvl[row * nx + col] = Math.floor(min / step) * step;
     }
   }
   const at = (col, row) =>
     col < 0 || row < 0 || col >= nx || row >= ny ? NaN : lvl[row * nx + col];
+
+  // Block footprint in world metres, from the source grid spacing.
+  const bx = grid.stepX * bs;
+  const bz = grid.stepY * bs;
+  const originX = grid.worldX(0) - cx;
+  const originZ = -(grid.worldY(0) - cz);
 
   const yOf = (ft) => -ft / FT_PER_M;
 
@@ -64,11 +84,11 @@ export function buildSteppedMesh(grid, cx, cz, terraceFt) {
       const d = at(col, row);
       if (Number.isNaN(d)) continue;
 
-      // Cell footprint. World Y from the grid runs north, and north is -Z.
-      const x0 = grid.worldX(col) - cx;
-      const x1 = grid.worldX(col + 1) - cx;
-      const z0 = -(grid.worldY(row) - cz);
-      const z1 = -(grid.worldY(row + 1) - cz);
+      // Block footprint. World Y from the grid runs north, and north is -Z.
+      const x0 = originX + col * bx;
+      const x1 = x0 + bx;
+      const z0 = originZ - row * bz;
+      const z1 = z0 - bz;
       const y = yOf(d);
 
       // Shelf top.
@@ -109,22 +129,40 @@ export function buildSteppedMesh(grid, cx, cz, terraceFt) {
 // Land is every cell the lake mask excludes, plus a skirt to the horizon.
 // Water is the complement, and gets its own buffer so the surface can be drawn
 // translucent over the bottom.
-export function buildFlatCells(grid, cx, cz, wantWater) {
+export function buildFlatCells(grid, cx, cz, wantWater, blockCells = 1) {
   const v = [];
-  const quad = (ax, az, bx, bz) => {
+  const dep = [];
+  const bs = Math.max(1, Math.round(blockCells));
+  const quad = (ax, az, bx, bz, d) => {
     v.push(ax, 0, az, bx, 0, az, bx, 0, bz, ax, 0, az, bx, 0, bz, ax, 0, bz);
+    for (let i = 0; i < 6; i++) dep.push(d);
   };
 
-  for (let row = 0; row < grid.ny - 1; row++) {
-    for (let col = 0; col < grid.nx - 1; col++) {
-      const wet = grid.at(col, row) !== null;
+  const nx = Math.ceil((grid.nx - 1) / bs);
+  const ny = Math.ceil((grid.ny - 1) / bs);
+  const bx = grid.stepX * bs;
+  const bz = grid.stepY * bs;
+  const originX = grid.worldX(0) - cx;
+  const originZ = -(grid.worldY(0) - cz);
+
+  for (let row = 0; row < ny; row++) {
+    for (let col = 0; col < nx; col++) {
+      // Same minimum rule as the bottom, so the water surface and the shelf
+      // under it agree about how deep a block is. They have to: the swell
+      // amplitude is derived from this, and if it disagreed the surface would
+      // dip through the bottom in exactly the shallows where it must not.
+      let min = Infinity;
+      for (let r = row * bs; r < Math.min((row + 1) * bs, grid.ny); r++) {
+        for (let c = col * bs; c < Math.min((col + 1) * bs, grid.nx); c++) {
+          const ft = grid.at(c, r);
+          if (ft !== null && ft < min) min = ft;
+        }
+      }
+      const wet = min !== Infinity;
       if (wet !== wantWater) continue;
-      quad(
-        grid.worldX(col) - cx,
-        -(grid.worldY(row) - cz),
-        grid.worldX(col + 1) - cx,
-        -(grid.worldY(row + 1) - cz)
-      );
+      const x0 = originX + col * bx;
+      const z0 = originZ - row * bz;
+      quad(x0, z0, x0 + bx, z0 - bz, wet ? min : 0);
     }
   }
 
@@ -134,13 +172,13 @@ export function buildFlatCells(grid, cx, cz, wantWater) {
     const z0 = -(grid.worldY(0) - cz);
     const z1 = -(grid.worldY(grid.ny - 1) - cz);
     const pad = 15000;
-    quad(x0 - pad, z0 + pad, x1 + pad, z0);
-    quad(x0 - pad, z1, x1 + pad, z1 - pad);
-    quad(x0 - pad, z0, x0, z1);
-    quad(x1, z0, x1 + pad, z1);
+    quad(x0 - pad, z0 + pad, x1 + pad, z0, 0);
+    quad(x0 - pad, z1, x1 + pad, z1 - pad, 0);
+    quad(x0 - pad, z0, x0, z1, 0);
+    quad(x1, z0, x1 + pad, z1, 0);
   }
 
-  return new Float32Array(v);
+  return { pos: new Float32Array(v), dep: new Float32Array(dep), count: v.length / 3 };
 }
 
 export function shoreRings(LAKE_GEO, proj) {

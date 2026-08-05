@@ -60,6 +60,10 @@
     <div class="row"><span class="dim">flight</span><span id="yr"></span></div>
     <div class="row"><span class="dim">position</span><span id="ll"></span></div>
     <div class="row"><span class="dim">our guesses here</span><span id="nhaz"></span></div>
+    <div class="row"><span class="dim">water around</span><span id="around"></span></div>
+    <div class="row"><span class="dim">shallowest here</span><span id="shal"></span></div>
+    <div style="margin-top:8px;padding:7px 9px;background:#1c2430;border-left:3px solid var(--hi);
+                border-radius:4px" id="why"></div>
 
     <h2>How</h2>
     <p><b>Click a rock</b> to mark it. Click your own mark again to remove it.</p>
@@ -114,6 +118,14 @@ function draw() {
   $("flip").textContent = "flight " + im.year;
   $("ll").textContent = s.center_ll[1].toFixed(4) + ", " + s.center_ll[0].toFixed(4);
   $("nhaz").textContent = s.haz.length;
+  $("around").textContent = s.around_ft != null ? s.around_ft + " ft" : "-";
+  $("shal").textContent = s.shallowest_ft != null ? s.shallowest_ft + " ft" : "-";
+  // Why this square was picked. Knowing the surrounding water is 40 ft and the
+  // shallowest point is 3 ft tells you what you are hunting before you look.
+  $("why").textContent = s.why
+    ? s.why + (s.rise_ft ? ` - rises ${s.rise_ft} ft out of the surrounding water` : "")
+    : "";
+  $("why").style.display = s.why ? "" : "none";
   $("prog").value = Object.keys(seen).length;
   $("prog").max = S.length;
   $("nmine").textContent = Object.values(marks).reduce((a, b) => a + b.length, 0);
