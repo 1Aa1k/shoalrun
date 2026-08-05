@@ -9,6 +9,101 @@
 
 export const FT_PER_M = 3.28084;
 
+// --- waves -----------------------------------------------------------------
+
+// Gerstner wave train. Sine waves give rounded humps; Gerstner displaces points
+// horizontally as well as vertically, which bunches them at the crests and
+// stretches them in the troughs -- sharp peaks, broad flat troughs, the shape
+// water actually makes.
+//
+// ONE definition, consumed twice: the GLSL is generated from it, and the same
+// numbers are evaluated in JS to float the boat. A hand-kept second copy would
+// drift and the hull would ride water that is not the water being drawn.
+//
+// dir is a unit direction, len the wavelength in metres, amp the amplitude in
+// metres, steep the Gerstner sharpness (0 = sine, 1 = cusped peak). Sized for a
+// lake in a breeze, not the North Atlantic: 0.55 m from trough to crest total.
+export const WAVES = [
+  { dir: [0.92, 0.39], len: 27, amp: 0.19, steep: 0.72, speed: 1.0 },
+  { dir: [0.62, -0.78], len: 17, amp: 0.13, steep: 0.68, speed: 1.18 },
+  { dir: [-0.34, 0.94], len: 11, amp: 0.085, steep: 0.6, speed: 1.35 },
+  { dir: [0.99, -0.14], len: 7.5, amp: 0.05, steep: 0.5, speed: 1.6 },
+];
+
+// GLSL that displaces a point and accumulates a normal. Emitted rather than
+// written so it cannot disagree with the JS below.
+export function gerstnerGLSL() {
+  let body = "";
+  for (const w of WAVES) {
+    const k = (2 * Math.PI) / w.len;
+    const c = Math.sqrt(9.81 / k) * w.speed;
+    const [dx, dy] = w.dir;
+    body += `
+  {
+    float k = ${k.toFixed(6)};
+    vec2 d = vec2(${dx.toFixed(4)}, ${dy.toFixed(4)});
+    float f = k * (dot(d, p) - ${c.toFixed(4)} * t);
+    float a = ${w.amp.toFixed(4)} * fade;
+    float q = ${w.steep.toFixed(4)};
+    disp.xz += q * a * d * cos(f);
+    disp.y += a * sin(f);
+    // Analytic normal for this component, from the derivative of the surface.
+    nrm.x -= d.x * k * a * cos(f);
+    nrm.z -= d.y * k * a * cos(f);
+    nrm.y -= q * k * a * sin(f);
+    crest += a * sin(f);
+  }`;
+  }
+  return `
+// disp is the displacement, nrm accumulates the surface normal, crest is the
+// signed height used for foam.
+void gerstner(vec2 p, float t, float fade, out vec3 disp, out vec3 nrm, out float crest) {
+  disp = vec3(0.0);
+  nrm = vec3(0.0, 1.0, 0.0);
+  crest = 0.0;
+  ${body}
+  nrm = normalize(nrm);
+}`;
+}
+
+// The same evaluation in JS, for floating the boat on the water being drawn.
+// Returns height plus the surface slope, which is what pitches and rolls a hull.
+export function waveAt(x, z, t, fade = 1) {
+  let y = 0;
+  let dx = 0;
+  let dz = 0;
+  for (const w of WAVES) {
+    const k = (2 * Math.PI) / w.len;
+    const c = Math.sqrt(9.81 / k) * w.speed;
+    const f = k * (w.dir[0] * x + w.dir[1] * z - c * t);
+    const a = w.amp * fade;
+    y += a * Math.sin(f);
+    dx += w.dir[0] * k * a * Math.cos(f);
+    dz += w.dir[1] * k * a * Math.cos(f);
+  }
+  return { y, dx, dz };
+}
+
+// Camera-following water patch. The lake-wide water quads are 75 m across and
+// cannot carry a 10 m wave, so the detail is put where it is actually looked
+// at: a fine grid that follows the boat, with the coarse surface behind it.
+// Positions are LOCAL to the patch; the shader adds the snapped centre, which
+// is what stops the mesh swimming under the waves as you move.
+export function buildWaterPatch(n, spacing) {
+  const pos = [];
+  const half = (n * spacing) / 2;
+  for (let j = 0; j < n; j++) {
+    for (let i = 0; i < n; i++) {
+      const x0 = i * spacing - half;
+      const z0 = j * spacing - half;
+      const x1 = x0 + spacing;
+      const z1 = z0 + spacing;
+      pos.push(x0, 0, z0, x1, 0, z0, x1, 0, z1, x0, 0, z0, x1, 0, z1, x0, 0, z1);
+    }
+  }
+  return { pos: new Float32Array(pos), count: pos.length / 3, spacing, half };
+}
+
 // Deterministic hash so the scattered decoration (tree placement, rock shape)
 // is identical on every load. A different lake every refresh would make it
 // impossible to tell a rendering bug from a reroll.

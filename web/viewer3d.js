@@ -21,8 +21,11 @@ import {
   buildTrees,
   buildHazardRocks,
   buildBoatHull,
+  buildWaterPatch,
+  waveAt,
 } from "./scene3d.js";
 import { shaderSources } from "./shaders3d.js";
+import { perspective, multiply, lookAt, forwardOf, add3, sub3, cross3, norm3 } from "./mat3d.js";
 
 const { lake: LAKE_GEO, rocks: ROCK_GEO, depth: DEPTH_RAW } = window.SHOALRUN_DATA;
 
@@ -97,6 +100,7 @@ const bottomProg = program(S.bottom_vert, S.bottom_frag);
 const litProg = program(S.lit_vert, S.lit_frag);
 const flatProg = program(S.flat_vert, S.flat_frag);
 const waterProg = program(S.water_vert, S.water_frag);
+const patchProg = program(S.waterpatch_vert, S.water_frag);
 const skyProg = program(S.sky_vert, S.sky_frag);
 
 // --- geometry --------------------------------------------------------------
@@ -111,8 +115,11 @@ function buf(data) {
   return b;
 }
 
-// blockCells is in source grid cells; the grid is 25 m, so 3 -> 75 m voxels.
-const opts = { exag: 8, shallow: 0, terrace: 3, block: 3 };
+// blockCells is in source grid cells; the grid is 25 m, so 1 -> 25 m voxels.
+// 25 m is the floor because that is the resolution the depth surface actually
+// has -- subdividing below it would resample an interpolation and invent
+// structure the 1954 survey never measured.
+const opts = { exag: 30, shallow: 0, terrace: 3, block: 1, wave: 2.0 };
 
 // The terraced bottom is real geometry with vertical risers, so changing the
 // terrace rebuilds it. Buffers are reused rather than reallocated.
@@ -164,6 +171,13 @@ const bufHullNorm = buf(hull.norm);
 const bufHullShade = buf(hull.shade);
 const bufSky = buf(new Float32Array([-1, -1, 3, -1, -1, 3]));
 
+// 320 m of finely tessellated water that follows the camera. Beyond it the
+// coarse lake-wide surface takes over, where the waves are sub-pixel anyway.
+const patch = buildWaterPatch(128, 2.5);
+const bufPatchPos = buf(patch.pos);
+const patchDepth = new Float32Array(patch.count);
+const bufPatchDep = buf(patchDepth);
+
 // Land goes through the lit shader like everything else, so it needs matching
 // normal and shade attributes. These have to be sized per-vertex or the shader
 // reads off the end of the buffer -- three floats per vertex for the normal,
@@ -200,60 +214,6 @@ const boat = {
 const BOAT_EYE_M = 1.9;
 const BOAT_MAX_MS = 12; // ~23 kn, about what an outboard on this lake does
 const keys = new Set();
-
-function perspective(fovy, aspect, near, far) {
-  const f = 1 / Math.tan(fovy / 2);
-  return [
-    f / aspect, 0, 0, 0,
-    0, f, 0, 0,
-    0, 0, (far + near) / (near - far), -1,
-    0, 0, (2 * far * near) / (near - far), 0,
-  ];
-}
-
-function multiply(a, b) {
-  const o = new Array(16).fill(0);
-  for (let i = 0; i < 4; i++) {
-    for (let j = 0; j < 4; j++) {
-      for (let k = 0; k < 4; k++) o[i * 4 + j] += a[i * 4 + k] * b[k * 4 + j];
-    }
-  }
-  return o;
-}
-
-const sub3 = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
-const add3 = (a, b) => [a[0] + b[0], a[1] + b[1], a[2] + b[2]];
-const dot3 = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
-const cross3 = (a, b) => [
-  a[1] * b[2] - a[2] * b[1],
-  a[2] * b[0] - a[0] * b[2],
-  a[0] * b[1] - a[1] * b[0],
-];
-function norm3(v) {
-  const l = Math.hypot(v[0], v[1], v[2]) || 1;
-  return [v[0] / l, v[1] / l, v[2] / l];
-}
-
-function lookAt(eye, target, up) {
-  const z = norm3(sub3(eye, target));
-  const x = norm3(cross3(up, z));
-  const y = cross3(z, x);
-  return [
-    x[0], y[0], z[0], 0,
-    x[1], y[1], z[1], 0,
-    x[2], y[2], z[2], 0,
-    -dot3(x, eye), -dot3(y, eye), -dot3(z, eye), 1,
-  ];
-}
-
-// Yaw is measured from -Z (north), so heading and the map's course-up agree.
-function forwardOf(yaw, pitch) {
-  return [
-    Math.sin(yaw) * Math.cos(pitch),
-    Math.sin(pitch),
-    -Math.cos(yaw) * Math.cos(pitch),
-  ];
-}
 
 // World Z is negated north, so it has to be undone before sampling.
 const depthAtWorld = (wx, wz) => grid.sampleXY(wx + cx, -wz + cz);
@@ -377,8 +337,27 @@ function cameraFor(dt) {
   boat.roll += (-turn * Math.min(1, Math.abs(boat.speed) / BOAT_MAX_MS) * 0.13 - boat.roll)
     * Math.min(1, dt * 2.5);
 
-  const eye = [boat.x, BOAT_EYE_M, boat.z];
-  return { eye, target: add3(eye, forwardOf(boat.camYaw, boat.pitch)), roll: boat.roll };
+  // Ride the water rather than hovering over it. Sampling the same wave
+  // function the shader draws with is the whole reason it is defined once --
+  // a second hand-kept copy would drift and the hull would sit in water that
+  // is not the water on screen.
+  const fade = Math.min(1, Math.max(0, (depthAtWorld(boat.x, boat.z) ?? 0) / 8));
+  const w = waveAt(boat.x, boat.z, clock, fade * opts.wave);
+  // Slope along the hull's own axes gives pitch and roll from the surface.
+  const fwd = forwardOf(boat.heading, 0);
+  const rightV = [-fwd[2], 0, fwd[0]];
+  const slopeF = w.dx * fwd[0] + w.dz * fwd[2];
+  const slopeR = w.dx * rightV[0] + w.dz * rightV[2];
+
+  const eye = [boat.x, BOAT_EYE_M + w.y, boat.z];
+  return {
+    eye,
+    target: add3(eye, forwardOf(boat.camYaw, boat.pitch - slopeF * 0.35)),
+    // Wave roll is added to the turn lean, so a beam sea leans you the way it
+    // should rather than the hull staying stubbornly level.
+    roll: boat.roll + slopeR * 0.45,
+    waveY: w.y,
+  };
 }
 
 function resize() {
@@ -399,16 +378,38 @@ function attr(prog, name, b, size) {
 }
 const uni = (prog, n) => gl.getUniformLocation(prog, n);
 
+// Depth under every patch vertex, refreshed when the patch moves. The wave
+// fade needs it, and the patch is not fixed to the world, so it cannot be
+// baked in. Snapped to the patch spacing so the grid does not swim under the
+// waves as the boat moves through it.
+let patchCentre = [NaN, NaN];
+function updatePatch(x, z) {
+  const g = patch.spacing;
+  const sx = Math.round(x / g) * g;
+  const sz = Math.round(z / g) * g;
+  if (sx === patchCentre[0] && sz === patchCentre[1]) return patchCentre;
+  patchCentre = [sx, sz];
+  for (let i = 0; i < patch.count; i++) {
+    const px = patch.pos[i * 3] + sx;
+    const pz = patch.pos[i * 3 + 2] + sz;
+    const ft = grid.sampleXY(px + cx, -pz + cz);
+    patchDepth[i] = ft === null ? 0 : ft;
+  }
+  gl.bindBuffer(gl.ARRAY_BUFFER, bufPatchDep);
+  gl.bufferData(gl.ARRAY_BUFFER, patchDepth, gl.DYNAMIC_DRAW);
+  return patchCentre;
+}
+
 // Hull sits in the camera's own frame, so it is placed by building a model
 // matrix from the boat's heading and position rather than by baking it in.
-function hullMatrix() {
+function hullMatrix(waveY) {
   const c = Math.cos(boat.heading);
   const s = Math.sin(boat.heading);
   return [
     c, 0, -s, 0,
     0, 1, 0, 0,
     s, 0, c, 0,
-    boat.x, BOAT_EYE_M, boat.z, 1,
+    boat.x, BOAT_EYE_M + waveY, boat.z, 1,
   ];
 }
 
@@ -420,7 +421,7 @@ function draw(now) {
   lastT = now;
   clock += dt;
 
-  const { eye, target, roll } = cameraFor(dt);
+  const { eye, target, roll, waveY } = cameraFor(dt);
   // Boat mode ignores the exaggeration slider. From 1.9 m above the water, 8x
   // turns a 20 ft bottom into a 160 ft canyon and puts every shallow at eye
   // level -- the one view that pretends you are on the lake is the one where
@@ -500,7 +501,7 @@ function draw(now) {
   gl.drawArrays(gl.TRIANGLES, 0, trees.count);
 
   if (mode === "boat") {
-    gl.uniformMatrix4fv(uni(litProg, "uMVP"), false, new Float32Array(multiply(hullMatrix(), multiply(view, projM))));
+    gl.uniformMatrix4fv(uni(litProg, "uMVP"), false, new Float32Array(multiply(hullMatrix(waveY), multiply(view, projM))));
     gl.uniform3f(uni(litProg, "uColorA"), 0.62, 0.64, 0.67);
     gl.uniform3f(uni(litProg, "uColorB"), 0.78, 0.79, 0.81);
     attr(litProg, "aPos", bufHullPos, 3);
@@ -546,9 +547,27 @@ function draw(now) {
   // Swell is metres of displacement, so it must not be exaggerated along with
   // the bottom -- at 8x it would tower over the shallows it is meant to skim.
   gl.uniform1f(uni(waterProg, "uSwell"), mode === "boat" ? 1 : 0);
+  gl.uniform1f(uni(waterProg, "uWave"), opts.wave);
   attr(waterProg, "aPos", bufWater, 3);
   attr(waterProg, "aDepth", bufWaterDep, 1);
   gl.drawArrays(gl.TRIANGLES, 0, water.count);
+
+  // Fine patch on top, only where it is looked at closely. Drawn after the
+  // coarse surface so it wins wherever the two overlap.
+  if (mode === "boat") {
+    const [px, pz] = updatePatch(eye[0], eye[2]);
+    gl.useProgram(patchProg);
+    gl.uniformMatrix4fv(uni(patchProg, "uMVP"), false, mvp);
+    gl.uniform1f(uni(patchProg, "uTime"), clock);
+    gl.uniform1f(uni(patchProg, "uAlpha"), 0.72);
+    gl.uniform2f(uni(patchProg, "uCentre"), px, pz);
+    gl.uniform1f(uni(patchProg, "uHalf"), patch.half);
+    gl.uniform1f(uni(patchProg, "uWave"), opts.wave);
+    attr(patchProg, "aPos", bufPatchPos, 3);
+    attr(patchProg, "aDepth", bufPatchDep, 1);
+    gl.drawArrays(gl.TRIANGLES, 0, patch.count);
+  }
+
   gl.depthMask(true);
   gl.disable(gl.BLEND);
 
@@ -722,6 +741,11 @@ el("sldTerrace").addEventListener("input", (e) => {
   queueRebuild();
 });
 
+el("sldWave").addEventListener("input", (e) => {
+  opts.wave = +e.target.value / 10;
+  el("valWave").textContent = opts.wave === 0 ? "flat" : `${(opts.wave * 0.55).toFixed(1)} m`;
+});
+
 el("sldBlock").addEventListener("input", (e) => {
   opts.block = +e.target.value;
   el("valBlock").textContent = `${Math.round(grid.gridM * opts.block)} m`;
@@ -749,6 +773,7 @@ updateStats();
 el("valExag").textContent = `${opts.exag}x`;
 el("valTerrace").textContent = `${opts.terrace} ft`;
 el("valBlock").textContent = `${Math.round(grid.gridM * opts.block)} m`;
+el("valWave").textContent = `${(opts.wave * 0.55).toFixed(1)} m`;
 spawnAt("neoc");
 
 // ?mode= deep-links straight into a mode, which is how this gets checked

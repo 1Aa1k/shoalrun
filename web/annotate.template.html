@@ -41,6 +41,7 @@
   <button id="next">next &rarr;</button>
   <button id="flip"></button>
   <button id="tIr">infrared</button>
+  <button id="tSh">shallow</button>
   <span class="grow"></span>
   <button id="tHaz" class="on">our guesses</button>
   <button id="tSnd" class="on">depths</button>
@@ -74,6 +75,11 @@
       breaking the surface. Water swallows infrared, so open water goes black
       and dry rock glows. A shoal still under water stays dark -- so if it is
       bright in colour but dark in infrared, it is submerged, not exposed.</p>
+    <p><b>Shallow index</b> (<kbd>s</kbd>) is the sandy-halo view. Blue light
+      reaches deeper than green, so their ratio tracks how much bottom is
+      showing through. <b>Bright means shallow.</b> A rock cluster usually sits
+      inside a bright patch far bigger than the rocks themselves, so hunt the
+      patch, then find the rocks in colour.</p>
     <p>Only water more than 50 m off shore is shown, ordered so the busy water
       comes first. Stop whenever you like, it stays useful.</p>
 
@@ -81,6 +87,7 @@
     <div class="row"><kbd>space</kbd><span class="dim">next flight</span></div>
     <div class="row"><kbd>&larr;</kbd> <kbd>&rarr;</kbd><span class="dim">section</span></div>
     <div class="row"><kbd>i</kbd><span class="dim">infrared on/off</span></div>
+    <div class="row"><kbd>s</kbd><span class="dim">shallow index on/off</span></div>
     <div class="row"><kbd>h</kbd><span class="dim">our guesses on/off</span></div>
     <div class="row"><kbd>u</kbd><span class="dim">undo last mark</span></div>
     <div class="row"><kbd>x</kbd><span class="dim">nothing here, next</span></div>
@@ -99,7 +106,7 @@
 const DATA = /*DATA*/;
 const S = DATA.sections;
 const KEY = "shoalrun_marks_v1";
-let i = 0, f = 0, ir = false;
+let i = 0, f = 0, view = "rgb";
 let marks = JSON.parse(localStorage.getItem(KEY) || "{}");
 let seen = JSON.parse(localStorage.getItem(KEY + "_seen") || "{}");
 const show = { haz: true, snd: true, mine: true };
@@ -111,10 +118,12 @@ function draw() {
   const s = cur();
   f = Math.min(f, s.imgs.length - 1);
   const im = s.imgs[f];
-  $("im").src = (ir && im.ir) ? im.ir : im.file;
+  $("im").src = (view === "ir" && im.ir) ? im.ir
+              : (view === "sh" && im.sh) ? im.sh : im.file;
   $("pos").textContent = `${i + 1} / ${S.length}`;
   $("sid").textContent = "#" + s.id;
-  $("yr").textContent = im.year + (ir ? " infrared" : " colour");
+  $("yr").textContent = im.year + " " +
+    (view === "ir" ? "infrared" : view === "sh" ? "shallow index" : "colour");
   $("flip").textContent = "flight " + im.year;
   $("ll").textContent = s.center_ll[1].toFixed(4) + ", " + s.center_ll[0].toFixed(4);
   $("nhaz").textContent = s.haz.length;
@@ -173,7 +182,14 @@ function save() {
 function go(d) { i = (i + d + S.length) % S.length; f = 0; draw(); }
 function flip() { f = (f + 1) % cur().imgs.length; draw(); }
 
-$("tIr").onclick = () => { ir = !ir; $("tIr").classList.toggle("on"); draw(); };
+function setView(v) {
+  view = (view === v) ? "rgb" : v;
+  $("tIr").classList.toggle("on", view === "ir");
+  $("tSh").classList.toggle("on", view === "sh");
+  draw();
+}
+$("tIr").onclick = () => setView("ir");
+$("tSh").onclick = () => setView("sh");
 $("prev").onclick = () => go(-1);
 $("next").onclick = () => go(1);
 $("flip").onclick = flip;
@@ -201,7 +217,8 @@ addEventListener("keydown", (e) => {
   else if (e.key === "ArrowLeft") go(-1);
   else if (e.key === "ArrowRight") go(1);
   else if (e.key === "h") { show.haz = !show.haz; $("tHaz").classList.toggle("on"); draw(); }
-  else if (e.key === "i") { ir = !ir; $("tIr").classList.toggle("on"); draw(); }
+  else if (e.key === "i") setView("ir");
+  else if (e.key === "s") setView("sh");
   else if (e.key === "u") { (marks[cur().id] || []).pop(); save(); draw(); }
   else if (e.key === "x") { seen[cur().id] = 1; save(); go(1); }
 });

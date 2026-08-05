@@ -8,7 +8,10 @@
 // with "declared as type float16_t and type float". Substituting one value into
 // both stages is what makes that mismatch impossible rather than merely absent.
 
+import { gerstnerGLSL } from "./scene3d.js";
+
 export function shaderSources(P) {
+  const GERSTNER = gerstnerGLSL();
   return {
     bottom_vert: `
 precision highp float;
@@ -108,6 +111,9 @@ void main() { gl_FragColor = uColor; }`,
 // Water. Long swell displaces the surface; the chop that actually reads as
 // water is done per-pixel, because the quads are 25 m across and geometry that
 // coarse cannot carry a 4 m wave.
+    // Coarse lake-wide surface. Runs the same wave function at low
+    // tessellation: at distance the waves are sub-pixel anyway, and this only
+    // has to agree in colour and rough height with the fine patch in front.
     water_vert: `
 precision highp float;
 attribute vec3 aPos;
@@ -115,48 +121,98 @@ attribute float aDepth;
 uniform mat4 uMVP;
 uniform float uTime;
 uniform float uSwell;
+uniform float uWave;
 varying ${P} vec2 vXZ;
 varying ${P} float vShore;
+varying ${P} vec3 vNrm;
+varying ${P} float vFoam;
+varying ${P} float vEdge;
+${GERSTNER}
 void main() {
-  // Swell dies out in the shallows. The surface sits at y=0 and the bottom
-  // shelf under a 0 ft block sits at y=0 too, so an unattenuated wave dipped
-  // straight through the bottom and the depth test punched holes in the water
-  // -- which is what the clipping in and out of the shallows was.
-  float fade = smoothstep(0.0, 8.0, aDepth);
-  float swell = uSwell * fade * (
-    sin(aPos.x * 0.013 + uTime * 0.55) * 0.13 +
-    sin(aPos.z * 0.009 - uTime * 0.41) * 0.10
-  );
-  // Held just clear of the bottom regardless, so the two surfaces can never
+  vEdge = 1.0;
+  // Waves die out in the shallows. The surface sits at y=0 and the shelf under
+  // a 0 ft block sits at y=0 too, so an unattenuated wave dips through the
+  // bottom and the depth test punches holes in the water.
+  float fade = smoothstep(0.0, 8.0, aDepth) * uSwell * uWave;
+  vec3 disp; vec3 nrm; float crest;
+  gerstner(aPos.xz, uTime, fade, disp, nrm, crest);
+  vXZ = aPos.xz + disp.xz;
+  vShore = smoothstep(0.0, 8.0, aDepth);
+  vNrm = nrm;
+  vFoam = crest;
+  // Held just clear of the bottom regardless, so the two surfaces cannot
   // z-fight where the shelf comes all the way up to the waterline.
-  vXZ = aPos.xz;
+  gl_Position = uMVP * vec4(aPos.x + disp.x, disp.y + 0.06, aPos.z + disp.z, 1.0);
+}`,
+
+    // Fine camera-following patch. Local coordinates plus a snapped centre --
+    // snapping is what stops the grid swimming beneath the waves as you move.
+    waterpatch_vert: `
+precision highp float;
+attribute vec3 aPos;
+attribute float aDepth;
+uniform mat4 uMVP;
+uniform float uTime;
+uniform vec2 uCentre;
+uniform float uWave;
+varying ${P} vec2 vXZ;
+varying ${P} float vShore;
+varying ${P} vec3 vNrm;
+varying ${P} float vFoam;
+varying ${P} float vEdge;
+${GERSTNER}
+uniform float uHalf;
+void main() {
+  // Faded at the rim. Without it the boundary between the fine patch and the
+  // coarse surface behind it is a hard line across the lake, because the two
+  // carry the same wave at different tessellations.
+  vEdge = 1.0 - smoothstep(0.72, 1.0, max(abs(aPos.x), abs(aPos.z)) / uHalf);
+  vec2 world = aPos.xz + uCentre;
+  float fade = smoothstep(0.0, 8.0, aDepth) * uWave;
+  vec3 disp; vec3 nrm; float crest;
+  gerstner(world, uTime, fade, disp, nrm, crest);
+  vXZ = world + disp.xz;
   vShore = fade;
-  gl_Position = uMVP * vec4(aPos.x, swell + 0.06, aPos.z, 1.0);
+  vNrm = nrm;
+  vFoam = crest;
+  gl_Position = uMVP * vec4(world.x + disp.x, disp.y + 0.06, world.y + disp.z, 1.0);
 }`,
 
     water_frag: `
 precision ${P} float;
 varying ${P} vec2 vXZ;
 varying ${P} float vShore;
+varying ${P} vec3 vNrm;
+varying ${P} float vFoam;
+varying ${P} float vEdge;
 uniform float uTime;
 uniform float uAlpha;
+uniform float uWave;
 void main() {
-  // Two crossed wave trains, differentiated analytically into a surface normal.
-  // Cheaper than a normal map and it needs no texture to ship.
-  float a = vXZ.x * 0.22 + uTime * 1.3;
-  float b = vXZ.y * 0.17 - uTime * 1.05;
-  float c = (vXZ.x + vXZ.y) * 0.09 + uTime * 0.6;
-  vec3 n = normalize(vec3(
-    cos(a) * 0.05 + cos(c) * 0.03,
-    1.0,
-    cos(b) * 0.045 + cos(c) * 0.03
-  ));
+  vec3 n = normalize(vNrm);
   vec3 light = normalize(vec3(0.45, 0.8, 0.4));
-  float spec = pow(max(dot(n, light), 0.0), 24.0);
-  vec3 base = mix(vec3(0.129, 0.310, 0.416), vec3(0.216, 0.451, 0.553), n.x * 3.0 + 0.5);
+
+  // Deep water is dark and blue; the faces tilted toward the sky pick up its
+  // colour, which is most of what makes water read as water rather than paint.
+  float sky = clamp(n.y * 0.5 + 0.5, 0.0, 1.0);
+  vec3 deep = vec3(0.043, 0.153, 0.239);
+  vec3 shallow = vec3(0.176, 0.408, 0.463);
+  vec3 base = mix(deep, shallow, vShore * 0.5);
+  base = mix(base, vec3(0.298, 0.478, 0.573), pow(1.0 - sky, 2.0) * 0.6);
+
+  float spec = pow(max(dot(n, light), 0.0), 48.0);
+
+  // Foam on the crests only, and only where there is enough water to have
+  // made one. Threshold is on the summed wave height, so it appears along the
+  // tops of the swells rather than as an even scum.
+  // Only the very tops. A low threshold puts foam over most of the swell and
+  // the surface reads as milky rather than as water with whitecaps on it.
+  float foam = smoothstep(0.24 * uWave, 0.36 * uWave, vFoam) * vShore;
+  vec3 col = mix(base + spec * 0.7, vec3(0.88, 0.93, 0.96), foam * 0.8);
+
   // Thinner over the shallows, the way real water is -- and it keeps the
   // hazards there visible instead of veiling the ones that matter most.
-  gl_FragColor = vec4(base + spec * 0.55 * vShore, uAlpha * (0.45 + 0.55 * vShore));
+  gl_FragColor = vec4(col, uAlpha * (0.5 + 0.5 * vShore) * vEdge);
 }`,
 
     sky_vert: `
