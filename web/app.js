@@ -35,6 +35,11 @@ const state = {
   theme: "night",
   showDepth: true,
   showContours: true,
+  showReach: false,
+  // Water within this many metres of a 1954 sounding is drawn unveiled. A 25 m
+  // grid cell either side of a transect is genuinely close to a measurement;
+  // beyond that the surface starts being invention.
+  reachNearM: 120,
   showSoundings: true,
   showShore: false,
   showCamps: true,
@@ -457,6 +462,15 @@ el("btnDepth").onclick = () => {
   state.showDepth = !state.showDepth;
   el("btnDepth").classList.toggle("on", state.showDepth);
   el("sldShallow").disabled = !state.showDepth;
+};
+
+// Off by default. It is the honest view, but it fogs 42% of the lake, and a
+// map that opens half-obscured reads as broken rather than as candid. It is
+// one tap away and the legend says what it means.
+el("btnReach").onclick = () => {
+  state.showReach = !state.showReach;
+  el("btnReach").classList.toggle("on", state.showReach);
+  el("legendReach").style.display = state.showReach ? "" : "none";
 };
 
 el("btnLines").onclick = () => {

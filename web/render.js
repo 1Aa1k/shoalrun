@@ -7,7 +7,7 @@
 // north end is a 70 ft basin", a single blue fill was throwing away the one
 // piece of context that makes the hazard cloud legible at a glance.
 
-import { shadeCanvas } from "./depth.js";
+import { shadeCanvas, reachCanvas } from "./depth.js";
 
 // Two themes, because a boat display has two jobs that want opposite things.
 //
@@ -209,6 +209,16 @@ export class MapView {
       ctx.restore();
     }
 
+    // Independent of showDepth. Even over a flat water fill, "nobody measured
+    // here" is worth saying, and a user who has turned the shading off has not
+    // thereby asked to be told the survey was complete.
+    if (state.grid && state.showReach) {
+      ctx.save();
+      ctx.clip(lakePath, "evenodd");
+      this._drawSurveyReach(state.grid, state.reachNearM ?? 120);
+      ctx.restore();
+    }
+
     // Soft inner glow along the shore, then the crisp line on top. The glow is
     // what stops a dark shoreline on dark land from disappearing in sunlight.
     // A paper chart has no such thing, so the chart theme skips it.
@@ -267,20 +277,39 @@ export class MapView {
   // so the view transform reduces to translate/rotate/scale rather than a
   // per-pixel resample -- which is what makes this affordable every frame.
   _drawDepthRaster(grid, shallowFt) {
-    const ctx = this.ctx;
-    const img = shadeCanvas(grid, shallowFt, this.theme);
+    // Chart tints are flat areas with hard edges. Smoothing turns each band
+    // boundary into an airbrushed halo, which is the one thing that stops the
+    // result reading as a chart -- so the chart theme takes the 25 m blocks.
+    this._blitGrid(grid, shadeCanvas(grid, shallowFt, this.theme),
+                   this.t.chartMode ? 1 : 0.92, !this.t.chartMode);
+  }
 
+  // Fog over the water the 1954 boat never sounded, so the twelve transects it
+  // did run show through as bright stripes. Drawn after the depth shading and
+  // before the hazards -- it has to dim the surface it is casting doubt on, but
+  // it must never dim a hazard marker.
+  _drawSurveyReach(grid, nearM) {
+    const img = reachCanvas(grid, nearM, this.theme);
+    if (!img) return;
+    // Always smoothed, including in chart mode. The veil is a continuous
+    // gradient of confidence, not a banded quantity; blocking it into 25 m
+    // squares would imply the doubt itself has cell boundaries.
+    this._blitGrid(grid, img, 1, true);
+  }
+
+  // Blit a grid-shaped image over the lake. The grid is axis-aligned in world
+  // space, so the view transform reduces to translate/rotate/scale rather than
+  // a per-pixel resample -- which is what makes this affordable every frame.
+  _blitGrid(grid, img, alpha, smooth) {
+    const ctx = this.ctx;
     // North-west corner of the raster, since the image's first row is north.
     const [sx, sy] = this.toScreen(grid.worldX(0), grid.worldY(grid.ny - 1));
     const wMetres = grid.stepX * (grid.nx - 1);
     const hMetres = grid.stepY * (grid.ny - 1);
 
     ctx.save();
-    ctx.globalAlpha = this.t.chartMode ? 1 : 0.92;
-    // Chart tints are flat areas with hard edges. Smoothing turns each band
-    // boundary into an airbrushed halo, which is the one thing that stops the
-    // result reading as a chart -- so the chart theme takes the 25 m blocks.
-    ctx.imageSmoothingEnabled = !this.t.chartMode;
+    ctx.globalAlpha = alpha;
+    ctx.imageSmoothingEnabled = smooth;
     ctx.imageSmoothingQuality = "high";
     ctx.translate(sx, sy);
     ctx.rotate(-this.rotation);

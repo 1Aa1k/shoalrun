@@ -225,6 +225,12 @@ body.sim::after { content: "SIMULATION"; position: absolute; top: 50%; left: 0; 
 
   <div class="ramp" id="legendRamp"></div>
   <div class="ramplab"><span>0 ft</span><span id="rampMax">76 ft</span></div>
+
+  <div class="note" id="legendReach" style="display:none">
+    <b>Survey reach on.</b> Clear water was sounded in 1954; fog is how far the
+    depth there had to be guessed. 42% of this lake is more than 200 m from any
+    measurement, and some of it is 1.9 km.
+  </div>
   <div class="note">Depth measured along 12 east&ndash;west transects, MDIFW
     Aug 1954; up to 660 m between lines is interpolated.
     Camps &amp; piers from OSM.</div>
@@ -270,6 +276,7 @@ body.sim::after { content: "SIMULATION"; position: absolute; top: 50%; left: 0; 
     <button id="btnDepth" class="on">Depth shading</button>
     <button id="btnLines" class="on">Contour lines</button>
     <button id="btnSoundings" class="on">Soundings</button>
+    <button id="btnReach">Survey reach</button>
     <button id="btnCamps" class="on">Camps</button>
     <button id="btnShore">All rocks</button>
     <button id="btnSwept" class="on">Driven water</button>

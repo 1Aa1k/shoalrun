@@ -31,6 +31,22 @@ export class DepthGrid {
       throw new Error(`depth grid is ${this.d.length} bytes, expected ${this.nx * this.ny}`);
     }
 
+    // Companion grid: metres to the nearest actual 1954 sounding. The depth
+    // surface is one smooth sheet and so reads as uniformly known; this is what
+    // lets the map draw the difference between the twelve lines that were
+    // measured and the water between them that was not.
+    this.reachStepM = raw.reach_step_m ?? 0;
+    if (raw.reach_b64) {
+      const rb = atob(raw.reach_b64);
+      this.r = new Uint8Array(rb.length);
+      for (let i = 0; i < rb.length; i++) this.r[i] = rb.charCodeAt(i);
+      if (this.r.length !== this.d.length) {
+        throw new Error(`reach grid is ${this.r.length} bytes, expected ${this.d.length}`);
+      }
+    } else {
+      this.r = null;
+    }
+
     // Grid corners in projected metres. Row 0 is the south edge, so +row is
     // +north, which matches the projection's +y. Precomputed because the
     // renderer needs them on every frame.
@@ -55,6 +71,22 @@ export class DepthGrid {
     const col = Math.round((x - this.x0) / this.stepX);
     const row = Math.round((y - this.y0) / this.stepY);
     return this.at(col, row);
+  }
+
+  // Metres to the nearest 1954 sounding, or null outside the lake / when the
+  // payload predates the reach grid. Callers must handle null rather than
+  // treating a missing layer as "fully surveyed".
+  reachAt(col, row) {
+    if (!this.r) return null;
+    if (col < 0 || row < 0 || col >= this.nx || row >= this.ny) return null;
+    const v = this.r[row * this.nx + col];
+    return v === this.nodata ? null : v * this.reachStepM;
+  }
+
+  reachXY(x, y) {
+    const col = Math.round((x - this.x0) / this.stepX);
+    const row = Math.round((y - this.y0) / this.stepY);
+    return this.reachAt(col, row);
   }
 
   worldX(col) {
@@ -320,6 +352,69 @@ export function shadeCanvas(g, shallowFt, theme = "night") {
 
   ctx.putImageData(img, 0, 0);
   g._shadeCache.set(key, cv);
+  return cv;
+}
+
+// A veil over water the 1954 survey never reached.
+//
+// The depth shading is one smooth sheet, so all of it reads as equally known.
+// It is not: the boat ran twelve east-west lines and everything between them is
+// interpolation. This draws that difference directly -- water stays clear where
+// it was actually sounded and fogs over as you get further from a measurement,
+// so the twelve transects show through as bright stripes.
+//
+// Deliberately a veil rather than a recolour. It has to sit over the depth
+// shading without destroying it, because the honest reading is "this depth,
+// this much doubt", not "no information here".
+export function reachCanvas(g, nearM, theme = "night") {
+  if (!g.r) return null;
+  const key = `${theme}|${nearM}`;
+  g._reachCache = g._reachCache || new Map();
+  const hit = g._reachCache.get(key);
+  if (hit) return hit;
+
+  // Opacity saturates well before the true 1859 m maximum. The transects are
+  // ~530 m apart, so mid-gap is only ~265 m from a line: ramping out to the
+  // far basin left the gaps between transects almost clear, which is exactly
+  // the water the layer exists to call out. Saturating at 300 m makes the
+  // twelve lines read as stripes.
+  const fullM = nearM * 2.5;
+  // Warm grey in the chart theme, not white. The chart's own deep water IS
+  // white, so a white veil over the basin was invisible -- the fogged middle
+  // read as ordinary deep water. Grey is unmistakably "something over the
+  // paper". Night is a dark map, so there the veil is near-black.
+  const [vr, vg, vb, peak] = theme === "chart" ? [126, 118, 99, 0.62] : [4, 7, 10, 0.7];
+
+  const cv = document.createElement("canvas");
+  cv.width = g.nx;
+  cv.height = g.ny;
+  const ctx = cv.getContext("2d");
+  const img = ctx.createImageData(g.nx, g.ny);
+
+  for (let row = 0; row < g.ny; row++) {
+    const src = (g.ny - 1 - row) * g.nx;
+    const dst = row * g.nx;
+    for (let col = 0; col < g.nx; col++) {
+      const v = g.r[src + col];
+      const o = (dst + col) * 4;
+      if (v === NODATA) {
+        img.data[o + 3] = 0;
+        continue;
+      }
+      const m = v * g.reachStepM;
+      // Clear out to nearM, then ramp linearly. A squared falloff was tried and
+      // it hid the thing worth seeing: it kept mid-gap water at a tenth of full
+      // opacity, so the transects never separated from the water between them.
+      const t = m <= nearM ? 0 : Math.min(1, (m - nearM) / (fullM - nearM));
+      img.data[o] = vr;
+      img.data[o + 1] = vg;
+      img.data[o + 2] = vb;
+      img.data[o + 3] = Math.round(255 * peak * t);
+    }
+  }
+
+  ctx.putImageData(img, 0, 0);
+  g._reachCache.set(key, cv);
   return cv;
 }
 

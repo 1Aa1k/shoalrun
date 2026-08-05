@@ -21,9 +21,10 @@ import sys
 from pathlib import Path
 
 import numpy as np
+from scipy.spatial import cKDTree
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from make_contours import GRID_M, build_surface
+from make_contours import GRID_M, SOUND, build_surface
 
 ROOT = Path(__file__).resolve().parent.parent
 OUT = ROOT / "data" / "depth_grid.json"
@@ -33,6 +34,56 @@ OUT = ROOT / "data" / "depth_grid.json"
 # has gone wrong, and silently clipping it would hide that.
 NODATA = 255
 MAX_DEPTH_FT = 254
+
+# Distance to the nearest 1954 sounding, quantised to a byte. 8 m per step
+# carries 2032 m. That looks like far more headroom than 662 m of transect gap
+# needs, and it is not: the eastern arm and the outlet were barely sounded at
+# all, and water there sits 1859 m from the nearest measurement. A 4 m step
+# tripped the guard below, which is the guard working. 8 m is still finer than
+# a lead-line fix from a boat in 1954 was ever good for.
+REACH_STEP_M = 8.0
+REACH_MAX_M = REACH_STEP_M * (NODATA - 1)
+
+
+def survey_reach(gx, gy, finite, fwd):
+    """Distance from every water cell to the nearest actual 1954 sounding.
+
+    The depth surface is one continuous sheet, which makes all of it look
+    equally known. It is not. The survey boat ran twelve east-west lines
+    (scripts/survey_geometry.py); along them the depth was measured, and across
+    the 430-662 m between them it is interpolation. That difference is invisible
+    in a shaded surface and it is exactly what a boat crosses running
+    north-south, so the app has to be able to draw it.
+
+    Note this deliberately measures distance to a SOUNDING, not to the nearest
+    interpolation constraint. `build_surface` also pins the surface to depth 0
+    along the shoreline, and those synthetic points do carry real information --
+    but "the shore is at the shore" is not a depth measurement, and folding them
+    in here would paint the nearshore band as well-surveyed when nobody ever put
+    a lead line in it.
+    """
+    feats = json.loads(SOUND.read_text())["features"]
+    xy = np.array([fwd.transform(*f["geometry"]["coordinates"])
+                   for f in feats])
+
+    # Cell centres in projected metres, same axis order as the depth grid.
+    mx, my = np.meshgrid(gx, gy)
+    dist, _ = cKDTree(xy).query(np.column_stack([mx.ravel(), my.ravel()]))
+    dist = dist.reshape(mx.shape)
+
+    worst = float(dist[finite].max())
+    if worst > REACH_MAX_M:
+        raise ValueError(
+            f"a water cell sits {worst:.0f} m from the nearest sounding, past "
+            f"the {REACH_MAX_M:.0f} m this encoding carries -- widen it rather "
+            "than saturating, or the map will claim coverage it does not have"
+        )
+
+    # Round down: at the boundary between two steps, report the SHORTER
+    # distance as the one that gets rounded up. Overstating how far you are
+    # from a measurement is the safe direction on a hazard app.
+    q = np.where(finite, np.ceil(dist / REACH_STEP_M), NODATA)
+    return q.astype(np.uint8), worst
 
 
 def main():
@@ -51,6 +102,8 @@ def main():
     # wrong direction to be wrong in.
     quant = np.where(finite, np.rint(np.nan_to_num(grid, nan=0.0)), NODATA)
     quant = quant.astype(np.uint8)
+
+    reach, worst = survey_reach(gx, gy, finite, fwd)
 
     # Grid corner and step are carried in lon/lat so the browser needs no
     # projection library. The lake is 9 km across at 45.7N, where treating the
@@ -77,6 +130,10 @@ def main():
         "row_order": "south_to_north",
         "source": "MDIFW soundings Aug 1954 (rev Jan 1979), interpolated",
         "depths_b64": base64.b64encode(quant.tobytes()).decode("ascii"),
+        # Metres to the nearest real sounding, same grid, same sentinel.
+        "reach_step_m": REACH_STEP_M,
+        "reach_max_m": round(worst),
+        "reach_b64": base64.b64encode(reach.tobytes()).decode("ascii"),
     }
 
     OUT.write_text(json.dumps(payload, separators=(",", ":")))
@@ -84,8 +141,12 @@ def main():
     print(
         f"wrote {OUT}  ({OUT.stat().st_size / 1024:.0f} KB base64) "
         f"{payload['nx']}x{payload['ny']} @ {GRID_M:.0f} m, "
-        f"{water} water cells, 0-{deepest:.0f} ft"
+        f"{water} water cells, 0-{deepest:.0f} ft, "
+        f"furthest water from a sounding {worst:.0f} m"
     )
+    far = int((reach[finite] * REACH_STEP_M > 200).sum())
+    print(f"  {far} of {water} water cells ({100 * far / water:.0f}%) sit more "
+          f"than 200 m from any measurement")
 
 
 if __name__ == "__main__":
