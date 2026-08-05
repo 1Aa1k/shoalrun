@@ -4,6 +4,8 @@ import { MapView } from "./render.js";
 import { DepthGrid, contoursAt, contoursAtLevels, rampCss, CHART_BAND_EDGES } from "./depth.js";
 import { logFix, allTracks, allMarks, setMark, clearMark, exportAll, trackCount } from "./store.js";
 import { SweptGrid, coverageStats, sweptFromFixes } from "./swept.js";
+import { FLAG_STATUS, alertsFor, flagToHazard, makeFlag, reviewQueue } from "./flags.js";
+import { autoSync, isConfigured, whoAmI } from "./sync.js";
 
 // DATA is injected at build time so the app is one self-contained file with no
 // network dependency of any kind. There is no cell service on this lake.
@@ -43,6 +45,7 @@ const state = {
   corridor: null,
   alert: "clear",
   guest: false,
+  flags: [],
   showSwept: true,
   trip: `trip-${Date.now()}`,
   logged: 0,
@@ -519,48 +522,114 @@ el("btnGuest").onclick = () => {
   view.draw(state);
 };
 
-// Share coverage between boats. Deliberately a FILE, not a server: it works
-// with no signal at the landing, over AirDrop, a text, or a USB cable, and
-// there is no account to make or service to keep running.
-el("btnShare").onclick = async () => {
-  const blob = new Blob(
-    [JSON.stringify({ kind: "shoalrun-swept", v: 1, swept: state.swept })],
-    { type: "application/json" },
-  );
-  const name = `shoalrun-driven-${new Date().toISOString().slice(0, 10)}.json`;
-  const file = new File([blob], name, { type: "application/json" });
-  if (navigator.canShare && navigator.canShare({ files: [file] })) {
-    try {
-      await navigator.share({ files: [file], title: "Driven water" });
-      return;
-    } catch (e) {
-      if (e.name === "AbortError") return;
-    }
+// One tap: "something here". No typing, no category, no menu -- a guest at the
+// helm has an interaction budget of exactly one press, and a report that is too
+// much work to file is a report that never gets filed.
+//
+// The flag is inert until somebody who knows the lake reviews it. It alerts the
+// person who made it, because they are standing over it, and nobody else. A
+// crowd that can put unverified marks on everyone's map is the same failure
+// this project just spent a night stripping out of the satellite layer.
+el("btnFlag").onclick = async () => {
+  if (!state.fix) {
+    setStatus("No GPS fix yet - cannot place a report.", "warn");
+    return;
   }
-  const a = document.createElement("a");
-  a.href = URL.createObjectURL(blob);
-  a.download = name;
-  a.click();
+  const f = makeFlag({ ...state.fix, speed: state.speed }, whoAmI());
+  state.flags.push(f);
+  await setMark(f.id, "flagged", "", {
+    lat: f.lat, lon: f.lon, kind: "flag", status: f.status,
+    reporter: f.reporter, accuracy: f.accuracy, speed: f.speed,
+  });
+  const btn = el("btnFlag");
+  btn.classList.add("done");
+  btn.innerHTML = "<span>&#10003;</span> Marked";
+  setTimeout(() => {
+    btn.classList.remove("done");
+    btn.innerHTML = "<span>&#9888;</span> Something here";
+  }, 2200);
+  setStatus(
+    isConfigured()
+      ? "Marked. It will go to the others next time you have signal."
+      : "Marked. Only you will see it until it is reviewed.",
+    "ok",
+  );
+  refreshPending();
+  view.draw(state);
 };
 
-el("fileImport").onchange = async (e) => {
-  const f = e.target.files[0];
-  if (!f) return;
-  try {
-    const o = JSON.parse(await f.text());
-    if (o.kind !== "shoalrun-swept") throw new Error("not a driven-water file");
-    const gained = state.swept.merge(SweptGrid.fromJSON(o.swept));
-    const st = coverageStats(state.swept, LAKE_AREA_M2);
-    setStatus(
-      `Added ${gained} new cells. Now ${(st.provenM2 / 1e6).toFixed(2)} km2 driven ` +
-        `water on this device.`,
-      "ok",
-    );
-    view.draw(state);
-  } catch (err) {
-    setStatus(`Could not read that file: ${err.message}`, "warn");
+function refreshPending() {
+  const q = reviewQueue(state.flags);
+  const n = el("nPending");
+  if (n) n.textContent = String(q.length);
+  return q;
+}
+
+// The review queue. Reports become hazards only here, and only when someone who
+// knows the lake says so -- that is the whole trust model. Spots reported
+// independently by several people sort to the top.
+el("btnReview").onclick = () => {
+  const box = el("reviewList");
+  if (box.style.display === "block") {
+    box.style.display = "none";
+    return;
   }
-  e.target.value = "";
+  const q = refreshPending();
+  box.style.display = "block";
+  if (!q.length) {
+    box.innerHTML = '<div class="foot">No reports waiting.</div>';
+    return;
+  }
+  box.innerHTML = q
+    .map((g, i) => {
+      const acc = g.bestAccuracy == null ? "unknown" : `${g.bestAccuracy.toFixed(0)} m`;
+      const people = g.reporters === 1 ? "1 person" : `${g.reporters} people`;
+      return `<div class="rev" data-i="${i}">
+        <b>${g.lat.toFixed(5)}, ${g.lon.toFixed(5)}</b>
+        <div class="who">${people}, ${g.count} report${g.count === 1 ? "" : "s"} &middot;
+          best fix ${acc} &middot; ${new Date(g.newest).toLocaleDateString()}</div>
+        <div class="acts">
+          <button data-act="go" data-i="${i}">Show me</button>
+          <button data-act="yes" data-i="${i}">Real - add it</button>
+          <button data-act="no" data-i="${i}" class="ghost">Nothing there</button>
+        </div>
+      </div>`;
+    })
+    .join("");
+
+  box.querySelectorAll("button").forEach((b) => {
+    b.onclick = async () => {
+      const g = q[+b.dataset.i];
+      if (b.dataset.act === "go") {
+        view.center = { x: g.x, y: g.y };
+        view.follow = false;
+        view.draw(state);
+        return;
+      }
+      const status = b.dataset.act === "yes" ? FLAG_STATUS.CONFIRMED : FLAG_STATUS.REJECTED;
+      for (const f of g.flags) {
+        f.status = status;
+        f.reviewedT = Date.now();
+        await setMark(f.id, "flagged", "", {
+          lat: f.lat, lon: f.lon, kind: "flag", status,
+          reporter: f.reporter, accuracy: f.accuracy, speed: f.speed,
+        });
+      }
+      if (status === FLAG_STATUS.CONFIRMED) {
+        const h = flagToHazard(g, "you");
+        const [x, y] = proj.fwd(h.lon, h.lat);
+        const rock = { id: `flag-${g.flags[0].id}`, ...h, x, y };
+        state.rocks.push(rock);
+        index.insert(x, y, rock);
+        setStatus("Added. Everyone sees it now.", "ok");
+      } else {
+        setStatus("Cleared.", "ok");
+      }
+      el("btnReview").click();
+      el("btnReview").click();
+      view.draw(state);
+    };
+  });
 };
 
 el("btnShore").onclick = () => {
@@ -733,6 +802,40 @@ loadMarks().then(() => {
       `${st.kmDriven.toFixed(1)} km driven, ${(st.provenM2 / 1e6).toFixed(2)} km2 ` +
         `proven (${st.pctOfLake.toFixed(1)}% of the lake)`,
       "ok",
+    );
+  });
+
+  // Restore flags and start automatic sync. With no lake code configured
+  // autoSync is inert -- nothing leaves the phone.
+  allMarks().then((ms) => {
+    state.flags = ms
+      .filter((m) => m.kind === "flag")
+      .map((m) => ({
+        id: m.id, lat: m.lat, lon: m.lon, t: m.t,
+        accuracy: m.accuracy, speed: m.speed,
+        reporter: m.reporter || "unknown",
+        status: m.status || FLAG_STATUS.PENDING,
+        ...(() => { const [x, y] = proj.fwd(m.lon, m.lat); return { x, y }; })(),
+      }));
+    refreshPending();
+    autoSync(
+      () => ({ swept: state.swept, flags: state.flags }),
+      (r) => {
+        if (r && r.swept) {
+          const gained = state.swept.merge(SweptGrid.fromJSON(r.swept));
+          if (gained) setStatus(`Picked up ${gained} cells of driven water from the others.`, "ok");
+        }
+        if (r && Array.isArray(r.flags)) {
+          const known = new Set(state.flags.map((f) => f.id));
+          for (const f of r.flags) {
+            if (known.has(f.id)) continue;
+            const [x, y] = proj.fwd(f.lon, f.lat);
+            state.flags.push({ ...f, x, y });
+          }
+          refreshPending();
+        }
+        view.draw(state);
+      },
     );
   });
 

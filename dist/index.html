@@ -154,6 +154,18 @@ input[type=range]:disabled { opacity: .4; }
 .sheet .row { display: flex; gap: 7px; margin-top: 14px; }
 .sheet .row button { flex: 1; }
 #btnConfirm { background: #7d1a10; border-color: #a52a1a; color: #fff; }
+/* One tap, thumb-sized, always on screen. A guest is at the helm and possibly
+   rattled from having just hit something; anything smaller or buried in a menu
+   will not get pressed, and an unused report is worth nothing. */
+#btnFlag { position: fixed; right: 14px; bottom: 92px; z-index: 40;
+           background: #a8600a; border-color: #d4800f; color: #fff;
+           font-size: 15px; font-weight: 600; padding: 14px 16px;
+           border-radius: 12px; box-shadow: 0 4px 14px rgba(0,0,0,.45); }
+#btnFlag.done { background: #1f7a4d; border-color: #2ea56a; }
+.rev { border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px;
+       margin-bottom: 7px; font-size: 13px; }
+.rev .who { color: var(--dim); font-size: 12px; }
+.rev .acts { display: flex; gap: 6px; margin-top: 6px; }
 
 /* --- chart theme --------------------------------------------------------- */
 /* When the map goes to paper, the chrome has to follow. Dark glass panels
@@ -268,14 +280,18 @@ body.sim::after { content: "SIMULATION"; position: absolute; top: 50%; left: 0; 
 
   <div class="toggles" style="margin-top:7px">
     <button id="btnExport">Export track</button>
-    <button id="btnShare">Share driven water</button>
-    <label class="btn" for="fileImport">Load from someone</label>
-    <input id="fileImport" type="file" accept="application/json" style="display:none">
+    <button id="btnReview">Review reports (<span id="nPending">0</span>)</button>
     <button id="btnPanelClose" class="ghost">Done</button>
   </div>
 
+  <div id="reviewList" style="display:none; margin-top:10px; max-height:38vh; overflow:auto"></div>
+
   <div class="foot" id="meta"></div>
 </div>
+
+<button id="btnFlag" title="Report something here">
+  <span>&#9888;</span> Something here
+</button>
 
 <div class="bar">
   <button id="btnFollow" class="on">Follow</button>
@@ -1019,6 +1035,271 @@ function coverageStats(grid, lakeAreaM2) {
     kmDriven: proven / swath / 1000,
     kmToFinish: lakeAreaM2 ? (lakeAreaM2 - proven) / swath / 1000 : 0,
   };
+}
+
+// Flags: one-tap "something here" reports, and the review queue that turns them
+// into hazards.
+//
+// The trust model Nate described, made explicit. Guests are not a source of
+// rock data -- they are a source of REPORTS. A guest who bumps something, or
+// sees water boiling where it should not, taps once. That report is worth
+// having and it is not worth trusting, and the app must never confuse the two.
+//
+// So a flag is inert until somebody who knows the lake reviews it. It alerts
+// the person who made it, because they are standing over it right now, but it
+// does not become a hazard on anybody else's map until it is confirmed.
+//
+// One tap is the entire interaction budget. A guest is at the helm, probably at
+// speed, possibly rattled from having just hit something. Anything requiring
+// typing, a category, or a menu will not get used, and an unused report is
+// worth exactly as much as no report.
+const FLAG_STATUS = {
+  PENDING: "pending",     // reported, nobody has looked
+  CONFIRMED: "confirmed", // reviewed by someone who knows the lake: it is real
+  REJECTED: "rejected",   // reviewed: nothing there
+};
+
+// How close two reports must be to be treated as the same thing. Generous,
+// because the report is made from a moving boat -- the flag lands where the
+// boat was, not where the rock is, and at 10 m/s a second of reaction time is
+// 10 m of offset on its own.
+const SAME_THING_M = 40;
+
+let seq = 0;
+
+/**
+ * Build a flag from the current fix. Nothing else is asked of the user.
+ *
+ * `speed` and `accuracy` are carried because they say how much the position is
+ * worth: a flag dropped at 15 m/s with a 20 m fix is a much vaguer statement
+ * about location than one dropped at idle with a 4 m fix, and the reviewer
+ * should be able to see that rather than guess.
+ */
+function makeFlag(fix, reporter = "guest") {
+  return {
+    id: `f${Date.now()}-${seq++}`,
+    lat: fix.lat,
+    lon: fix.lon,
+    x: fix.x,
+    y: fix.y,
+    accuracy: fix.accuracy ?? null,
+    speed: fix.speed ?? null,
+    t: Date.now(),
+    reporter,
+    status: FLAG_STATUS.PENDING,
+    // Set when reviewed, so the queue can show who decided and when.
+    reviewedBy: null,
+    reviewedT: null,
+  };
+}
+
+/**
+ * Group flags that are probably the same hazard.
+ *
+ * Three guests bumping the same rock should read as one rock reported three
+ * times, not three rocks. That distinction matters for review -- repeated
+ * independent reports at one spot are the strongest signal a crowd can produce,
+ * and splitting them apart would throw that away.
+ */
+function cluster(flags, radius = SAME_THING_M) {
+  const out = [];
+  for (const f of flags) {
+    let hit = null;
+    for (const c of out) {
+      if (Math.hypot(c.x - f.x, c.y - f.y) <= radius) {
+        hit = c;
+        break;
+      }
+    }
+    if (hit) {
+      hit.flags.push(f);
+      // Centroid, so repeated reports sharpen the position instead of the
+      // first one anchoring it.
+      hit.x = hit.flags.reduce((s, g) => s + g.x, 0) / hit.flags.length;
+      hit.y = hit.flags.reduce((s, g) => s + g.y, 0) / hit.flags.length;
+      hit.lat = hit.flags.reduce((s, g) => s + g.lat, 0) / hit.flags.length;
+      hit.lon = hit.flags.reduce((s, g) => s + g.lon, 0) / hit.flags.length;
+    } else {
+      out.push({ x: f.x, y: f.y, lat: f.lat, lon: f.lon, flags: [f] });
+    }
+  }
+  return out;
+}
+
+/**
+ * Which flags belong in front of a reviewer, most worth looking at first.
+ *
+ * Ordered by how many independent people reported the same spot, then by how
+ * good the positions are. A spot three people hit is more urgent than one
+ * somebody tapped once while doing 30.
+ */
+function reviewQueue(flags, radius = SAME_THING_M) {
+  const pending = flags.filter((f) => f.status === FLAG_STATUS.PENDING);
+  const groups = cluster(pending, radius);
+  for (const g of groups) {
+    g.count = g.flags.length;
+    g.reporters = new Set(g.flags.map((f) => f.reporter)).size;
+    const accs = g.flags.map((f) => f.accuracy).filter((a) => a != null);
+    g.bestAccuracy = accs.length ? Math.min(...accs) : null;
+    g.newest = Math.max(...g.flags.map((f) => f.t));
+  }
+  groups.sort(
+    (a, b) =>
+      b.reporters - a.reporters ||
+      b.count - a.count ||
+      (a.bestAccuracy ?? 999) - (b.bestAccuracy ?? 999) ||
+      b.newest - a.newest,
+  );
+  return groups;
+}
+
+/**
+ * A confirmed flag, as a hazard.
+ *
+ * Tier is "confirmed" because a person who knows this lake looked at it -- the
+ * same standing as a hand-mapped rock, and higher than anything the imagery
+ * produces, since the imagery was measured to carry no depth information here.
+ */
+function flagToHazard(group, reviewer) {
+  return {
+    class: "rock",
+    lat: group.lat,
+    lon: group.lon,
+    tier: "confirmed",
+    evidence: "reported_and_verified",
+    basis: `reported by ${group.reporters} ${
+      group.reporters === 1 ? "person" : "people"
+    }, verified by ${reviewer}`,
+    reports: group.count,
+    verdict: "human_confirmed",
+    offshore: true,
+  };
+}
+
+/**
+ * Does an unreviewed flag alert anyone?
+ *
+ * Only the person who made it. They are standing over it and already know. It
+ * must not propagate to other boats before review, or the crowd becomes a way
+ * to put unverified marks on everybody's map -- which is the failure this whole
+ * project just spent a night removing from the satellite layer.
+ */
+function alertsFor(flag, viewerId) {
+  if (flag.status === FLAG_STATUS.CONFIRMED) return true;
+  if (flag.status === FLAG_STATUS.REJECTED) return false;
+  return flag.reporter === viewerId;
+}
+
+// Automatic sync. Nothing for the user to do, ever.
+//
+// The first version handed coverage between boats as a JSON file. That is fine
+// for someone who knows what a JSON file is and hopeless for everybody else,
+// which is most of the people this is meant to protect. A guest who has to
+// export, AirDrop and import will simply not do it, and a sharing feature
+// nobody uses is worse than none because it looks like the problem is solved.
+//
+// So: no buttons. The app queues changes locally and drains the queue whenever
+// it finds itself online. On the lake it is a no-op, because there is no
+// signal; back at the landing or at the house it catches up by itself.
+//
+// JOINING is a short lake code typed once, not an account. No email, no
+// password, no profile -- none of which this needs, and every one of which is
+// another thing to go wrong on a phone in a boat.
+//
+// NOTHING LEAVES THE DEVICE UNTIL A CODE IS SET. With no code configured every
+// function here is inert and the app is exactly as local as it was before. That
+// is deliberate: uploading a family's movements without them asking is not a
+// default anyone should ship.
+
+const LS_CODE = "shoalrun_lake_code";
+const LS_ENDPOINT = "shoalrun_sync_endpoint";
+const LS_WHO = "shoalrun_who";
+function lakeCode() {
+  return localStorage.getItem(LS_CODE) || null;
+}
+function endpoint() {
+  return localStorage.getItem(LS_ENDPOINT) || null;
+}
+
+/** Stable per-device id, so reports can be counted as independent people. */
+function whoAmI() {
+  let w = localStorage.getItem(LS_WHO);
+  if (!w) {
+    w = `d${Math.random().toString(36).slice(2, 10)}`;
+    localStorage.setItem(LS_WHO, w);
+  }
+  return w;
+}
+function joinLake(code, url) {
+  localStorage.setItem(LS_CODE, code.trim().toUpperCase());
+  if (url) localStorage.setItem(LS_ENDPOINT, url.trim());
+}
+function leaveLake() {
+  localStorage.removeItem(LS_CODE);
+  localStorage.removeItem(LS_ENDPOINT);
+}
+function isConfigured() {
+  return Boolean(lakeCode() && endpoint());
+}
+
+/**
+ * Try to exchange local state for everyone else's.
+ *
+ * Returns null when there is nothing to do -- offline, or no lake joined --
+ * rather than throwing, because "no signal" is the normal case on this lake and
+ * normal cases should not look like errors.
+ *
+ * @param {{swept: object, flags: Array}} local
+ * @param {(url:string, init:object)=>Promise} doFetch injected for testing
+ */
+async function syncNow(local, doFetch = fetch) {
+  if (!isConfigured()) return null;
+  if (typeof navigator !== "undefined" && navigator.onLine === false) return null;
+
+  const body = JSON.stringify({
+    code: lakeCode(),
+    who: whoAmI(),
+    swept: local.swept,
+    flags: local.flags,
+  });
+
+  try {
+    const res = await doFetch(`${endpoint()}/sync`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body,
+    });
+    if (!res.ok) return null;
+    return await res.json();
+  } catch {
+    // A failed sync is not an error worth showing. The data is still on the
+    // phone and will go up next time there is signal; surfacing a red banner
+    // every time the boat leaves cell range would train the user to ignore
+    // banners, and one of those banners is the hazard alert.
+    return null;
+  }
+}
+
+/**
+ * Sync when it is likely to work: on load, and whenever the phone regains
+ * signal. No timer -- polling a dead network on a boat costs battery and
+ * achieves nothing.
+ */
+function autoSync(getLocal, onResult) {
+  const run = async () => {
+    const r = await syncNow(getLocal());
+    if (r && onResult) onResult(r);
+  };
+  if (typeof addEventListener === "function") {
+    addEventListener("online", run);
+    // Coming back to the app is the other moment worth trying -- a phone that
+    // regained signal while asleep never fires "online".
+    addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "visible") run();
+    });
+  }
+  run();
+  return run;
 }
 
 // Canvas renderer. Deliberately no map tiles: the lake has no cell service, so
@@ -1858,6 +2139,8 @@ async function exportAll() {
 
 
 
+
+
 // DATA is injected at build time so the app is one self-contained file with no
 // network dependency of any kind. There is no cell service on this lake.
 const { lake: LAKE_GEO, rocks: ROCK_GEO, depth: DEPTH_RAW, soundings: SOUNDING_RAW, structures: STRUCT_GEO, meta: DATA_META } = window.SHOALRUN_DATA;
@@ -1896,6 +2179,7 @@ const state = {
   corridor: null,
   alert: "clear",
   guest: false,
+  flags: [],
   showSwept: true,
   trip: `trip-${Date.now()}`,
   logged: 0,
@@ -2372,48 +2656,114 @@ el("btnGuest").onclick = () => {
   view.draw(state);
 };
 
-// Share coverage between boats. Deliberately a FILE, not a server: it works
-// with no signal at the landing, over AirDrop, a text, or a USB cable, and
-// there is no account to make or service to keep running.
-el("btnShare").onclick = async () => {
-  const blob = new Blob(
-    [JSON.stringify({ kind: "shoalrun-swept", v: 1, swept: state.swept })],
-    { type: "application/json" },
-  );
-  const name = `shoalrun-driven-${new Date().toISOString().slice(0, 10)}.json`;
-  const file = new File([blob], name, { type: "application/json" });
-  if (navigator.canShare && navigator.canShare({ files: [file] })) {
-    try {
-      await navigator.share({ files: [file], title: "Driven water" });
-      return;
-    } catch (e) {
-      if (e.name === "AbortError") return;
-    }
+// One tap: "something here". No typing, no category, no menu -- a guest at the
+// helm has an interaction budget of exactly one press, and a report that is too
+// much work to file is a report that never gets filed.
+//
+// The flag is inert until somebody who knows the lake reviews it. It alerts the
+// person who made it, because they are standing over it, and nobody else. A
+// crowd that can put unverified marks on everyone's map is the same failure
+// this project just spent a night stripping out of the satellite layer.
+el("btnFlag").onclick = async () => {
+  if (!state.fix) {
+    setStatus("No GPS fix yet - cannot place a report.", "warn");
+    return;
   }
-  const a = document.createElement("a");
-  a.href = URL.createObjectURL(blob);
-  a.download = name;
-  a.click();
+  const f = makeFlag({ ...state.fix, speed: state.speed }, whoAmI());
+  state.flags.push(f);
+  await setMark(f.id, "flagged", "", {
+    lat: f.lat, lon: f.lon, kind: "flag", status: f.status,
+    reporter: f.reporter, accuracy: f.accuracy, speed: f.speed,
+  });
+  const btn = el("btnFlag");
+  btn.classList.add("done");
+  btn.innerHTML = "<span>&#10003;</span> Marked";
+  setTimeout(() => {
+    btn.classList.remove("done");
+    btn.innerHTML = "<span>&#9888;</span> Something here";
+  }, 2200);
+  setStatus(
+    isConfigured()
+      ? "Marked. It will go to the others next time you have signal."
+      : "Marked. Only you will see it until it is reviewed.",
+    "ok",
+  );
+  refreshPending();
+  view.draw(state);
 };
 
-el("fileImport").onchange = async (e) => {
-  const f = e.target.files[0];
-  if (!f) return;
-  try {
-    const o = JSON.parse(await f.text());
-    if (o.kind !== "shoalrun-swept") throw new Error("not a driven-water file");
-    const gained = state.swept.merge(SweptGrid.fromJSON(o.swept));
-    const st = coverageStats(state.swept, LAKE_AREA_M2);
-    setStatus(
-      `Added ${gained} new cells. Now ${(st.provenM2 / 1e6).toFixed(2)} km2 driven ` +
-        `water on this device.`,
-      "ok",
-    );
-    view.draw(state);
-  } catch (err) {
-    setStatus(`Could not read that file: ${err.message}`, "warn");
+function refreshPending() {
+  const q = reviewQueue(state.flags);
+  const n = el("nPending");
+  if (n) n.textContent = String(q.length);
+  return q;
+}
+
+// The review queue. Reports become hazards only here, and only when someone who
+// knows the lake says so -- that is the whole trust model. Spots reported
+// independently by several people sort to the top.
+el("btnReview").onclick = () => {
+  const box = el("reviewList");
+  if (box.style.display === "block") {
+    box.style.display = "none";
+    return;
   }
-  e.target.value = "";
+  const q = refreshPending();
+  box.style.display = "block";
+  if (!q.length) {
+    box.innerHTML = '<div class="foot">No reports waiting.</div>';
+    return;
+  }
+  box.innerHTML = q
+    .map((g, i) => {
+      const acc = g.bestAccuracy == null ? "unknown" : `${g.bestAccuracy.toFixed(0)} m`;
+      const people = g.reporters === 1 ? "1 person" : `${g.reporters} people`;
+      return `<div class="rev" data-i="${i}">
+        <b>${g.lat.toFixed(5)}, ${g.lon.toFixed(5)}</b>
+        <div class="who">${people}, ${g.count} report${g.count === 1 ? "" : "s"} &middot;
+          best fix ${acc} &middot; ${new Date(g.newest).toLocaleDateString()}</div>
+        <div class="acts">
+          <button data-act="go" data-i="${i}">Show me</button>
+          <button data-act="yes" data-i="${i}">Real - add it</button>
+          <button data-act="no" data-i="${i}" class="ghost">Nothing there</button>
+        </div>
+      </div>`;
+    })
+    .join("");
+
+  box.querySelectorAll("button").forEach((b) => {
+    b.onclick = async () => {
+      const g = q[+b.dataset.i];
+      if (b.dataset.act === "go") {
+        view.center = { x: g.x, y: g.y };
+        view.follow = false;
+        view.draw(state);
+        return;
+      }
+      const status = b.dataset.act === "yes" ? FLAG_STATUS.CONFIRMED : FLAG_STATUS.REJECTED;
+      for (const f of g.flags) {
+        f.status = status;
+        f.reviewedT = Date.now();
+        await setMark(f.id, "flagged", "", {
+          lat: f.lat, lon: f.lon, kind: "flag", status,
+          reporter: f.reporter, accuracy: f.accuracy, speed: f.speed,
+        });
+      }
+      if (status === FLAG_STATUS.CONFIRMED) {
+        const h = flagToHazard(g, "you");
+        const [x, y] = proj.fwd(h.lon, h.lat);
+        const rock = { id: `flag-${g.flags[0].id}`, ...h, x, y };
+        state.rocks.push(rock);
+        index.insert(x, y, rock);
+        setStatus("Added. Everyone sees it now.", "ok");
+      } else {
+        setStatus("Cleared.", "ok");
+      }
+      el("btnReview").click();
+      el("btnReview").click();
+      view.draw(state);
+    };
+  });
 };
 
 el("btnShore").onclick = () => {
@@ -2586,6 +2936,40 @@ loadMarks().then(() => {
       `${st.kmDriven.toFixed(1)} km driven, ${(st.provenM2 / 1e6).toFixed(2)} km2 ` +
         `proven (${st.pctOfLake.toFixed(1)}% of the lake)`,
       "ok",
+    );
+  });
+
+  // Restore flags and start automatic sync. With no lake code configured
+  // autoSync is inert -- nothing leaves the phone.
+  allMarks().then((ms) => {
+    state.flags = ms
+      .filter((m) => m.kind === "flag")
+      .map((m) => ({
+        id: m.id, lat: m.lat, lon: m.lon, t: m.t,
+        accuracy: m.accuracy, speed: m.speed,
+        reporter: m.reporter || "unknown",
+        status: m.status || FLAG_STATUS.PENDING,
+        ...(() => { const [x, y] = proj.fwd(m.lon, m.lat); return { x, y }; })(),
+      }));
+    refreshPending();
+    autoSync(
+      () => ({ swept: state.swept, flags: state.flags }),
+      (r) => {
+        if (r && r.swept) {
+          const gained = state.swept.merge(SweptGrid.fromJSON(r.swept));
+          if (gained) setStatus(`Picked up ${gained} cells of driven water from the others.`, "ok");
+        }
+        if (r && Array.isArray(r.flags)) {
+          const known = new Set(state.flags.map((f) => f.id));
+          for (const f of r.flags) {
+            if (known.has(f.id)) continue;
+            const [x, y] = proj.fwd(f.lon, f.lat);
+            state.flags.push({ ...f, x, y });
+          }
+          refreshPending();
+        }
+        view.draw(state);
+      },
     );
   });
 

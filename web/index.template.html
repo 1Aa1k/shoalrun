@@ -154,6 +154,18 @@ input[type=range]:disabled { opacity: .4; }
 .sheet .row { display: flex; gap: 7px; margin-top: 14px; }
 .sheet .row button { flex: 1; }
 #btnConfirm { background: #7d1a10; border-color: #a52a1a; color: #fff; }
+/* One tap, thumb-sized, always on screen. A guest is at the helm and possibly
+   rattled from having just hit something; anything smaller or buried in a menu
+   will not get pressed, and an unused report is worth nothing. */
+#btnFlag { position: fixed; right: 14px; bottom: 92px; z-index: 40;
+           background: #a8600a; border-color: #d4800f; color: #fff;
+           font-size: 15px; font-weight: 600; padding: 14px 16px;
+           border-radius: 12px; box-shadow: 0 4px 14px rgba(0,0,0,.45); }
+#btnFlag.done { background: #1f7a4d; border-color: #2ea56a; }
+.rev { border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px;
+       margin-bottom: 7px; font-size: 13px; }
+.rev .who { color: var(--dim); font-size: 12px; }
+.rev .acts { display: flex; gap: 6px; margin-top: 6px; }
 
 /* --- chart theme --------------------------------------------------------- */
 /* When the map goes to paper, the chrome has to follow. Dark glass panels
@@ -268,14 +280,18 @@ body.sim::after { content: "SIMULATION"; position: absolute; top: 50%; left: 0; 
 
   <div class="toggles" style="margin-top:7px">
     <button id="btnExport">Export track</button>
-    <button id="btnShare">Share driven water</button>
-    <label class="btn" for="fileImport">Load from someone</label>
-    <input id="fileImport" type="file" accept="application/json" style="display:none">
+    <button id="btnReview">Review reports (<span id="nPending">0</span>)</button>
     <button id="btnPanelClose" class="ghost">Done</button>
   </div>
 
+  <div id="reviewList" style="display:none; margin-top:10px; max-height:38vh; overflow:auto"></div>
+
   <div class="foot" id="meta"></div>
 </div>
+
+<button id="btnFlag" title="Report something here">
+  <span>&#9888;</span> Something here
+</button>
 
 <div class="bar">
   <button id="btnFollow" class="on">Follow</button>

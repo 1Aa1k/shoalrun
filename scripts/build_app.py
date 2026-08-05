@@ -23,7 +23,7 @@ DATA = ROOT / "data"
 DIST = ROOT / "dist"
 
 # Dependency order matters: geo defines what hazard and render consume.
-MODULES = ["geo.js", "depth.js", "hazard.js", "swept.js", "render.js", "store.js", "app.js"]
+MODULES = ["geo.js", "depth.js", "hazard.js", "swept.js", "flags.js", "sync.js", "render.js", "store.js", "app.js"]
 
 # The 3D viewer is a separate page on purpose. An orbiting camera is the wrong
 # control surface for someone at the helm, and keeping it out of the map page
