@@ -45,6 +45,7 @@ from PIL import Image
 from pyproj import Transformer
 from rasterio.transform import from_origin
 from rasterio.warp import Resampling, reproject
+from scipy import ndimage
 from shapely.geometry import Point, box, shape
 from shapely.ops import transform as shp_transform
 
@@ -62,24 +63,113 @@ OFFSHORE_M = 50.0
 MIN_WATER_FRAC = 0.08  # skip sections that are nearly all land
 N_FLIGHTS = 3          # best three by measured contrast
 JPEG_Q = 82
+MAX_WATER_GAIN = 3.0   # ceiling on the equalisation gain; see stretch()
+EQ_MIX = 0.5           # equalised vs linear blend; 1.0 was pure confetti
 WORKERS = 4            # reads within one section
 SECTION_WORKERS = 10   # sections in flight at once
 
 
-def stretch(rgb, valid):
-    """Percentile stretch per band. Rocks are near the top of the histogram, so
-    clipping at 99.5 rather than the max keeps them from being crushed by a
-    single specular pixel."""
+def stretch(rgb, valid, water=None, land_gain=0.55):
+    """Percentile stretch per band, scaled to the WATER histogram.
+
+    Stretching across the whole chip is what made the first render useless.
+    Sunlit trees and sand are several times brighter than water, so they claimed
+    the entire range and every water pixel landed in the bottom couple of
+    percent -- rendering as near-black with visible sensor noise. The submerged
+    detail was in the data the whole time and was discarded at display time.
+
+    So the range comes from water pixels only, and land is allowed to blow out.
+    Land is then pulled down by `land_gain` so it still reads as land instead of
+    a white sheet, without ever competing for the range that matters.
+    """
     out = np.zeros(rgb.shape[1:] + (3,), "uint8")
+    has_water = water is not None and water.sum() > 200
+    ref = water if has_water else valid
+    if ref.sum() < 50:
+        return out
+
+    if not has_water:
+        for i in range(3):
+            lo, hi = np.percentile(rgb[i][ref], (0.5, 99.5))
+            out[..., i] = np.clip((rgb[i] - lo) / (max(hi - lo, 1)) * 255, 0, 255)
+        return out
+
+    # A percentile stretch is not enough on its own. Over deep water the whole
+    # histogram is narrow AND close to zero, and its top end gets set by the
+    # bright shallow shelf and the rocks -- which are the very things we are
+    # hunting -- so deep water stays crushed no matter which percentiles are
+    # picked. Equalising against the water's own cumulative distribution spreads
+    # whatever range exists across the full display instead.
+    # Kill single-pixel sensor noise BEFORE boosting contrast. At 0.5 m a rock is
+    # 4-10 px across and speckle is 1 px, so a 3x3 median removes the noise and
+    # leaves every real target intact. Without this, equalisation multiplies the
+    # noise along with the signal and the water renders as confetti.
+    rgb = np.stack([ndimage.median_filter(rgb[i], size=3) for i in range(3)])
+
+    lum = rgb.mean(axis=0)
+    wl = lum[water]
+    qs = np.linspace(0, 100, 129)
+    knots = np.percentile(wl, qs)
+    knots = np.maximum.accumulate(knots)          # monotone for np.interp
+    eq = np.interp(lum, knots, qs / 100.0)
+
+    # Equalisation is a per-pixel gain on luminance; applying it to the bands
+    # keeps hue intact instead of washing everything grey. Capped, because in
+    # near-black water the gain would otherwise run away and turn sensor noise
+    # into confetti -- which is what the first render looked like.
+    # Full equalisation is too aggressive on its own -- it spends the whole
+    # display range on the flattest water and exaggerates every ripple. Blending
+    # it with a plain linear stretch keeps the picture looking like a lake while
+    # still lifting the dark end where the shoals live.
+    top = max(np.percentile(wl, 99.9), 1e-6)
+    linear = lum / top
+    mixed = EQ_MIX * eq + (1.0 - EQ_MIX) * np.clip(linear, 0, 1)
+    gain = np.clip(mixed / np.maximum(linear, 1e-3), 0.0, MAX_WATER_GAIN)
     for i in range(3):
-        b = rgb[i]
-        if valid.sum() < 50:
-            continue
-        lo, hi = np.percentile(b[valid], (1.0, 99.5))
-        if hi <= lo:
-            hi = lo + 1
-        out[..., i] = np.clip((b - lo) / (hi - lo) * 255, 0, 255).astype("uint8")
+        v = rgb[i] / top * gain
+        v = np.where(water, v, (rgb[i] / max(np.percentile(lum[~water], 99.0)
+                                             if (~water).sum() > 50 else 1.0, 1e-6)) * land_gain)
+        out[..., i] = np.clip(v * 255, 0, 255).astype("uint8")
     return out
+
+
+def shallow_index(rgb, nir, water):
+    """False-colour view keyed on bottom reflectance -- the sandy halo.
+
+    Nate's observation: groups of rocks sit inside a yellowish patch. That is a
+    gravel or sand shoal, and it is a far bigger target than the rock on it --
+    tens of metres across instead of a few. Finding the halo finds the rock.
+
+    Blue light penetrates water furthest and red is absorbed within a metre or
+    two, so the ratio of the two tracks depth over a uniform bottom. This is the
+    Stumpf log-ratio used for satellite-derived bathymetry:
+
+        index = ln(blue) / ln(green)
+
+    The raw ratio FALLS as water shallows -- over sand the green band climbs
+    faster than blue, so the quotient drops -- which renders deep water bright
+    and the shoal dark. That is backwards for this job, so it is inverted here:
+    bright means shallow, bright means danger.
+
+    Equalised rather than percentile-stretched, because most of the lake is deep
+    and a linear scale puts nearly every pixel at one end.
+    """
+    b = np.maximum(rgb[2], 1.0)
+    g = np.maximum(rgb[1], 1.0)
+    with np.errstate(invalid="ignore", divide="ignore"):
+        idx = np.log(b) / np.log(g)
+    idx = np.nan_to_num(idx, nan=0.0, posinf=0.0, neginf=0.0)
+    out = np.zeros(idx.shape, "uint8")
+    if water.sum() < 200:
+        return out
+    idx = ndimage.median_filter(idx, size=3)
+    qs = np.linspace(0, 100, 129)
+    knots = np.maximum.accumulate(np.percentile(idx[water], qs))
+    v = 1.0 - np.interp(idx, knots, qs / 100.0)   # invert: shallow = bright
+    # Land carries no depth meaning here; flatten it so it cannot be misread as
+    # a very shallow shoal.
+    v = np.where(water, v, 0.0)
+    return (np.clip(v, 0, 1) * 255).astype("uint8")
 
 
 def main():
@@ -126,7 +216,20 @@ def main():
     # Densest first: if Nate stops after 40 sections, those 40 should be the
     # ones that discriminate between detectors rather than empty open water.
     cells.sort(key=lambda c: -c["n_haz"])
-    print(f"{len(cells)} offshore sections of {SECTION_M:g} m")
+
+    # Optional whitelist of section ids. Section ids are positions in THIS
+    # sorted list, so the sort above must stay deterministic for a whitelist
+    # written by a previous run to still mean the same squares.
+    wl = DATA / "section_whitelist.json"
+    if wl.exists():
+        keep = set(json.loads(wl.read_text()))
+        cells = [c for i, c in enumerate(cells) if i in keep]
+        # Ids are carried explicitly so filenames and existing marks line up.
+        cells = [dict(c, _id=i) for i, c in zip(sorted(keep), cells)]
+        print(f"whitelist: {len(cells)} of {len(keep)} requested sections")
+    else:
+        cells = [dict(c, _id=i) for i, c in enumerate(cells)]
+    print(f"{len(cells)} sections of {SECTION_M:g} m to render")
 
     cat = pystac_client.Client.open(
         "https://planetarycomputer.microsoft.com/api/stac/v1",
@@ -144,7 +247,8 @@ def main():
     # -- the link sits idle while a section waits its turn. Serially this was
     # 33 s per section, 2.2 hours for the lake. Overlapping the waits fixes it.
     def render(args):
-        si, c = args
+        _, c = args
+        si = c["_id"]
         t = from_origin(c["x"], c["y"] + SECTION_M, RES, RES)
         imgs = []
         for year in years:
@@ -174,8 +278,21 @@ def main():
                     got |= have
             if got.mean() < 0.2:
                 continue  # this flight missed the section; others may still cover it
+            # Water mask drives every stretch below. NDWI (green vs NIR) is the
+            # reliable split here because water absorbs NIR and vegetation
+            # reflects it strongly.
+            with np.errstate(invalid="ignore", divide="ignore"):
+                ndwi = np.where(rgb[1] + nir > 0,
+                                (rgb[1] - nir) / (rgb[1] + nir + 1e-6), np.nan)
+            water = got & np.isfinite(ndwi) & (ndwi > 0)
+
             fn = f"s{si:04d}_{year}.jpg"
-            Image.fromarray(stretch(rgb, got)).save(CHIPS / fn, quality=JPEG_Q)
+            Image.fromarray(stretch(rgb, got, water)).save(CHIPS / fn, quality=JPEG_Q)
+
+            # Bottom-reflectance view: Nate's sandy halo, made explicit.
+            shn = f"s{si:04d}_{year}_sh.jpg"
+            Image.fromarray(shallow_index(rgb, nir, water)).save(
+                CHIPS / shn, quality=JPEG_Q)
 
             # Infrared, greyscale. Water absorbs NIR almost completely, so open
             # water goes black and anything breaking the surface glows -- it is
@@ -185,9 +302,10 @@ def main():
             # Stretched on its own histogram: NIR over water is so uniformly low
             # that sharing the visible bands' scaling would flatten it to black.
             irn = f"s{si:04d}_{year}_ir.jpg"
-            Image.fromarray(stretch(np.stack([nir] * 3), got)[..., 0]).save(
+            Image.fromarray(stretch(np.stack([nir] * 3), got, water, land_gain=1.0)[..., 0]).save(
                 CHIPS / irn, quality=JPEG_Q)
-            imgs.append({"year": year, "file": f"chips/{fn}", "ir": f"chips/{irn}"})
+            imgs.append({"year": year, "file": f"chips/{fn}",
+                         "ir": f"chips/{irn}", "sh": f"chips/{shn}"})
         if not imgs:
             return None
 
