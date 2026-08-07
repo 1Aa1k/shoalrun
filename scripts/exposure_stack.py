@@ -197,6 +197,10 @@ def main():
     ap.add_argument("--res", type=float, default=None,
                     help="force one resolution instead of the per-tile priority")
     ap.add_argument("--limit", type=int, default=0, help="stop after N tiles (smoke test)")
+    ap.add_argument("--shuffle", type=int, default=0, metavar="SEED",
+                    help="negative control: permute the stage order. If this finds "
+                         "as much as the real order does, the ordering is doing "
+                         "nothing and the result is an artefact of the imagery.")
     args = ap.parse_args()
 
     lake_ll = shape(json.loads(LAKE.read_text())["geometry"])
@@ -221,8 +225,13 @@ def main():
         raise SystemExit(f"{STAGE_OUT} missing -- run with --stage first")
     stage = json.loads(STAGE_OUT.read_text())
     order = np.array([stage["rank"][str(y)] for y in years], "float32")
+    out_path = OUT
+    if args.shuffle:
+        order = np.random.default_rng(args.shuffle).permutation(order)
+        out_path = OUT.with_name(f"exposure_shuffled_{args.shuffle}.geojson")
+        print(f"NEGATIVE CONTROL: stage order permuted with seed {args.shuffle}")
     print("stage order (low water first): " +
-          " < ".join(f"{y}" for y in sorted(years, key=lambda y: stage["rank"][str(y)])))
+          " < ".join(str(years[j]) for j in np.argsort(order)))
 
     tiles = json.loads(PRIORITY.read_text())["features"]
     tiles.sort(key=lambda f: (f["properties"]["res_m"], -f["properties"]["water_ha"]))
@@ -327,10 +336,11 @@ def main():
         if i % 25 == 0 or i == len(tiles):
             print(f"  {i}/{len(tiles)} tiles | {stats['blobs']} candidates")
 
-    OUT.write_text(json.dumps({
+    out_path.write_text(json.dumps({
         "type": "FeatureCollection",
         "properties": {
             "method": "lake-stage exposure",
+            "shuffled_seed": args.shuffle or None,
             "flights": {str(y): dates[y] for y in years},
             "stage_rank": stage["rank"],
             "rho_min": RHO_MIN,
@@ -342,7 +352,7 @@ def main():
         },
         "features": feats,
     }))
-    print(f"\n{len(feats)} exposure candidates -> {OUT}")
+    print(f"\n{len(feats)} exposure candidates -> {out_path}")
     print("stats:", dict(stats))
 
 
