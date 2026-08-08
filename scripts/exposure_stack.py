@@ -89,8 +89,21 @@ SHORE_BUFFER_M = 8.0      # keep the mixed shoreline pixel out of the statistics
 MIN_BLOB_M2 = 4.0         # below this, NAIP's JPEG artefacts start to qualify
 MAX_BLOB_M2 = 5000.0      # above this it is an island, and Nate does not want islands
 MIN_FLIGHTS = 5           # need most of the ladder present to rank anything
-RHO_MIN = 0.80            # Spearman(stage, NDWI anomaly); at n=6, rho>=0.886 is p<0.02
 DEEP_REF_MIN_PX = 200     # local water reference needs this many always-wet pixels
+
+# The signature is a STEP, not a ramp. There is no bottom signal in this water,
+# so a rock reads as dry land until the moment it drowns and then reads as plain
+# water -- it does not fade through intermediate values. Scoring it with a rank
+# correlation was wrong and the tests caught it: across six flights the order
+# *within* the dry group and *within* the wet group is noise, so a real rock
+# scores about 0.54 and a 0.80 gate throws it away.
+#
+# Three independent things have to hold instead, and each can fail on its own:
+DRY_SIGMA = 6.0           # dry flights must sit emphatically below local water
+WET_SIGMA = 3.0           # drowned flights must look like ordinary water, not
+                          # a permanently dark pixel -- that is weed or shadow
+MIN_WATER_SIGMA = 0.004   # floor on the noise estimate, so a freakishly uniform
+                          # tile cannot make every pixel look significant
 
 
 def naip_items(catalog, lake_ll):
@@ -190,6 +203,74 @@ def monotone_break(dry, order):
     return k.astype("int8"), clean
 
 
+def score_tile(stack, water, order):
+    """Everything the detector decides about one tile, with no network in the way.
+
+    Split out from the tile loop so it can be driven with a synthetic rock and
+    checked end to end. The wiring is where this would fail quietly: a reference
+    taken over the wrong pixels, or a sign convention flipped between the rho
+    test and the dry test, still yields a map -- just not of rocks.
+
+    Returns (candidate mask, rho, rung, reasons) where reasons carries the
+    counts that explain a tile producing nothing.
+    """
+    valid = np.isfinite(stack) & water
+    enough = valid.sum(axis=0) >= MIN_FLIGHTS
+    reasons = {"enough_px": int(enough.sum())}
+    if enough.sum() < 100:
+        return None, None, None, dict(reasons, skipped="too few flights over water")
+
+    # Reference: pixels this tile saw as water on every flight. Subtracting each
+    # flight's own water level removes that day's sun angle and radiometry --
+    # without it the correlation partly measures six days of weather, and since
+    # stage is seasonal that bias would not even be random.
+    always_wet = np.all(np.where(valid, stack, 1.0) > NDWI_LAND, axis=0) & enough
+    reasons["water_reference_px"] = int(always_wet.sum())
+    if always_wet.sum() < DEEP_REF_MIN_PX:
+        return None, None, None, dict(reasons, skipped="no stable water to reference")
+
+    ref = np.array([np.nanmedian(g[always_wet]) for g in stack], "float32")
+    anom = np.where(valid, stack - ref[:, None, None], np.nan)
+    sigma = max(float(np.nanstd(anom[:, always_wet])), MIN_WATER_SIGMA)
+    reasons["water_sigma"] = round(sigma, 5)
+
+    dry = valid & (stack < NDWI_LAND)
+    rung, clean = monotone_break(dry, order)
+    n_dry = dry.sum(axis=0)
+    n_obs = valid.sum(axis=0)
+
+    # Split each pixel's series at its own rung and measure both halves against
+    # the water this tile saw. A real rock is far below water while dry and
+    # indistinguishable from water once drowned; a weed bed fails the second
+    # test, and marginal glint fails the first.
+    with np.errstate(invalid="ignore"):
+        dry_mean = np.where(n_dry > 0, np.nansum(np.where(dry, anom, 0), axis=0)
+                            / np.maximum(n_dry, 1), np.nan)
+        wet = valid & ~dry
+        n_wet = wet.sum(axis=0)
+        wet_mean = np.where(n_wet > 0, np.nansum(np.where(wet, anom, 0), axis=0)
+                            / np.maximum(n_wet, 1), np.nan)
+    dry_margin = -dry_mean / sigma
+    wet_margin = np.abs(wet_mean) / sigma
+
+    cand = (
+        enough
+        & clean
+        & (n_dry >= 1)                   # never dry means never seen directly
+        & (n_dry < n_obs)                # dry in every flight is an island
+        & np.isfinite(dry_margin) & (dry_margin >= DRY_SIGMA)
+        & np.isfinite(wet_margin) & (wet_margin <= WET_SIGMA)
+    )
+    # Reported, not gated: with six flights the ordering inside each half is
+    # noise, so this is a diagnostic rather than a test.
+    rho = spearman_against(order, anom, valid)
+    reasons.update(monotone_pass=int((clean & (n_dry >= 1) & (n_dry < n_obs)).sum()),
+                   dry_pass=int((np.isfinite(dry_margin) & (dry_margin >= DRY_SIGMA)).sum()),
+                   wet_pass=int((np.isfinite(wet_margin) & (wet_margin <= WET_SIGMA)).sum()),
+                   candidates=int(cand.sum()))
+    return cand, {"rho": rho, "dry_margin": dry_margin, "wet_margin": wet_margin}, rung, reasons
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--stage", action="store_true",
@@ -263,35 +344,13 @@ def main():
             print(f"  tile {i}: read failed ({str(exc)[:70]})")
             continue
         stack = np.stack(grids)
+        cand, score, k, reasons = score_tile(stack, water_poly, order)
+        if cand is None:
+            stats[reasons["skipped"]] += 1
+            continue
         valid = np.isfinite(stack) & water_poly
-        enough = valid.sum(axis=0) >= MIN_FLIGHTS
-        if enough.sum() < 100:
-            stats["tile_too_cloudy"] += 1
-            continue
-
-        # Per-flight reference: water in this tile's own neighbourhood on this
-        # flight's own day. Removes the flight's sun angle and radiometry, which
-        # would otherwise be read as stage because stage is seasonal.
-        always_wet = np.all(np.where(valid, stack, 1.0) > NDWI_LAND, axis=0) & enough
-        if always_wet.sum() < DEEP_REF_MIN_PX:
-            stats["tile_no_water_reference"] += 1
-            continue
-        ref = np.array([np.nanmedian(g[always_wet]) for g in grids], "float32")
-        anom = stack - ref[:, None, None]
-
-        rho = spearman_against(order, np.where(valid, anom, np.nan), valid)
-        dry = valid & (stack < NDWI_LAND)
-        k, clean = monotone_break(dry, order)
-        n_dry = dry.sum(axis=0)
-
-        cand = (
-            enough
-            & np.isfinite(rho) & (rho >= RHO_MIN)
-            & clean
-            & (n_dry >= 1)
-            & (n_dry < valid.sum(axis=0))   # dry in every flight is an island
-        )
-        stats["cand_px"] += int(cand.sum())
+        n_dry = (valid & (stack < NDWI_LAND)).sum(axis=0)
+        stats["cand_px"] += reasons["candidates"]
         if not cand.any():
             continue
 
@@ -322,7 +381,9 @@ def main():
                     "method": "stage_exposure",
                     "area_m2": round(area, 1),
                     "res_m": res,
-                    "rho": round(float(np.median(rho[sel])), 3),
+                    "dry_sigma": round(float(np.median(score["dry_margin"][sel])), 2),
+                    "wet_sigma": round(float(np.median(score["wet_margin"][sel])), 2),
+                    "rho": round(float(np.nanmedian(score["rho"][sel])), 3),
                     "rung": rung,
                     "dry_in": [int(years[j]) for j in np.argsort(order)[:rung]],
                     "n_dry": int(np.median(n_dry[sel])),
@@ -343,7 +404,8 @@ def main():
             "shuffled_seed": args.shuffle or None,
             "flights": {str(y): dates[y] for y in years},
             "stage_rank": stage["rank"],
-            "rho_min": RHO_MIN,
+            "dry_sigma_min": DRY_SIGMA,
+            "wet_sigma_max": WET_SIGMA,
             "min_flights": MIN_FLIGHTS,
             "note": "rung is how many of the lowest-water flights the feature stood "
                     "dry in; depth is a rank, not a distance, until the stage ladder "

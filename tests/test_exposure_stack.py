@@ -14,7 +14,7 @@ import numpy as np
 import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
-from exposure_stack import monotone_break, spearman_against  # noqa: E402
+from exposure_stack import monotone_break, score_tile, spearman_against  # noqa: E402
 
 
 def px(*series):
@@ -111,3 +111,70 @@ class TestMonotoneBreak:
         assert int(k[0, 0]) == 2 and bool(clean[0, 0])
         assert int(k[1, 1]) == 6 and bool(clean[1, 1])
         assert not bool(clean[2, 2])
+
+
+class TestScoreTile:
+    """Drive the whole per-tile decision with a synthetic lake.
+
+    Unit tests on the rank maths cannot catch a wiring fault -- a reference
+    taken over the wrong pixels, or the dry test and the rho test disagreeing
+    about which way is up. Those still produce a map, just not of rocks.
+    """
+
+    def build(self, n_flights=6, size=60, seed=3):
+        """Open water everywhere, with per-flight brightness offsets to defeat
+        anything that reads the flights as interchangeable."""
+        rng = np.random.default_rng(seed)
+        stack = rng.normal(0.30, 0.005, (n_flights, size, size)).astype("float32")
+        stack += np.linspace(-0.03, 0.03, n_flights, dtype="float32")[:, None, None]
+        return stack, np.ones((size, size), bool), np.linspace(0, 1, n_flights, "float32")
+
+    def test_it_finds_a_rock_that_drowns_as_the_lake_rises(self):
+        stack, water, order = self.build()
+        stack[:3, 20:24, 20:24] = -0.5     # dry in the three lowest-water flights
+        cand, score, rung, reasons = score_tile(stack, water, order)
+        assert cand[21, 21], reasons
+        assert rung[21, 21] == 3
+        assert score["dry_margin"][21, 21] > 6.0
+
+    def test_it_ignores_open_water(self):
+        stack, water, order = self.build()
+        cand, _, _, reasons = score_tile(stack, water, order)
+        assert not cand.any(), reasons
+
+    def test_it_ignores_an_island_that_is_dry_in_every_flight(self):
+        stack, water, order = self.build()
+        stack[:, 30:36, 30:36] = -0.5
+        cand, _, _, _ = score_tile(stack, water, order)
+        assert not cand[33, 33]
+
+    def test_it_rejects_glint_that_is_dry_out_of_stage_order(self):
+        stack, water, order = self.build()
+        stack[[1, 4], 40:44, 40:44] = -0.5   # dry at high water, wet at low
+        cand, _, _, _ = score_tile(stack, water, order)
+        assert not cand[41, 41]
+
+    def test_a_uniform_per_flight_brightness_shift_does_not_manufacture_rocks(self):
+        # The failure this guards: if the flights were not referenced to their own
+        # water, a seasonal brightness trend would correlate with stage everywhere
+        # and the whole lake would score as hazard.
+        stack, water, order = self.build()
+        stack += np.linspace(-0.15, 0.15, len(order), dtype="float32")[:, None, None]
+        cand, _, _, reasons = score_tile(stack, water, order)
+        assert not cand.any(), reasons
+
+    def test_it_declines_a_tile_with_no_stable_water_to_reference(self):
+        stack, water, order = self.build(size=12)   # 144 px, under DEEP_REF_MIN_PX
+        cand, _, _, reasons = score_tile(stack, water, order)
+        assert cand is None
+        assert "skipped" in reasons
+
+    def test_it_rejects_a_pixel_that_stays_dark_after_it_drowns(self):
+        # Weed and shadow are dark in every flight. Monotone dryness alone would
+        # pass this; requiring the drowned half to look like ordinary water is
+        # what rejects it.
+        stack, water, order = self.build()
+        stack[:3, 50:54, 50:54] = -0.5
+        stack[3:, 50:54, 50:54] = 0.05     # still well below the ~0.30 water
+        cand, _, _, _ = score_tile(stack, water, order)
+        assert not cand[51, 51]
