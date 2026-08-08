@@ -77,18 +77,56 @@ ROOT = Path(__file__).resolve().parent.parent
 LAKE = ROOT / "data" / "lake.geojson"
 PRIORITY = ROOT / "data" / "priority.geojson"
 STAGE_OUT = ROOT / "data" / "naip_stage.json"
+STABILITY = ROOT / "data" / "stage_stability.json"
 OUT = ROOT / "data" / "exposure.geojson"
 
 STAC = "https://planetarycomputer.microsoft.com/api/stac/v1"
 WORKERS = int(os.environ.get("SHOALRUN_WORKERS", "8"))
 STAGE_RES = 5.0           # pass 1: coarse enough to be cheap, fine enough for area
+STAGE_COLLAR_M = 200.0    # measure past the mapped shoreline so high water can read high
 PAD = 32                  # tile overlap in px, so a blob on a seam is not halved
 
-NDWI_LAND = 0.0           # NAIP green-vs-NIR; water sits well above zero
+NDWI_LAND = 0.0           # dry/wet split for a single pixel: rock is negative
+
+# Measuring the lake's AREA needs its own threshold, and it cannot be a constant.
+# Two attempts failed in opposite directions. At NDWI > 0 the 2018 flight read
+# 286 ha above every other, and its extra ring had a median NDWI of +0.065 --
+# saturated ground inside the collar, not lake. Raising the bar to 0.40 then put
+# 2015 at 2186 ha, 63% of the lake, because it cut into that flight's real water.
+#
+# The flights are not radiometrically comparable: flight_quality.json has 2015 at
+# contrast 3.87 and 2021 at 25.74, and water medians of 90.6 against 47.3. One
+# number cannot separate land from water across a 6x spread in contrast, so the
+# split is chosen per flight from that flight's own histogram.
+#
+# It is estimated on a band straddling the mapped shoreline, not on the whole
+# window. Otsu assumes two modes of comparable weight; the full window is ~90%
+# water, so the between-class variance peaks *inside* the water distribution and
+# reports a lake that lost a third of its area. Within STAGE_BAND_M of the shore
+# the two classes are balanced and the split is well posed. Clamping the answer
+# instead was tried and merely pinned every flight to the clamp.
+STAGE_BAND_M = 150.0
+
+# A flight only joins the ladder if its measured area is insensitive to where the
+# land/water split is put. stage_stability.py sweeps the threshold from 0.15 to
+# 0.45 and watches each flight: five of the six move under 8% of their own area
+# across that range, and 2015 moves 49% -- it is the contrast-3.87 flight, and
+# its real water sits so low in NDWI that any defensible threshold eats it.
+# Three of the four order flips in the sweep involve 2015 and no other pair of
+# the remaining five flips except the two at the bottom, which are 44-94 ha apart
+# and genuinely tied.
+#
+# Expressed as a measured rule rather than a hand-picked exclusion, so a rerun on
+# another lake drops whatever its own bad flight turns out to be.
+STAGE_SENSITIVITY_MAX = 0.10
+STAGE_NDWI_SANE = (-0.2, 0.7)   # a split outside this is a broken scene, not a lake
 SHORE_BUFFER_M = 8.0      # keep the mixed shoreline pixel out of the statistics
 MIN_BLOB_M2 = 4.0         # below this, NAIP's JPEG artefacts start to qualify
 MAX_BLOB_M2 = 5000.0      # above this it is an island, and Nate does not want islands
-MIN_FLIGHTS = 5           # need most of the ladder present to rank anything
+MIN_FLIGHTS = 5           # a ladder with fewer rungs than this cannot be ordered
+MIN_OBS = 4               # per pixel. Distinct from MIN_FLIGHTS: with a 5-rung
+                          # ladder, demanding all 5 lets one bad scene erase a
+                          # pixel entirely, and NAIP quad seams do exactly that
 DEEP_REF_MIN_PX = 200     # local water reference needs this many always-wet pixels
 
 # The signature is a STEP, not a ramp. There is no bottom signal in this water,
@@ -104,6 +142,30 @@ WET_SIGMA = 3.0           # drowned flights must look like ordinary water, not
                           # a permanently dark pixel -- that is weed or shadow
 MIN_WATER_SIGMA = 0.004   # floor on the noise estimate, so a freakishly uniform
                           # tile cannot make every pixel look significant
+
+
+def otsu(values, sane=STAGE_NDWI_SANE):
+    """Otsu split between the land and water modes of one flight.
+
+    Feed it a balanced sample -- pixels straddling the shoreline. Given the whole
+    lake window it will do the wrong thing, correctly: with 90% of the sample in
+    one mode the optimal two-class split falls inside that mode.
+    """
+    lo, hi = sane
+    v = values[np.isfinite(values)]
+    if v.size < 1000:
+        return float(np.median(v)) if v.size else (lo + hi) / 2
+    edges = np.linspace(-1.0, 1.0, 257)
+    counts = np.histogram(v, bins=edges)[0].astype("float64")
+    total = counts.sum()
+    mids = (edges[:-1] + edges[1:]) / 2
+    w0 = np.cumsum(counts) / total
+    m0 = np.cumsum(counts * mids) / total
+    with np.errstate(invalid="ignore", divide="ignore"):
+        between = (m0[-1] * w0 - m0) ** 2 / (w0 * (1 - w0))
+    between[~np.isfinite(between)] = -1
+    thr = float(mids[int(np.argmax(between))])
+    return min(max(thr, lo), hi)
 
 
 def naip_items(catalog, lake_ll):
@@ -215,7 +277,7 @@ def score_tile(stack, water, order):
     counts that explain a tile producing nothing.
     """
     valid = np.isfinite(stack) & water
-    enough = valid.sum(axis=0) >= MIN_FLIGHTS
+    enough = valid.sum(axis=0) >= MIN_OBS
     reasons = {"enough_px": int(enough.sum())}
     if enough.sum() < 100:
         return None, None, None, dict(reasons, skipped="too few flights over water")
@@ -305,6 +367,13 @@ def main():
     if not STAGE_OUT.exists():
         raise SystemExit(f"{STAGE_OUT} missing -- run with --stage first")
     stage = json.loads(STAGE_OUT.read_text())
+    dropped = [y for y in years if str(y) not in stage["rank"]]
+    years = [y for y in years if str(y) in stage["rank"]]
+    if dropped:
+        print(f"excluded by the stability check: {dropped} "
+              f"(see naip_stage.json 'rejected')")
+    if len(years) < MIN_FLIGHTS:
+        raise SystemExit(f"only {len(years)} flights in the ladder; need >= {MIN_FLIGHTS}")
     order = np.array([stage["rank"][str(y)] for y in years], "float32")
     out_path = OUT
     if args.shuffle:
@@ -423,44 +492,110 @@ def measure_stage(by_year, years, dates, lake, inner, crs):
 
     Measured from the flight itself rather than interpolated from a satellite
     pass days away -- on a regulated lake the level can move between them.
+
+    Measured over a collar *outside* the mapped shoreline, not inside it. The
+    first version counted water within `lake.buffer(-8 m)` and so could never
+    report more water than the OSM polygon holds: five flights came back within
+    26 ha of that 3369 ha ceiling, which is a saturated ruler, not a flat lake.
+    High water has to be able to read as high.
+
+    The collar lets the outlet river and the next pond over into frame, so the
+    count is restricted to the connected water body containing the lake's
+    deepest-inland pixel.
     """
-    minx, miny, maxx, maxy = lake.bounds
     res = STAGE_RES
+    window_poly = lake.buffer(STAGE_COLLAR_M)
+    minx, miny, maxx, maxy = window_poly.bounds
     W = int(np.ceil((maxx - minx) / res))
     H = int(np.ceil((maxy - miny) / res))
     transform = from_origin(minx, maxy, res, res)
-    water_poly = rasterize([(mapping(inner), 1)], out_shape=(H, W),
-                           transform=transform, dtype="uint8").astype(bool)
-    print(f"stage grid {W} x {H} @ {res} m ({W*H/1e6:.1f} M px), "
-          f"{water_poly.sum()*res*res/1e4:.0f} ha inside the shoreline")
+    window = rasterize([(mapping(window_poly), 1)], out_shape=(H, W),
+                       transform=transform, dtype="uint8").astype(bool)
+    mapped = rasterize([(mapping(lake), 1)], out_shape=(H, W),
+                       transform=transform, dtype="uint8").astype(bool)
+    mapped_ha = float(mapped.sum()) * res * res / 1e4
 
-    areas, cover = {}, {}
+    # Seed the flood fill at the water furthest from any shore. The polygon
+    # centroid would not do -- this lake's centroid lands on an island.
+    seed = np.unravel_index(int(np.argmax(ndimage.distance_transform_edt(mapped))),
+                            mapped.shape)
+    # A band straddling the mapped shoreline, where land and water are present in
+    # comparable amounts. The per-flight threshold is estimated here and applied
+    # to the whole window.
+    shore_band = ((ndimage.distance_transform_edt(mapped) * res <= STAGE_BAND_M)
+                  | (ndimage.distance_transform_edt(~mapped) * res <= STAGE_BAND_M)) & window
+    print(f"stage grid {W} x {H} @ {res} m ({W*H/1e6:.1f} M px); mapped lake "
+          f"{mapped_ha:.0f} ha, measured inside a {STAGE_COLLAR_M:.0f} m collar")
+    print(f"threshold band: {shore_band.sum() * res * res / 1e4:.0f} ha straddling "
+          f"the shoreline ({100 * (mapped & shore_band).sum() / max(1, shore_band.sum()):.0f}% "
+          f"of it inside the mapped lake)")
+
+    areas, cover, thresholds = {}, {}, {}
     for y in years:
         ndwi = flight_ndwi(by_year[y], transform, H, W, crs)
-        seen = np.isfinite(ndwi) & water_poly
-        cover[y] = float(seen.sum() / max(1, water_poly.sum()))
-        wet = (ndwi > NDWI_LAND) & seen
+        seen = np.isfinite(ndwi) & window
+        cover[y] = float(seen.sum() / max(1, window.sum()))
+        thr = otsu(ndwi[seen & shore_band])
+        thresholds[y] = round(thr, 4)
+        wet = (ndwi > thr) & seen
+        lab, _ = ndimage.label(wet)
+        home = lab[seed]
+        if home == 0:
+            raise SystemExit(f"{y}: the lake's deepest point did not classify as water")
+        wet = lab == home
         # Scale to full coverage so a partly-clouded flight is not read as low water.
         areas[y] = float(wet.sum()) * res * res / 1e4 / max(cover[y], 1e-6)
-        print(f"  {y} ({dates[y]}): {areas[y]:7.1f} ha water, "
-              f"{100*cover[y]:.1f}% of the basin observed")
+        print(f"  {y} ({dates[y]}): {areas[y]:7.1f} ha water "
+              f"(NDWI split {thr:+.3f}), "
+              f"{100*areas[y]/mapped_ha:.1f}% of the mapped lake")
 
-    lo = min(areas.values())
-    hi = max(areas.values())
-    rank = {str(y): round((areas[y] - lo) / (hi - lo), 4) for y in years}
+    # Reject flights whose area is a function of the threshold rather than the
+    # lake. Without the sweep on disk everything is kept, and the ladder is only
+    # as trustworthy as the run that produced it -- so say which happened.
+    usable, rejected = list(years), {}
+    if STABILITY.exists():
+        sweep = json.loads(STABILITY.read_text())["area_ha"]
+        for y in years:
+            row = np.array(sweep.get(str(y), []), "float64")
+            row = row[np.isfinite(row)]
+            if row.size < 3:
+                continue
+            swing = float((row.max() - row.min()) / max(np.median(row), 1e-9))
+            if swing > STAGE_SENSITIVITY_MAX:
+                rejected[str(y)] = round(swing, 4)
+                usable.remove(y)
+        for y, sw in rejected.items():
+            print(f"  DROPPED {y}: area moves {100*sw:.0f}% across the threshold "
+                  f"sweep -- that is the method moving, not the lake")
+    else:
+        print(f"  (no {STABILITY.name} on disk -- keeping all flights unvetted)")
+    if len(usable) < MIN_FLIGHTS:
+        raise SystemExit(f"only {len(usable)} flights survive the stability check; "
+                         f"need >= {MIN_FLIGHTS}")
+
+    lo = min(areas[y] for y in usable)
+    hi = max(areas[y] for y in usable)
+    rank = {str(y): round((areas[y] - lo) / (hi - lo), 4) for y in usable}
     STAGE_OUT.write_text(json.dumps({
         "res_m": res,
-        "dates": {str(y): dates[y] for y in years},
-        "area_ha": {str(y): round(areas[y], 1) for y in years},
-        "coverage": {str(y): round(cover[y], 4) for y in years},
+        "dates": {str(y): dates[y] for y in usable},
+        "area_ha": {str(y): round(areas[y], 1) for y in usable},
+        "coverage": {str(y): round(cover[y], 4) for y in usable},
+        "rejected": rejected,
+        "sensitivity_max": STAGE_SENSITIVITY_MAX,
         "rank": rank,
         "spread_ha": round(hi - lo, 1),
+        "mapped_ha": round(mapped_ha, 1),
+        "collar_m": STAGE_COLLAR_M,
+        "ndwi_split": thresholds,
+        "ndwi_sane": list(STAGE_NDWI_SANE),
+        "band_m": STAGE_BAND_M,
         "note": "rank 0 = lowest water observed, 1 = highest; area is a monotone "
                 "proxy for stage on a fixed basin",
     }, indent=1))
-    print(f"\nspread {hi - lo:.1f} ha across the six flights")
+    print(f"\nspread {hi - lo:.1f} ha across {len(usable)} usable flights")
     print("low water -> high water: " +
-          " < ".join(str(y) for y in sorted(years, key=lambda y: areas[y])))
+          " < ".join(str(y) for y in sorted(usable, key=lambda y: areas[y])))
     print(f"wrote {STAGE_OUT}")
 
 

@@ -178,3 +178,58 @@ class TestScoreTile:
         stack[3:, 50:54, 50:54] = 0.05     # still well below the ~0.30 water
         cand, _, _, _ = score_tile(stack, water, order)
         assert not cand[51, 51]
+
+
+class TestOtsu:
+    """The threshold that decides how big the lake is.
+
+    Two fixed values failed in opposite directions on real flights -- 0.0 counted
+    marsh as lake, 0.40 cut a third off the 2015 flight -- so this is the piece
+    the stage ladder now rests on.
+    """
+
+    def bimodal(self, land_mean, water_mean, land_frac=0.45, n=200000, seed=1):
+        rng = np.random.default_rng(seed)
+        n_land = int(n * land_frac)
+        return np.concatenate([rng.normal(land_mean, 0.05, n_land),
+                               rng.normal(water_mean, 0.05, n - n_land)]).astype("float32")
+
+    def test_it_lands_between_the_two_modes(self):
+        from exposure_stack import otsu
+        thr = otsu(self.bimodal(-0.3, 0.8))
+        assert -0.3 < thr < 0.8
+
+    def test_it_separates_both_a_bright_flight_and_a_dim_one(self):
+        # 2015's water reads far dimmer than 2021's. What matters is not where
+        # the split lands -- anywhere in the empty gap classifies identically --
+        # but that both flights come out correctly separated.
+        from exposure_stack import otsu
+        for water_mean in (0.30, 0.55, 0.85):
+            vals = self.bimodal(-0.3, water_mean)
+            thr = otsu(vals)
+            assert -0.3 < thr < water_mean
+            assert float(np.mean(vals[vals > water_mean - 0.05] > thr)) > 0.99
+            assert float(np.mean(vals[vals < -0.25] < thr)) > 0.99
+
+    def test_a_balanced_sample_keeps_essentially_all_the_water(self):
+        # The 2015 failure was a split landing inside the water distribution and
+        # discarding a third of the lake. On a balanced sample it must not.
+        from exposure_stack import otsu
+        vals = self.bimodal(-0.3, 0.8)
+        thr = otsu(vals)
+        assert float(np.mean(vals[vals > 0.5] > thr)) > 0.99
+
+    def test_overlapping_modes_still_keep_the_water(self):
+        # The 2015 flight's contrast is 3.87 against 2021's 25.74, so its land and
+        # water modes overlap instead of leaving a clean gap. That is the case a
+        # fixed 0.40 threshold got wrong by discarding a third of the lake.
+        from exposure_stack import otsu
+        rng = np.random.default_rng(4)
+        vals = np.concatenate([rng.normal(-0.05, 0.18, 90000),
+                               rng.normal(0.30, 0.18, 110000)]).astype("float32")
+        thr = otsu(vals)
+        assert float(np.mean(vals[vals > 0.45] > thr)) > 0.95
+
+    def test_too_few_pixels_returns_the_midpoint_rather_than_guessing(self):
+        from exposure_stack import otsu
+        assert otsu(np.array([0.5, 0.2], "float32")) == pytest.approx(0.35)
