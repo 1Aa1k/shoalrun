@@ -340,6 +340,10 @@ def main():
     ap.add_argument("--res", type=float, default=None,
                     help="force one resolution instead of the per-tile priority")
     ap.add_argument("--limit", type=int, default=0, help="stop after N tiles (smoke test)")
+    ap.add_argument("--control", action="store_true",
+                    help="positive control: scan only the tiles holding the "
+                         "reference rocks. Finding nothing there means the "
+                         "detector is broken, not that the lake is clear.")
     ap.add_argument("--shuffle", type=int, default=0, metavar="SEED",
                     help="negative control: permute the stage order. If this finds "
                          "as much as the real order does, the ordering is doing "
@@ -384,6 +388,19 @@ def main():
           " < ".join(str(years[j]) for j in np.argsort(order)))
 
     tiles = json.loads(PRIORITY.read_text())["features"]
+    if args.control:
+        rocks = json.loads((ROOT / "data" / "reference_rocks.geojson").read_text())
+        pts = [shape(ft["geometry"]) for ft in rocks["features"]
+               if (ft.get("geometry") or {}).get("type") == "Point"]
+        keep = []
+        for tf in tiles:
+            poly = shape(tf["geometry"]).buffer(0.0008)   # ~60 m of slack
+            if any(poly.contains(pt) for pt in pts):
+                keep.append(tf)
+        tiles = keep
+        suffix = f"_shuffled_{args.shuffle}" if args.shuffle else ""
+        out_path = OUT.with_name(f"exposure_control{suffix}.geojson")
+        print(f"POSITIVE CONTROL: {len(tiles)} tiles hold {len(pts)} known rocks")
     tiles.sort(key=lambda f: (f["properties"]["res_m"], -f["properties"]["water_ha"]))
     if args.limit:
         tiles = tiles[:args.limit]
@@ -419,7 +436,10 @@ def main():
             continue
         valid = np.isfinite(stack) & water_poly
         n_dry = (valid & (stack < NDWI_LAND)).sum(axis=0)
+        for key in ("enough_px", "monotone_pass", "dry_pass", "wet_pass"):
+            stats[key] += reasons.get(key, 0)
         stats["cand_px"] += reasons["candidates"]
+        stats["tiles_scored"] += 1
         if not cand.any():
             continue
 

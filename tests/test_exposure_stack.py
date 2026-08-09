@@ -233,3 +233,53 @@ class TestOtsu:
     def test_too_few_pixels_returns_the_midpoint_rather_than_guessing(self):
         from exposure_stack import otsu
         assert otsu(np.array([0.5, 0.2], "float32")) == pytest.approx(0.35)
+
+
+class TestDrySetScoring:
+    """The ordering is now inferred from the imagery, so the inference needs teeth.
+
+    Picking the best of 120 orderings always produces a winner. What separates a
+    real lake level from that is (a) beating the closed-form random expectation
+    and (b) dry-sets that nest. These check the arithmetic both rest on.
+    """
+
+    def score(self, counts, perm, n):
+        mask, s = 0, 0
+        for idx in perm[:-1]:
+            mask |= 1 << idx
+            s += counts[mask]
+        return s
+
+    def test_a_clean_nested_chain_is_won_by_the_ordering_that_built_it(self):
+        from itertools import permutations
+        n = 5
+        counts = np.zeros(1 << n, "int64")
+        # Pixels dry in {0}, {0,1}, {0,1,2}, {0,1,2,3} -- a lake dropping in order.
+        for k in range(1, n):
+            counts[(1 << k) - 1] = 1000
+        best = max(permutations(range(n)), key=lambda p: self.score(counts, p, n))
+        assert list(best[:4]) == [0, 1, 2, 3]
+
+    def test_the_closed_form_null_matches_brute_force(self):
+        from itertools import permutations
+        from math import comb
+        rng = np.random.default_rng(11)
+        n = 5
+        counts = np.zeros(1 << n, "int64")
+        for m in range(1, (1 << n) - 1):
+            counts[m] = int(rng.integers(0, 500))
+        expected = sum(counts[m] / comb(n, bin(m).count("1"))
+                       for m in range(1 << n) if counts[m])
+        brute = np.mean([self.score(counts, p, n) for p in permutations(range(n))])
+        assert expected == pytest.approx(brute, rel=1e-9)
+
+    def test_non_nesting_sets_cannot_all_be_satisfied_at_once(self):
+        # {0,1} and {1,2} overlap without nesting -- no single ordering makes both
+        # a prefix, which is exactly why weather cannot masquerade as a lake level.
+        from itertools import permutations
+        n = 5
+        counts = np.zeros(1 << n, "int64")
+        counts[0b00011] = 1000
+        counts[0b00110] = 1000
+        best = max(self.score(counts, p, n) for p in permutations(range(n)))
+        assert best == 1000
