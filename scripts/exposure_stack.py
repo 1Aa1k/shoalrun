@@ -137,8 +137,8 @@ DEEP_REF_MIN_PX = 200     # local water reference needs this many always-wet pix
 # scores about 0.54 and a 0.80 gate throws it away.
 #
 # Three independent things have to hold instead, and each can fail on its own:
-DRY_SIGMA = 6.0           # dry flights must sit emphatically below local water
-WET_SIGMA = 3.0           # drowned flights must look like ordinary water, not
+DRY_SIGMA = float(os.environ.get("SHOALRUN_DRY_SIGMA", "6.0"))   # dry flights must sit emphatically below local water
+WET_SIGMA = float(os.environ.get("SHOALRUN_WET_SIGMA", "3.0"))   # drowned flights must look like ordinary water, not
                           # a permanently dark pixel -- that is weed or shadow
 MIN_WATER_SIGMA = 0.004   # floor on the noise estimate, so a freakishly uniform
                           # tile cannot make every pixel look significant
