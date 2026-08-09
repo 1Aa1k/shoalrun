@@ -1,0 +1,378 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Solar survey boat — to scale</title>
+<style>
+  :root {
+    --bg: #0d1117; --panel: #161b22; --line: #30363d;
+    --ink: #e6edf3; --dim: #8b949e; --hi: #58a6ff; --warn: #f0883e;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink);
+    font: 13px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; overflow: hidden; }
+  canvas { display: block; width: 100vw; height: 100vh; cursor: grab; }
+  canvas:active { cursor: grabbing; }
+  #hud { position: fixed; top: 0; left: 0; padding: 14px 16px; pointer-events: none; }
+  #hud h1 { margin: 0 0 2px; font-size: 15px; font-weight: 600; letter-spacing: .01em; }
+  #hud p { margin: 0; color: var(--dim); font-size: 12px; }
+  #panel { position: fixed; top: 14px; right: 16px; background: color-mix(in srgb, var(--panel) 92%, transparent);
+    border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; min-width: 208px; }
+  #panel b { display: block; font-size: 11px; text-transform: uppercase; letter-spacing: .08em;
+    color: var(--dim); font-weight: 600; margin: 0 0 7px; }
+  label { display: flex; align-items: center; gap: 8px; padding: 2px 0; cursor: pointer; }
+  input[type=checkbox] { accent-color: var(--hi); margin: 0; }
+  #dims { position: fixed; left: 16px; bottom: 14px; background: color-mix(in srgb, var(--panel) 92%, transparent);
+    border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; }
+  #dims table { border-collapse: collapse; font-size: 12px; }
+  #dims td { padding: 1px 0; }
+  #dims td:first-child { color: var(--dim); padding-right: 16px; }
+  #dims td:last-child { text-align: right; }
+  .key { display: inline-block; width: 9px; height: 9px; border-radius: 2px; margin-right: 6px;
+    vertical-align: -1px; }
+  #hint { position: fixed; right: 16px; bottom: 14px; color: var(--dim); font-size: 11px; }
+</style>
+
+<canvas id="c"></canvas>
+
+<div id="hud">
+  <h1>Solar survey boat</h1>
+  <p>1.8 m catamaran &middot; drag to orbit &middot; scroll to zoom</p>
+</div>
+
+<div id="panel">
+  <b>Show</b>
+  <label><input type="checkbox" id="t-water" checked> waterline &amp; draft</label>
+  <label><input type="checkbox" id="t-human" checked> 1.8 m person for scale</label>
+  <label><input type="checkbox" id="t-solar" checked> solar deck</label>
+  <label><input type="checkbox" id="t-sonar" checked> transducer strut</label>
+  <label><input type="checkbox" id="t-deck" checked> deck (uncheck to see hulls)</label>
+  <label><input type="checkbox" id="t-grid" checked> 1 m grid</label>
+  <label><input type="checkbox" id="t-spin" checked> auto-rotate</label>
+</div>
+
+<div id="dims">
+  <table>
+    <tr><td>length overall</td><td>1.80 m</td></tr>
+    <tr><td>beam</td><td>0.90 m</td></tr>
+    <tr><td>draft</td><td>0.12 m</td></tr>
+    <tr><td>solar deck</td><td>1.2 m&sup2; &asymp; 240 W</td></tr>
+    <tr><td>draw at survey speed</td><td>&asymp; 30 W</td></tr>
+    <tr><td>survey speed</td><td>1.2 m/s</td></tr>
+  </table>
+</div>
+
+<div id="hint">wavelength here is 6&ndash;9 m &mdash; 3&ndash;5&times; hull length, so it contours rather than slams</div>
+
+<script>
+// ---------------------------------------------------------------------------
+// Minimal WebGL, no dependencies -- matching how the rest of this repo does 3D
+// (mat3d.js / scene3d.js are hand-rolled too). Everything below is metres, so
+// what you see is the real size of the thing.
+// ---------------------------------------------------------------------------
+
+const LOA = 1.80, BEAM = 0.90, DRAFT = 0.12;
+const HULL_W = 0.24, HULL_H = 0.26;          // per hull
+const HULL_SEP = BEAM - HULL_W;              // centre-to-centre
+
+// --- tiny mat4 -------------------------------------------------------------
+const M = {
+  ident: () => [1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1],
+  mul(a, b) {
+    const o = new Array(16);
+    for (let r = 0; r < 4; r++) for (let c = 0; c < 4; c++) {
+      let s = 0;
+      for (let k = 0; k < 4; k++) s += a[k * 4 + r] * b[c * 4 + k];
+      o[c * 4 + r] = s;
+    }
+    return o;
+  },
+  trans: (x, y, z) => [1,0,0,0, 0,1,0,0, 0,0,1,0, x,y,z,1],
+  scale: (x, y, z) => [x,0,0,0, 0,y,0,0, 0,0,z,0, 0,0,0,1],
+  rotY(a) { const c = Math.cos(a), s = Math.sin(a);
+    return [c,0,-s,0, 0,1,0,0, s,0,c,0, 0,0,0,1]; },
+  rotX(a) { const c = Math.cos(a), s = Math.sin(a);
+    return [1,0,0,0, 0,c,s,0, 0,-s,c,0, 0,0,0,1]; },
+  rotZ(a) { const c = Math.cos(a), s = Math.sin(a);
+    return [c,s,0,0, -s,c,0,0, 0,0,1,0, 0,0,0,1]; },
+  persp(fovy, asp, n, f) {
+    const t = 1 / Math.tan(fovy / 2);
+    return [t/asp,0,0,0, 0,t,0,0, 0,0,(f+n)/(n-f),-1, 0,0,2*f*n/(n-f),0];
+  },
+  look(eye, at, up) {
+    const sub = (a,b) => [a[0]-b[0], a[1]-b[1], a[2]-b[2]];
+    const nrm = v => { const l = Math.hypot(...v) || 1; return [v[0]/l, v[1]/l, v[2]/l]; };
+    const crs = (a,b) => [a[1]*b[2]-a[2]*b[1], a[2]*b[0]-a[0]*b[2], a[0]*b[1]-a[1]*b[0]];
+    const z = nrm(sub(eye, at)), x = nrm(crs(up, z)), y = crs(z, x);
+    return [x[0],y[0],z[0],0, x[1],y[1],z[1],0, x[2],y[2],z[2],0,
+            -(x[0]*eye[0]+x[1]*eye[1]+x[2]*eye[2]),
+            -(y[0]*eye[0]+y[1]*eye[1]+y[2]*eye[2]),
+            -(z[0]*eye[0]+z[1]*eye[1]+z[2]*eye[2]), 1];
+  },
+};
+
+// --- geometry builders (positions + normals, triangles) --------------------
+function emitQuad(P, N, a, b, c, d) {
+  const n = normalOf(a, b, c);
+  for (const v of [a, b, c, a, c, d]) { P.push(...v); N.push(...n); }
+}
+function normalOf(a, b, c) {
+  const u = [b[0]-a[0], b[1]-a[1], b[2]-a[2]], v = [c[0]-a[0], c[1]-a[1], c[2]-a[2]];
+  const n = [u[1]*v[2]-u[2]*v[1], u[2]*v[0]-u[0]*v[2], u[0]*v[1]-u[1]*v[0]];
+  const l = Math.hypot(...n) || 1;
+  return [n[0]/l, n[1]/l, n[2]/l];
+}
+
+function box(w, h, d) {
+  const P = [], N = [], x = w/2, y = h/2, z = d/2;
+  const v = [[-x,-y,-z],[x,-y,-z],[x,y,-z],[-x,y,-z],[-x,-y,z],[x,-y,z],[x,y,z],[-x,y,z]];
+  emitQuad(P,N, v[4],v[5],v[6],v[7]); emitQuad(P,N, v[1],v[0],v[3],v[2]);
+  emitQuad(P,N, v[0],v[4],v[7],v[3]); emitQuad(P,N, v[5],v[1],v[2],v[6]);
+  emitQuad(P,N, v[3],v[7],v[6],v[2]); emitQuad(P,N, v[0],v[1],v[5],v[4]);
+  return { P, N };
+}
+
+/* A lofted hull: cross-sections swept bow to stern. The bow tapers to a stem and
+   the stern keeps a transom, which is what makes it read as a boat rather than a
+   pontoon -- and a real hull is what puts the transducer in clean water. */
+function hull(len, wid, dep) {
+  const NS = 30, NR = 14, P = [], N = [];
+  const taper = t => {            // t: 0 bow -> 1 stern
+    const bow = Math.min(1, Math.pow(t / 0.42, 0.62));
+    const tail = 1 - 0.18 * Math.pow(Math.max(0, t - 0.82) / 0.18, 2);
+    return bow * tail;
+  };
+  const ring = (t) => {
+    const k = taper(t), pts = [];
+    for (let j = 0; j <= NR; j++) {
+      const a = Math.PI * j / NR;
+      pts.push([ (t - 0.5) * len,
+                 -dep * Math.sin(a) * (0.55 + 0.45 * k),
+                  (wid / 2) * Math.cos(a) * k ]);
+    }
+    return pts;
+  };
+  let prev = ring(0);
+  for (let i = 1; i <= NS; i++) {
+    const cur = ring(i / NS);
+    for (let j = 0; j < NR; j++) emitQuad(P, N, prev[j], cur[j], cur[j+1], prev[j+1]);
+    // deck: close the top between the two rails
+    emitQuad(P, N,
+      [prev[0][0], 0, prev[0][2]], [cur[0][0], 0, cur[0][2]],
+      [cur[NR][0], 0, cur[NR][2]], [prev[NR][0], 0, prev[NR][2]]);
+    prev = cur;
+  }
+  return { P, N };
+}
+
+function cyl(r, h, axis = 'y') {
+  const NR = 18, P = [], N = [];
+  const put = (a, y) => {
+    const c = Math.cos(a) * r, s = Math.sin(a) * r;
+    return axis === 'y' ? [c, y, s] : axis === 'x' ? [y, c, s] : [c, s, y];
+  };
+  for (let i = 0; i < NR; i++) {
+    const a0 = 2*Math.PI*i/NR, a1 = 2*Math.PI*(i+1)/NR;
+    emitQuad(P, N, put(a0, -h/2), put(a1, -h/2), put(a1, h/2), put(a0, h/2));
+  }
+  return { P, N };
+}
+
+/* A blocky 1.8 m person. Not decoration -- the whole reason for this page is
+   that "1.8 metres" means nothing until it is standing next to something. */
+function person() {
+  const P = [], N = [], parts = [
+    [box(0.34, 0.60, 0.20), 0, 1.12, 0],   // torso
+    [box(0.20, 0.24, 0.19), 0, 1.54, 0],   // head
+    [box(0.11, 0.52, 0.13), -0.22, 1.14, 0], [box(0.11, 0.52, 0.13), 0.22, 1.14, 0],
+    [box(0.14, 0.84, 0.16), -0.10, 0.42, 0], [box(0.14, 0.84, 0.16), 0.10, 0.42, 0],
+  ];
+  for (const [g, x, y, z] of parts) {
+    for (let i = 0; i < g.P.length; i += 3) {
+      P.push(g.P[i] + x, g.P[i+1] + y, g.P[i+2] + z);
+      N.push(g.N[i], g.N[i+1], g.N[i+2]);
+    }
+  }
+  return { P, N };
+}
+
+// --- GL --------------------------------------------------------------------
+const cv = document.getElementById('c');
+const gl = cv.getContext('webgl', { antialias: true, alpha: false });
+if (!gl) document.body.innerHTML = '<p style="padding:24px">WebGL unavailable.</p>';
+
+const prog = (() => {
+  const vs = `
+    attribute vec3 aPos; attribute vec3 aNrm;
+    uniform mat4 uMVP, uModel; varying vec3 vN; varying vec3 vP;
+    void main() { vN = mat3(uModel) * aNrm; vP = (uModel * vec4(aPos,1.)).xyz;
+      gl_Position = uMVP * vec4(aPos, 1.); }`;
+  const fs = `
+    precision mediump float; varying vec3 vN; varying vec3 vP;
+    uniform vec3 uCol; uniform float uAlpha;
+    void main() {
+      vec3 n = normalize(vN);
+      vec3 L = normalize(vec3(0.45, 0.85, 0.35));
+      float d = max(dot(n, L), 0.0);
+      float rim = pow(1.0 - max(dot(n, normalize(-vP)), 0.0), 2.5);
+      vec3 c = uCol * (0.34 + 0.66 * d) + vec3(0.10, 0.14, 0.20) * rim;
+      gl_FragColor = vec4(c, uAlpha);
+    }`;
+  const mk = (t, s) => { const o = gl.createShader(t); gl.shaderSource(o, s);
+    gl.compileShader(o);
+    if (!gl.getShaderParameter(o, gl.COMPILE_STATUS)) console.error(gl.getShaderInfoLog(o));
+    return o; };
+  const p = gl.createProgram();
+  gl.attachShader(p, mk(gl.VERTEX_SHADER, vs));
+  gl.attachShader(p, mk(gl.FRAGMENT_SHADER, fs));
+  gl.linkProgram(p); gl.useProgram(p);
+  return p;
+})();
+
+const loc = {
+  pos: gl.getAttribLocation(prog, 'aPos'), nrm: gl.getAttribLocation(prog, 'aNrm'),
+  mvp: gl.getUniformLocation(prog, 'uMVP'), model: gl.getUniformLocation(prog, 'uModel'),
+  col: gl.getUniformLocation(prog, 'uCol'), alpha: gl.getUniformLocation(prog, 'uAlpha'),
+};
+
+function upload(g) {
+  const vb = gl.createBuffer(), nb = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, vb);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(g.P), gl.STATIC_DRAW);
+  gl.bindBuffer(gl.ARRAY_BUFFER, nb);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(g.N), gl.STATIC_DRAW);
+  return { vb, nb, n: g.P.length / 3 };
+}
+
+function lines(seg) {   // seg: flat array of xyz pairs
+  const vb = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, vb);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(seg), gl.STATIC_DRAW);
+  return { vb, n: seg.length / 3 };
+}
+
+const gridSeg = (() => {
+  const s = [], R = 3;
+  for (let i = -R; i <= R; i++) {
+    s.push(i, 0, -R, i, 0, R); s.push(-R, 0, i, R, 0, i);
+  }
+  return s;
+})();
+
+const mesh = {
+  hull: upload(hull(LOA, HULL_W, HULL_H)),
+  deck: upload(box(LOA * 0.80, 0.035, HULL_SEP + HULL_W * 0.55)),
+  solar: upload(box(LOA * 0.72, 0.014, (HULL_SEP + HULL_W * 0.55) * 0.9)),
+  pod: upload(box(0.26, 0.14, 0.20)),
+  strut: upload(box(0.05, 0.40, 0.09)),
+  duck: upload(box(0.10, 0.08, 0.13)),
+  thruster: upload(cyl(0.045, 0.20, 'x')),
+  mast: upload(cyl(0.012, 0.62, 'y')),
+  flag: upload(box(0.005, 0.14, 0.20)),
+  beacon: upload(box(0.10, 0.07, 0.09)),
+  person: upload(person()),
+  water: upload(box(7.0, 0.004, 7.0)),
+  grid: lines(gridSeg),
+};
+
+const COL = {
+  hull:  [0.86, 0.36, 0.13],   // orange -- it has to be found again
+  deck:  [0.30, 0.34, 0.40],
+  solar: [0.07, 0.12, 0.26],
+  dark:  [0.16, 0.19, 0.24],
+  sonar: [0.35, 0.65, 1.00],
+  beacon:[0.94, 0.76, 0.25],
+  person:[0.42, 0.47, 0.55],
+  water: [0.10, 0.32, 0.45],
+  grid:  [0.18, 0.22, 0.28],
+};
+
+let yaw = -0.95, pitch = 0.52, dist = 4.8, spin = true;
+let drag = null;
+cv.addEventListener('mousedown', e => { drag = [e.clientX, e.clientY]; spin = false;
+  document.getElementById('t-spin').checked = false; });
+addEventListener('mouseup', () => drag = null);
+addEventListener('mousemove', e => {
+  if (!drag) return;
+  yaw += (e.clientX - drag[0]) * 0.008;
+  pitch = Math.max(-0.15, Math.min(1.35, pitch + (e.clientY - drag[1]) * 0.006));
+  drag = [e.clientX, e.clientY];
+});
+cv.addEventListener('wheel', e => {
+  e.preventDefault();
+  dist = Math.max(1.6, Math.min(11, dist * (1 + Math.sign(e.deltaY) * 0.09)));
+}, { passive: false });
+
+const show = {};
+for (const id of ['water','human','solar','sonar','deck','grid','spin']) {
+  const el = document.getElementById('t-' + id);
+  show[id] = el.checked;
+  el.addEventListener('change', () => { show[id] = el.checked; if (id === 'spin') spin = el.checked; });
+}
+
+function draw(m, model, col, alpha = 1, mode) {
+  gl.bindBuffer(gl.ARRAY_BUFFER, m.vb);
+  gl.enableVertexAttribArray(loc.pos);
+  gl.vertexAttribPointer(loc.pos, 3, gl.FLOAT, false, 0, 0);
+  if (m.nb) {
+    gl.bindBuffer(gl.ARRAY_BUFFER, m.nb);
+    gl.enableVertexAttribArray(loc.nrm);
+    gl.vertexAttribPointer(loc.nrm, 3, gl.FLOAT, false, 0, 0);
+  } else {
+    gl.disableVertexAttribArray(loc.nrm);
+    gl.vertexAttrib3f(loc.nrm, 0, 1, 0);
+  }
+  gl.uniformMatrix4fv(loc.model, false, new Float32Array(model));
+  gl.uniformMatrix4fv(loc.mvp, false, new Float32Array(M.mul(VP, model)));
+  gl.uniform3fv(loc.col, col);
+  gl.uniform1f(loc.alpha, alpha);
+  gl.drawArrays(mode ?? gl.TRIANGLES, 0, m.n);
+}
+
+let VP;
+function frame(t) {
+  const dpr = Math.min(devicePixelRatio || 1, 2);
+  const w = cv.clientWidth * dpr, h = cv.clientHeight * dpr;
+  if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; }
+  gl.viewport(0, 0, w, h);
+  gl.enable(gl.DEPTH_TEST);
+  gl.enable(gl.BLEND);
+  gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+  gl.clearColor(0.051, 0.067, 0.09, 1);
+  gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+
+  if (spin) yaw += 0.0022;
+  const eye = [
+    Math.sin(yaw) * Math.cos(pitch) * dist,
+    Math.sin(pitch) * dist + 0.35,
+    Math.cos(yaw) * Math.cos(pitch) * dist,
+  ];
+  VP = M.mul(M.persp(0.72, w / h, 0.05, 60), M.look(eye, [0, 0.12, 0], [0, 1, 0]));
+
+  if (show.grid) draw(mesh.grid, M.trans(0, -DRAFT - 0.001, 0), COL.grid, 0.9, gl.LINES);
+
+  // hulls
+  const hy = HULL_H / 2 - DRAFT;
+  for (const s of [-1, 1]) {
+    draw(mesh.hull, M.trans(0, hy, s * HULL_SEP / 2), COL.hull);
+    draw(mesh.thruster, M.mul(M.trans(-LOA * 0.44, -DRAFT + 0.02, s * HULL_SEP / 2),
+         M.rotZ(0)), COL.dark);
+  }
+  // deck + solar
+  if (show.deck) draw(mesh.deck, M.trans(0, hy + HULL_H / 2 - 0.02, 0), COL.deck);
+  if (show.solar && show.deck) draw(mesh.solar, M.trans(0, hy + HULL_H / 2 + 0.01, 0), COL.solar);
+  // avionics pod, recovery beacon, mast + flag
+  draw(mesh.pod, M.trans(LOA * 0.14, hy + HULL_H / 2 + 0.08, 0), COL.dark);
+  draw(mesh.beacon, M.trans(-LOA * 0.20, hy + HULL_H / 2 + 0.06, 0.16), COL.beacon);
+  draw(mesh.mast, M.trans(-LOA * 0.30, hy + HULL_H / 2 + 0.33, 0), COL.dark);
+  draw(mesh.flag, M.trans(-LOA * 0.30, hy + HULL_H / 2 + 0.56, 0.10), COL.hull);
+  // transducer on its strut, in the tunnel between the hulls
+  if (show.sonar) {
+    draw(mesh.strut, M.trans(0.10, -DRAFT - 0.09, 0), COL.sonar);
+    draw(mesh.duck, M.trans(0.10, -DRAFT - 0.30, 0), COL.sonar);
+  }
+  if (show.human) draw(mesh.person, M.trans(-1.55, -DRAFT, 0.10), COL.person);
+  if (show.water) draw(mesh.water, M.trans(0, 0, 0), COL.water, 0.30);
+
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
