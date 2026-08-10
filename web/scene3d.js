@@ -606,7 +606,7 @@ export function buildSurveyBoat() {
         out.push([
           side * SEP / 2 + (HULL_W / 2) * Math.cos(a) * k,
           hullTop - (HULL_H) * Math.sin(a) * (0.55 + 0.45 * k),
-          -(t - 0.5) * LOA,
+          (t - 0.5) * LOA,
         ]);
       }
       return out;

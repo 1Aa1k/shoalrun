@@ -232,6 +232,7 @@ const boat = {
   roll: 0,
   chase: true,          // third person by default -- there is a boat to look at now
   dist: CHASE.dist,
+  looking: false,       // true while a drag is actively turning the view
 };
 
 const BOAT_MAX_MS = 12; // ~23 kn, about what an outboard on this lake does
@@ -306,8 +307,10 @@ function spawnAt(key) {
     if (d < bestD) { bestD = d; best = h; }
   }
   if (best) {
-    // forwardOf(yaw) is [sin(yaw), *, cos(yaw)], so the bearing inverts to atan2.
-    boat.heading = Math.atan2(best.x - s.x, best.z - s.z);
+    // forwardOf(yaw) is [sin(yaw), *, -cos(yaw)] -- forward is -Z, so the z term
+    // negates. Getting this wrong spawns you facing exactly away from the thing
+    // the spawn is named after, which is what it used to do.
+    boat.heading = Math.atan2(best.x - s.x, -(best.z - s.z));
   }
   boat.camYaw = boat.heading;
   boat.look = 0;
@@ -368,6 +371,11 @@ function cameraFor(dt) {
   // whole point: during a turn the hull swings out in frame and settles back,
   // which is what makes the boat read as turning instead of the world spinning
   // around a fixed bow.
+  // Free look springs back once the drag ends. Held open, the camera sits off the
+  // bow and the boat reads as crabbing sideways across the lake forever -- which
+  // is invisible in first person and glaring in third.
+  if (!boat.looking) boat.look += (0 - boat.look) * Math.min(1, dt * 1.1);
+
   let err = boat.heading + boat.look - boat.camYaw;
   while (err > Math.PI) err -= Math.PI * 2;
   while (err < -Math.PI) err += Math.PI * 2;
@@ -769,13 +777,17 @@ canvas.addEventListener("pointermove", (e) => {
     // end up facing astern with no way to tell which way the boat is going.
     boat.look = clamp(boat.look + dx * 0.005, -2.2, 2.2);
     boat.pitch = clamp(boat.pitch - dy * 0.004, -0.6, 0.5);
+    boat.looking = true;
   }
 });
 
 function release(e) {
   pointers.delete(e.pointerId);
   if (pointers.size < 2) pinch = 0;
-  if (pointers.size === 0) last = null;
+  if (pointers.size === 0) {
+    last = null;
+    boat.looking = false;
+  }
 }
 canvas.addEventListener("pointerup", release);
 canvas.addEventListener("pointercancel", release);
@@ -791,7 +803,7 @@ canvas.addEventListener("wheel", (e) => {
 window.addEventListener("keydown", (e) => {
   const k = e.key.toLowerCase();
   keys.add(k === "shift" ? "shift" : k);
-  if (k === "v" && mode === "boat") boat.chase = !boat.chase;
+  if (k === "v" && mode === "boat") { boat.chase = !boat.chase; syncChaseBtn(); }
   if ([" ", "w", "a", "s", "d"].includes(k)) e.preventDefault();
 });
 window.addEventListener("keyup", (e) => {
@@ -817,6 +829,11 @@ function setMode(m) {
   mode = m;
   for (const other of MODES) el(`mode_${other}`).classList.toggle("on", other === m);
   el("pad").style.display = m === "orbit" ? "none" : "grid";
+  // Boat mode pins exaggeration to 1 -- at eye level a 30x bottom would put every
+  // shallow above your head. The slider still moves, so say it does not apply
+  // rather than leave it reading 30x while nothing happens.
+  el("exagRow").classList.toggle("na", m === "boat");
+  el("valExag").textContent = m === "boat" ? "1x here" : `${opts.exag}x`;
   el("swayRow").style.display = m === "boat" ? "flex" : "none";
   el("spawnRow").style.display = m === "orbit" ? "none" : "flex";
   el("hint").textContent =
@@ -824,7 +841,7 @@ function setMode(m) {
       ? "Drag to orbit - pinch or scroll to zoom"
       : m === "fly"
       ? "Drag to look - W/A/S/D to move, Space/Shift for up/down, scroll for speed"
-      : "W to throttle up, A/D to steer, drag to look - V for first person, scroll to pull back";
+      : "W to throttle up, A/D to steer, drag to look - scroll to pull the camera back";
   if (m === "boat" && depthAtWorld(boat.x, boat.z) == null) spawnAt("neoc");
 }
 for (const m of MODES) el(`mode_${m}`).onclick = () => setMode(m);
@@ -834,6 +851,7 @@ for (const key of Object.keys(SPAWNS)) {
 }
 
 el("sldExag").addEventListener("input", (e) => {
+  if (mode === "boat") return;
   opts.exag = +e.target.value;
   el("valExag").textContent = `${opts.exag}x`;
 });
@@ -867,6 +885,13 @@ el("sldBlock").addEventListener("input", (e) => {
   queueRebuild();
 });
 
+function syncChaseBtn() {
+  const b = el("btnChase");
+  b.textContent = boat.chase ? "Third person" : "First person";
+  b.classList.toggle("on", boat.chase);
+}
+el("btnChase").onclick = () => { boat.chase = !boat.chase; syncChaseBtn(); };
+
 el("btnSway").onclick = () => {
   opts.sway = !opts.sway;
   el("btnSway").classList.toggle("on", opts.sway);
@@ -886,11 +911,17 @@ el("btnReset").onclick = () => {
   fly.pitch = -0.35;
   fly.speed = 1400;
   boat.look = 0;
-  spawnAt("neoc");
+  boat.pitch = -0.06;
+  boat.speed = 0;
+  boat.dist = CHASE.dist;
+  boat.chase = true;
+  syncChaseBtn();
+  if (mode !== "boat") spawnAt("neoc");
 };
 
 updateStats();
 el("valExag").textContent = `${opts.exag}x`;
+syncChaseBtn();
 el("valTerrace").textContent = `${opts.terrace} ft`;
 el("valBlock").textContent = `${Math.round(grid.gridM * opts.block)} m`;
 el("valWave").textContent = `${(opts.wave * 0.55).toFixed(1)} m`;

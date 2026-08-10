@@ -54,6 +54,8 @@ body.open #sliders { display: block; }
 /* Spawn picker. Boat and fly both drop you somewhere specific, and "somewhere
    specific" on a 34 km2 lake needs to be a choice rather than the origin. */
 .spawnRow { display: none; align-items: center; gap: 6px; margin-top: 8px; }
+.slider.na { opacity: .38; }
+.slider.na input { pointer-events: none; }
 .spawnRow .spawnLab { font-size: 11px; color: var(--ink-faint);
   letter-spacing: .08em; text-transform: uppercase; margin-right: 2px; }
 .spawnRow button { flex: 1; padding: 7px 8px; font-size: 12.5px; }
@@ -177,12 +179,13 @@ input[type=range]::-moz-range-thumb { width: 20px; height: 20px; border-radius: 
   </div>
 
   <div class="spawnRow" id="swayRow">
-    <span class="spawnLab">Motion</span>
-    <button id="btnSway" class="btn on">Camera sway</button>
+    <span class="spawnLab">Camera</span>
+    <button id="btnChase" class="btn on">Third person</button>
+    <button id="btnSway" class="btn on">Sway</button>
   </div>
 
   <div id="sliders">
-    <div class="slider">
+    <div class="slider" id="exagRow">
       <div class="lab"><span>Vertical exaggeration</span><b id="valExag">30x</b></div>
       <input type="range" id="sldExag" min="1" max="60" step="1" value="30">
     </div>
