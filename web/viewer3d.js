@@ -20,7 +20,7 @@ import {
   buildShore,
   buildTrees,
   buildHazardRocks,
-  buildBoatHull,
+  buildSurveyBoat,
   buildWaterPatch,
   waveAt,
 } from "./scene3d.js";
@@ -99,6 +99,7 @@ const S = shaderSources(P);
 const bottomProg = program(S.bottom_vert, S.bottom_frag);
 const litProg = program(S.lit_vert, S.lit_frag);
 const flatProg = program(S.flat_vert, S.flat_frag);
+const rockProg = program(S.rock_vert, S.lit_frag);
 const waterProg = program(S.water_vert, S.water_frag);
 const patchProg = program(S.waterpatch_vert, S.water_frag);
 const skyProg = program(S.sky_vert, S.sky_frag);
@@ -153,7 +154,7 @@ let water = buildFlatCells(grid, cx, cz, true, opts.block);
 const shore = buildShore(rings, cx, cz);
 const trees = buildTrees(grid, rings, cx, cz);
 const rocks = buildHazardRocks(grid, ROCK_GEO, proj, cx, cz);
-const hull = buildBoatHull();
+const boatMesh = buildSurveyBoat();
 
 const bufLand = buf(land.pos);
 const bufWater = buf(water.pos);
@@ -162,13 +163,18 @@ const bufShore = buf(shore);
 const bufTreePos = buf(trees.pos);
 const bufTreeNorm = buf(trees.norm);
 const bufTreeShade = buf(trees.shade);
-const bufRockPos = buf(rocks.pos);
-const bufRockNorm = buf(rocks.norm);
-const bufRockKind = buf(rocks.kind);
+const bufBreakPos = buf(rocks.breaking.pos);
+const bufBreakNorm = buf(rocks.breaking.norm);
+const bufBreakShade = buf(rocks.breaking.shade);
+const bufShoalPos = buf(rocks.shoal.pos);
+const bufShoalNorm = buf(rocks.shoal.norm);
+const bufShoalShade = buf(rocks.shoal.shade);
+const bufBreakBase = buf(rocks.breaking.base);
+const bufShoalBase = buf(rocks.shoal.base);
 const bufStems = buf(rocks.stems);
-const bufHullPos = buf(hull.pos);
-const bufHullNorm = buf(hull.norm);
-const bufHullShade = buf(hull.shade);
+const bufHullPos = buf(boatMesh.pos);
+const bufHullNorm = buf(boatMesh.norm);
+const bufHullShade = buf(boatMesh.shade);
 const bufSky = buf(new Float32Array([-1, -1, 3, -1, -1, 3]));
 
 // 320 m of finely tessellated water that follows the camera. Beyond it the
@@ -202,6 +208,21 @@ const fly = { x: 0, y: 1200, z: 5000, yaw: 0, pitch: -0.35, speed: 1400 };
 // the drag offset between them. They were one variable, which meant dragging
 // steered the boat AND the camera together, so the hull could never appear to
 // turn -- it was welded to the view.
+// Each part gets a shadow tone and a lit tone; the lit shader mixes between them
+// on the shade attribute. Orange on the hulls is not decoration -- a survey boat
+// that cannot be spotted again is a survey boat you have lost.
+const BOAT_COLORS = {
+  hull:  [[0.55, 0.20, 0.06], [0.94, 0.46, 0.18]],
+  deck:  [[0.22, 0.25, 0.30], [0.52, 0.56, 0.62]],
+  solar: [[0.11, 0.15, 0.30], [0.30, 0.40, 0.62]],
+  sonar: [[0.12, 0.26, 0.42], [0.38, 0.68, 1.00]],
+};
+
+const BOAT_EYE_M = 1.9;
+// Chase camera. The boat is 1.8 m long, so the distance that frames it is small
+// -- at the 8 m a full-size boat would want, it is a speck.
+const CHASE = { dist: 5.6, height: 1.0, lookAhead: 3.0, min: 2.2, max: 22 };
+
 const boat = {
   x: 0, z: 0, speed: 0,
   heading: Math.PI,
@@ -209,9 +230,10 @@ const boat = {
   look: 0,
   pitch: -0.06,
   roll: 0,
+  chase: true,          // third person by default -- there is a boat to look at now
+  dist: CHASE.dist,
 };
 
-const BOAT_EYE_M = 1.9;
 const BOAT_MAX_MS = 12; // ~23 kn, about what an outboard on this lake does
 const keys = new Set();
 
@@ -273,6 +295,22 @@ function spawnAt(key) {
   boat.x = s.x;
   boat.z = s.z;
   boat.speed = 0;
+
+  // Point at the nearest hazard rather than at whatever bearing was left over.
+  // Spawning at "shoals" and facing empty water is a spawn that does not do what
+  // its name says.
+  let best = null;
+  let bestD = Infinity;
+  for (const h of rocks.list) {
+    const d = (h.x - s.x) ** 2 + (h.z - s.z) ** 2;
+    if (d < bestD) { bestD = d; best = h; }
+  }
+  if (best) {
+    // forwardOf(yaw) is [sin(yaw), *, cos(yaw)], so the bearing inverts to atan2.
+    boat.heading = Math.atan2(best.x - s.x, best.z - s.z);
+  }
+  boat.camYaw = boat.heading;
+  boat.look = 0;
   fly.x = s.x;
   fly.z = s.z + 900;
   fly.y = 500;
@@ -356,7 +394,27 @@ function cameraFor(dt) {
   // someone queasy. The hull always rides, because a boat that ignores the water
   // it is floating on looks broken either way.
   const sway = opts.sway ? 1 : 0;
-  const eye = [boat.x, BOAT_EYE_M + w.y * sway, boat.z];
+  // First person puts the eye at the helm. Third person pulls back along the
+  // camera's own yaw -- not the hull's heading -- so the boat swings in frame
+  // during a turn instead of the world rotating around a fixed stern.
+  let eye;
+  let target;
+  if (boat.chase) {
+    const back = forwardOf(boat.camYaw, 0);
+    const ride = w.y * sway;
+    eye = [
+      boat.x - back[0] * boat.dist,
+      ride + CHASE.height + boat.dist * 0.09,
+      boat.z - back[2] * boat.dist,
+    ];
+    target = [
+      boat.x + back[0] * CHASE.lookAhead,
+      ride + 0.35 + (boat.pitch - slopeF * 0.35 * sway) * CHASE.lookAhead,
+      boat.z + back[2] * CHASE.lookAhead,
+    ];
+    return { eye, target, roll: (boat.roll + slopeR * 0.45 * sway) * 0.35, waveY: ride };
+  }
+  eye = [boat.x, BOAT_EYE_M + w.y * sway, boat.z];
   return {
     eye,
     target: add3(eye, forwardOf(boat.camYaw, boat.pitch - slopeF * 0.35 * sway)),
@@ -416,7 +474,7 @@ function hullMatrix(waveY) {
     c, 0, -s, 0,
     0, 1, 0, 0,
     s, 0, c, 0,
-    boat.x, BOAT_EYE_M + waveY, boat.z, 1,
+    boat.x, waveY, boat.z, 1,
   ];
 }
 
@@ -491,13 +549,34 @@ function draw(now) {
   gl.useProgram(litProg);
   gl.uniformMatrix4fv(uni(litProg, "uMVP"), false, mvp);
 
-  gl.uniform1f(uni(litProg, "uExag"), exag);
-  gl.uniform3f(uni(litProg, "uColorA"), 0.62, 0.24, 0.20);   // breaks surface
-  gl.uniform3f(uni(litProg, "uColorB"), 0.85, 0.48, 0.16);   // submerged shoal
-  attr(litProg, "aPos", bufRockPos, 3);
-  attr(litProg, "aNormal", bufRockNorm, 3);
-  attr(litProg, "aShade", bufRockKind, 1);
-  gl.drawArrays(gl.TRIANGLES, 0, rocks.count);
+  // Two passes rather than one, because the classes mean different things and a
+  // single A/B mix had to carry both the class and the tone. Now each class owns
+  // its own pair and the shade attribute is free to vary the tone within it --
+  // which is what stops a thousand of them reading as one mass.
+  // Rocks go through their own program: it exaggerates where they sit without
+  // exaggerating how big they are.
+  gl.useProgram(rockProg);
+  gl.uniformMatrix4fv(uni(rockProg, "uMVP"), false, mvp);
+  gl.uniform1f(uni(rockProg, "uExag"), exag);
+
+  gl.uniform3f(uni(rockProg, "uColorA"), 0.40, 0.36, 0.34);   // wet granite
+  gl.uniform3f(uni(rockProg, "uColorB"), 0.72, 0.66, 0.60);   // dry, sun-bleached
+  attr(rockProg, "aPos", bufBreakPos, 3);
+  attr(rockProg, "aNormal", bufBreakNorm, 3);
+  attr(rockProg, "aShade", bufBreakShade, 1);
+  attr(rockProg, "aBase", bufBreakBase, 1);
+  gl.drawArrays(gl.TRIANGLES, 0, rocks.breaking.count);
+
+  gl.uniform3f(uni(rockProg, "uColorA"), 0.36, 0.30, 0.16);   // shoal in shadow
+  gl.uniform3f(uni(rockProg, "uColorB"), 0.86, 0.62, 0.22);   // shoal lit
+  attr(rockProg, "aPos", bufShoalPos, 3);
+  attr(rockProg, "aNormal", bufShoalNorm, 3);
+  attr(rockProg, "aShade", bufShoalShade, 1);
+  attr(rockProg, "aBase", bufShoalBase, 1);
+  gl.drawArrays(gl.TRIANGLES, 0, rocks.shoal.count);
+
+  gl.useProgram(litProg);
+  gl.uniformMatrix4fv(uni(litProg, "uMVP"), false, mvp);
 
   gl.uniform1f(uni(litProg, "uExag"), 1);
   gl.uniform3f(uni(litProg, "uColorA"), 0.106, 0.208, 0.145);
@@ -508,14 +587,21 @@ function draw(now) {
   gl.drawArrays(gl.TRIANGLES, 0, trees.count);
 
   if (mode === "boat") {
+    // The boat is 1.8 m and everything else here is metres, so it must not be
+    // exaggerated with the terrain or it would tower over its own lake.
+    gl.uniform1f(uni(litProg, "uExag"), 1);
     gl.uniformMatrix4fv(uni(litProg, "uMVP"), false, new Float32Array(multiply(hullMatrix(waveY), multiply(view, projM))));
-    gl.uniform3f(uni(litProg, "uColorA"), 0.62, 0.64, 0.67);
-    gl.uniform3f(uni(litProg, "uColorB"), 0.78, 0.79, 0.81);
     attr(litProg, "aPos", bufHullPos, 3);
     attr(litProg, "aNormal", bufHullNorm, 3);
     attr(litProg, "aShade", bufHullShade, 1);
-    gl.drawArrays(gl.TRIANGLES, 0, hull.count);
+    for (const part of boatMesh.parts) {
+      const c = BOAT_COLORS[part.color];
+      gl.uniform3f(uni(litProg, "uColorA"), c[0][0], c[0][1], c[0][2]);
+      gl.uniform3f(uni(litProg, "uColorB"), c[1][0], c[1][1], c[1][2]);
+      gl.drawArrays(gl.TRIANGLES, part.start, part.count);
+    }
     gl.uniformMatrix4fv(uni(litProg, "uMVP"), false, mvp);
+    gl.uniform1f(uni(litProg, "uExag"), exag);
   }
 
   // Shoreline and shoal stems.
@@ -537,7 +623,7 @@ function draw(now) {
     gl.enable(gl.BLEND);
     gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
     attr(flatProg, "aPos", bufStems, 3);
-    gl.drawArrays(gl.LINES, 0, rocks.stems.length / 3);
+    gl.drawArrays(gl.LINES, 0, rocks.stemCount);
     gl.disable(gl.BLEND);
   }
 
@@ -699,11 +785,13 @@ canvas.addEventListener("wheel", (e) => {
   const f = e.deltaY > 0 ? 1.12 : 0.89;
   if (mode === "orbit") orbit.dist = clamp(orbit.dist * f, 400, 40000);
   else if (mode === "fly") fly.speed = clamp(fly.speed / f, 50, 9000);
+  else if (mode === "boat" && boat.chase) boat.dist = clamp(boat.dist * f, CHASE.min, CHASE.max);
 }, { passive: false });
 
 window.addEventListener("keydown", (e) => {
   const k = e.key.toLowerCase();
   keys.add(k === "shift" ? "shift" : k);
+  if (k === "v" && mode === "boat") boat.chase = !boat.chase;
   if ([" ", "w", "a", "s", "d"].includes(k)) e.preventDefault();
 });
 window.addEventListener("keyup", (e) => {
@@ -736,7 +824,7 @@ function setMode(m) {
       ? "Drag to orbit - pinch or scroll to zoom"
       : m === "fly"
       ? "Drag to look - W/A/S/D to move, Space/Shift for up/down, scroll for speed"
-      : "W to throttle up, A/D to steer, drag to look around";
+      : "W to throttle up, A/D to steer, drag to look - V for first person, scroll to pull back";
   if (m === "boat" && depthAtWorld(boat.x, boat.z) == null) spawnAt("neoc");
 }
 for (const m of MODES) el(`mode_${m}`).onclick = () => setMode(m);
@@ -810,7 +898,10 @@ spawnAt("neoc");
 
 // ?mode= deep-links straight into a mode, which is how this gets checked
 // without a human clicking, and is handy for a bookmark.
-const wanted = new URLSearchParams(location.search).get("mode");
+const params = new URLSearchParams(location.search);
+const wanted = params.get("mode");
 setMode(MODES.includes(wanted) ? wanted : "orbit");
+const wantSpawn = params.get("at");
+if (wantSpawn && SPAWNS[wantSpawn]) spawnAt(wantSpawn);
 
 requestAnimationFrame(draw);

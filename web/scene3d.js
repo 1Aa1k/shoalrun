@@ -402,10 +402,94 @@ export function buildTrees(grid, rings, cx, cz, spacing = 22) {
 // is submerged, so it sits on the bottom and its top stays below zero -- which
 // is precisely why it also keeps a marker stem, because otherwise the dangerous
 // class is the invisible one.
+/* Shared triangle sink with real geometric normals.
+
+   The old builders pushed a hand-guessed normal per facet -- `[cos*0.6, 0.72,
+   sin*0.6]` on every rock face regardless of the face's actual orientation. That
+   is why a field of them lit as one flat mass: the shading carried no shape
+   information. Deriving the normal from the triangle costs nothing and is the
+   single biggest visual difference here. */
+function mesh() {
+  const pos = [], norm = [], shade = [], base = [];
+  let baseY = 0;                       // set by the caller before emitting a solid
+  const tri = (a, b, c, s, n) => {
+    if (!n) {
+      const u = [b[0] - a[0], b[1] - a[1], b[2] - a[2]];
+      const v = [c[0] - a[0], c[1] - a[1], c[2] - a[2]];
+      n = [u[1] * v[2] - u[2] * v[1], u[2] * v[0] - u[0] * v[2], u[0] * v[1] - u[1] * v[0]];
+      const l = Math.hypot(n[0], n[1], n[2]) || 1;
+      n = [n[0] / l, n[1] / l, n[2] / l];
+    }
+    pos.push(...a, ...b, ...c);
+    for (let i = 0; i < 3; i++) norm.push(n[0], n[1], n[2]);
+    shade.push(s, s, s);
+    base.push(baseY, baseY, baseY);
+  };
+  const quad = (a, b, c, d, s) => { tri(a, b, c, s); tri(a, c, d, s); };
+  return {
+    pos, norm, shade, base, tri, quad,
+    mark: () => pos.length / 3,
+    setBase: (y) => { baseY = y; },
+  };
+}
+
+/* One boulder: a dome deformed on three axes, sitting on the bottom.
+
+   Cones were the problem. A cone has a single apex and straight generators, so
+   six of them side by side read as tent pegs no matter what colour they are.
+   Deforming a dome per-vertex with the same hash the trees use gives lumpy,
+   asymmetric rock, and because the deformation is 3D the silhouette changes with
+   viewing angle the way a real boulder does.
+
+   Facets are budgeted by radius -- there are 1,673 of these in the lake, and a
+   3 m rock does not need the same tessellation as a 22 m ledge. */
+function boulder(M, x, baseY, z, r, h, seed, shadeBase) {
+  M.setBase(baseY);
+  const lon = r > 12 ? 10 : r > 6 ? 8 : 6;
+  const lat = r > 12 ? 4 : 3;
+  const ring = [];
+  for (let i = 0; i <= lat; i++) {
+    const t = i / lat;
+    // Dome profile, flattened near the top so it does not come to a point.
+    const rr = r * Math.cos(t * Math.PI * 0.42);
+    const yy = baseY + h * Math.sin(t * Math.PI * 0.5);
+    const row = [];
+    for (let j = 0; j < lon; j++) {
+      const a = (j / lon) * Math.PI * 2;
+      // Per-vertex lumpiness. Anisotropic on purpose: rocks here are glacial,
+      // so they are longer one way than the other.
+      const d = 0.68 + hash(seed * 3.1 + i * 5.7 + j * 11.3) * 0.62;
+      const squash = 0.75 + hash(seed * 1.7) * 0.5;
+      row.push([
+        x + Math.cos(a) * rr * d,
+        yy + (hash(seed * 9.4 + i * 2.3 + j * 4.1) - 0.5) * h * 0.22,
+        z + Math.sin(a) * rr * d * squash,
+      ]);
+    }
+    ring.push(row);
+  }
+  for (let i = 0; i < lat; i++) {
+    for (let j = 0; j < lon; j++) {
+      const k = (j + 1) % lon;
+      // Shade jitter per facet so the surface breaks up under a single light.
+      const s = shadeBase + hash(seed * 6.2 + i * 3.9 + j * 7.1) * 0.55;
+      M.quad(ring[i][j], ring[i][k], ring[i + 1][k], ring[i + 1][j], s);
+    }
+  }
+  // Cap.
+  const top = ring[lat];
+  const apex = [x, baseY + h * 1.02, z];
+  for (let j = 0; j < lon; j++) {
+    M.tri(top[j], top[(j + 1) % lon], apex, shadeBase + hash(seed * 8.8 + j) * 0.55);
+  }
+}
+
 export function buildHazardRocks(grid, ROCK_GEO, proj, cx, cz) {
-  const pos = [];
-  const norm = [];
-  const kind = [];
+  // Two meshes, drawn separately, because the two classes mean different things
+  // and must not blend into each other. Within each, shade varies per facet for
+  // tone -- that is what the lit shader's A/B mix is for.
+  const breaking = mesh();
+  const shoal = mesh();
   const stems = [];
   const list = [];
 
@@ -421,6 +505,7 @@ export function buildHazardRocks(grid, ROCK_GEO, proj, cx, cz) {
     const x = wx - cx;
     const z = -(wy - cz);
     const submerged = p.class === "shoal" || p.class === "drawdown";
+    const M = submerged ? shoal : breaking;
 
     // Footprint radius from the detected area, clamped: a 96,700 m2 "island"
     // would otherwise be a 175 m boulder, and a sub-pixel detection would be
@@ -434,85 +519,135 @@ export function buildHazardRocks(grid, ROCK_GEO, proj, cx, cz) {
     const height = submerged
       ? Math.min(r * 1.1, Math.max(0.5, -bottomY - 0.6))
       : -bottomY + 0.5 + r * 0.25;
-    const topY = bottomY + height;
 
-    const sides = 6;
-    for (let k = 0; k < sides; k++) {
-      const a0 = (k / sides) * Math.PI * 2;
-      const a1 = ((k + 1) / sides) * Math.PI * 2;
-      // Irregular radius per facet so they do not read as a field of cones.
-      const r0 = r * (0.62 + hash(seed * 7.3 + k) * 0.55);
-      const r1 = r * (0.62 + hash(seed * 7.3 + k + 1) * 0.55);
-      const p0 = [x + Math.cos(a0) * r0, bottomY, z + Math.sin(a0) * r0];
-      const p1 = [x + Math.cos(a1) * r1, bottomY, z + Math.sin(a1) * r1];
-      const apex = [
-        x + (hash(seed * 2.1) - 0.5) * r * 0.4,
-        topY,
-        z + (hash(seed * 4.9) - 0.5) * r * 0.4,
-      ];
-      const mid = (a0 + a1) / 2;
-      const n = [Math.cos(mid) * 0.6, 0.72, Math.sin(mid) * 0.6];
-      pos.push(...p0, ...p1, ...apex);
-      for (let j = 0; j < 3; j++) norm.push(n[0], n[1], n[2]);
-      // 1 = submerged shoal, 0 = breaks the surface. Drives colour.
-      for (let j = 0; j < 3; j++) kind.push(submerged ? 1 : 0);
+    boulder(M, x, bottomY, z, r, height, seed, 0.6);
+
+    // Big features get satellites. Real ledges are groups, not single stones,
+    // and the clustering is most of what makes a shoal read as a shoal.
+    if (r > 7) {
+      const n = 2 + Math.floor(hash(seed * 12.7) * 2);
+      for (let k = 0; k < n; k++) {
+        const a = hash(seed * 4.3 + k * 9.1) * Math.PI * 2;
+        const d = r * (0.75 + hash(seed * 5.9 + k) * 0.75);
+        const rr = r * (0.22 + hash(seed * 7.7 + k) * 0.3);
+        const hh = submerged
+          ? Math.min(rr * 1.2, Math.max(0.4, -bottomY - 1.2))
+          : height * (0.35 + hash(seed * 2.9 + k) * 0.4);
+        boulder(M, x + Math.cos(a) * d, bottomY, z + Math.sin(a) * d,
+                rr, hh, seed * 31 + k, 0.6);
+      }
     }
 
-    if (submerged) stems.push(x, topY, z, x, 0, z);
+    if (submerged) stems.push(x, bottomY + height, z, x, 0, z);
     list.push({ x, z, ft, cls: p.class, submerged });
   }
 
+  const pack = (M) => ({
+    pos: new Float32Array(M.pos),
+    norm: new Float32Array(M.norm),
+    shade: new Float32Array(M.shade),
+    base: new Float32Array(M.base),
+    count: M.pos.length / 3,
+  });
+
   return {
-    pos: new Float32Array(pos),
-    norm: new Float32Array(norm),
-    kind: new Float32Array(kind),
+    breaking: pack(breaking),
+    shoal: pack(shoal),
     stems: new Float32Array(stems),
-    count: pos.length / 3,
+    stemCount: stems.length / 3,
     list,
   };
 }
 
-// --- boat ------------------------------------------------------------------
+/* The survey boat, at its real 1.8 m, bow toward -Z.
 
-// A hull drawn ahead of and below the camera in boat mode. Local coords: +X is
-// starboard, -Z is forward, Y up, origin at the helm. Crude on purpose -- it is
-// there so the view reads as "from a boat" rather than "from a hovering eye",
-// and any more detail would just be in the way.
-export function buildBoatHull() {
-  const pos = [];
-  const norm = [];
-  const shade = [];
+   Replaces the first-person cockpit wedge. That wedge only worked from inside
+   it -- every part sat forward of the eye by construction, so there was nothing
+   to look AT from behind. This is a whole vessel in world space, which is what
+   a chase camera needs.
 
-  const tri = (a, b, c, n, s) => {
-    pos.push(...a, ...b, ...c);
-    for (let i = 0; i < 3; i++) norm.push(...n);
-    shade.push(s, s, s);
+   Dimensions come from docs/solar-survey-boat-spec.md and are the same numbers
+   docs/boat-viewer.html renders, so the thing you drive here is the thing that
+   would get built. Parts are returned as draw ranges rather than one blob so
+   the orange hulls, grey deck and dark solar panel can each keep their colour
+   through a shader that only carries two per call. */
+export function buildSurveyBoat() {
+  const M = mesh();
+  const parts = [];
+  const LOA = 1.80, BEAM = 0.90, DRAFT = 0.12;
+  const HULL_W = 0.24, HULL_H = 0.26;
+  const SEP = BEAM - HULL_W;
+  const deckY = HULL_H - DRAFT + 0.07;
+
+  const boxAt = (cxx, cyy, czz, w, h, d, s) => {
+    const X = w / 2, Y = h / 2, Z = d / 2;
+    const v = (a, b, c) => [cxx + a * X, cyy + b * Y, czz + c * Z];
+    M.quad(v(-1,1,-1), v(1,1,-1), v(1,1,1), v(-1,1,1), s);
+    M.quad(v(-1,-1,1), v(1,-1,1), v(1,-1,-1), v(-1,-1,-1), s);
+    M.quad(v(-1,-1,-1), v(1,-1,-1), v(1,1,-1), v(-1,1,-1), s);
+    M.quad(v(1,-1,1), v(-1,-1,1), v(-1,1,1), v(1,1,1), s);
+    M.quad(v(-1,-1,1), v(-1,-1,-1), v(-1,1,-1), v(-1,1,1), s);
+    M.quad(v(1,-1,-1), v(1,-1,1), v(1,1,1), v(1,1,-1), s);
   };
 
-  // Every part of the hull sits FORWARD of the eye and below it. The first
-  // version put the transom behind the camera at +Z, so the deck triangle ran
-  // off past the near plane and filled the screen with white.
-  const bowZ = -5.4;
-  const sternZ = -0.9;
-  const beam = 0.85;
-  const deckY = -1.25;
-  const keelY = -1.75;
+  // Two lofted hulls. The tunnel between them is the whole reason the boat is a
+  // catamaran -- it is where the transducer hangs, in water the props have not
+  // stirred -- so it has to be visibly open.
+  const start = M.mark();
+  const hullTop = deckY - 0.07;
+  for (const side of [-1, 1]) {
+    const NS = 16, NR = 7;
+    const taper = (t) => Math.min(1, Math.pow(t / 0.42, 0.62))
+      * (1 - 0.18 * Math.pow(Math.max(0, t - 0.82) / 0.18, 2));
+    const ring = (t) => {
+      const k = taper(t), out = [];
+      for (let j = 0; j <= NR; j++) {
+        const a = Math.PI * j / NR;
+        out.push([
+          side * SEP / 2 + (HULL_W / 2) * Math.cos(a) * k,
+          hullTop - (HULL_H) * Math.sin(a) * (0.55 + 0.45 * k),
+          -(t - 0.5) * LOA,
+        ]);
+      }
+      return out;
+    };
+    let prev = ring(0);
+    for (let i = 1; i <= NS; i++) {
+      const cur = ring(i / NS);
+      for (let j = 0; j < NR; j++) M.quad(prev[j], cur[j], cur[j + 1], prev[j + 1], 0.5);
+      M.quad([prev[0][0], hullTop, prev[0][2]],
+             [cur[0][0], hullTop, cur[0][2]],
+             [cur[NR][0], hullTop, cur[NR][2]],
+             [prev[NR][0], hullTop, prev[NR][2]], 1.4);
+      prev = cur;
+    }
+  }
+  parts.push({ start, count: M.mark() - start, color: "hull" });
 
-  // Foredeck: bow point back to the cockpit coaming.
-  tri([0, deckY, bowZ], [beam, deckY, sternZ], [-beam, deckY, sternZ], [0, 1, 0], 1.0);
-  // Topsides.
-  tri([0, deckY, bowZ], [beam, keelY, sternZ], [beam, deckY, sternZ], [0.9, 0.25, 0], 0.72);
-  tri([0, deckY, bowZ], [-beam, deckY, sternZ], [-beam, keelY, sternZ], [-0.9, 0.25, 0], 0.58);
-  // Stem, so the bow has some depth to it rather than being a flat wedge.
-  tri([0, deckY, bowZ], [-beam, keelY, sternZ], [beam, keelY, sternZ], [0, -0.3, -0.9], 0.66);
-  // Coaming across the front of the cockpit -- the near edge you look over.
-  tri([beam, deckY, sternZ], [-beam, deckY, sternZ], [-beam, deckY + 0.3, sternZ], [0, 0.2, 1], 1.2);
-  tri([beam, deckY, sternZ], [-beam, deckY + 0.3, sternZ], [beam, deckY + 0.3, sternZ], [0, 0.2, 1], 1.2);
+  // Bridgedeck spans only the tunnel so both hulls stay readable from outside.
+  const s2 = M.mark();
+  boxAt(0, deckY, 0, SEP + HULL_W * 0.55, 0.035, LOA * 0.80, 0.4);
+  boxAt(0.0, deckY + 0.10, -LOA * 0.14, 0.20, 0.14, 0.26, 1.5);   // avionics pod
+  boxAt(0.16, deckY + 0.08, LOA * 0.20, 0.09, 0.07, 0.10, 0.4);   // beacon
+  boxAt(0, deckY + 0.36, LOA * 0.30, 0.02, 0.62, 0.02, 1.5);      // mast
+  parts.push({ start: s2, count: M.mark() - s2, color: "deck" });
+
+  // Solar deck.
+  const s3 = M.mark();
+  boxAt(0, deckY + 0.03, 0, (SEP + HULL_W * 0.55) * 0.9, 0.014, LOA * 0.72, 0.4);
+  parts.push({ start: s3, count: M.mark() - s3, color: "solar" });
+
+  // Transducer on its strut, hanging in the tunnel below the waterline.
+  const s4 = M.mark();
+  boxAt(0, -DRAFT - 0.09, -0.10, 0.05, 0.40, 0.09, 0.4);
+  boxAt(0, -DRAFT - 0.30, -0.10, 0.10, 0.08, 0.13, 1.5);
+  parts.push({ start: s4, count: M.mark() - s4, color: "sonar" });
 
   return {
-    pos: new Float32Array(pos),
-    norm: new Float32Array(norm),
-    shade: new Float32Array(shade),
-    count: pos.length / 3,
+    pos: new Float32Array(M.pos),
+    norm: new Float32Array(M.norm),
+    shade: new Float32Array(M.shade),
+    count: M.pos.length / 3,
+    parts,
   };
 }

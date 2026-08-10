@@ -78,6 +78,29 @@ void main() {
   gl_Position = uMVP * vec4(aPos.x, aPos.y * uExag, aPos.z, 1.0);
 }`,
 
+    // Rocks need the vertical exaggeration applied to WHERE they sit but not to
+    // HOW BIG they are. Scaling a boulder's height 30x along with the terrain
+    // turned every one of them into a needle -- which is what they looked like,
+    // and no amount of better geometry would have fixed it. aBase carries the
+    // un-exaggerated bottom the rock stands on, so the base follows the seabed
+    // up and the rock keeps its true proportions on top of it.
+    rock_vert: `
+precision highp float;
+attribute vec3 aPos;
+attribute vec3 aNormal;
+attribute float aShade;
+attribute float aBase;
+uniform mat4 uMVP;
+uniform float uExag;
+varying ${P} vec3 vNormal;
+varying ${P} float vShade;
+void main() {
+  vNormal = aNormal;
+  vShade = aShade;
+  float y = aBase * uExag + (aPos.y - aBase);
+  gl_Position = uMVP * vec4(aPos.x, y, aPos.z, 1.0);
+}`,
+
     lit_frag: `
 precision ${P} float;
 varying ${P} vec3 vNormal;
