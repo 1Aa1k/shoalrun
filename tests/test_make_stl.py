@@ -205,3 +205,46 @@ class TestMarkers:
         assert make_stl.raise_markers(m, [(-5.0, -5.0), (99.0, 99.0)],
                                       meta, 1.0, 1.0) == 0
         assert np.array_equal(m.z, before)
+
+
+class TestSplitScales:
+    """Depth and land can be exaggerated independently. Worth testing because
+    the failure is silent: the object still prints, and nothing about it says
+    the two halves are no longer comparable."""
+
+    def _two_sided(self):
+        d = np.full((5, 5), NAN)
+        d[2, 2] = 10.0                      # 10 m of water
+        land = np.zeros((5, 5))
+        land[0, 0] = 10.0                   # and 10 m of hill
+        return d, land
+
+    def test_equal_exaggerations_give_equal_relief(self):
+        d, land = self._two_sided()
+        m = build_surface(d, 25.0, 50.0, 4.0, 1.0, land_m=land, land_exag=4.0)
+        below = m.z[1, 1] - m.z[2, 2]       # waterline down to the deep cell
+        above = m.z[0, 0] - m.z[1, 1]
+        assert below == pytest.approx(above)
+
+    def test_splitting_them_scales_each_side_on_its_own(self):
+        d, land = self._two_sided()
+        m = build_surface(d, 25.0, 50.0, 8.0, 1.0, land_m=land, land_exag=2.0)
+        below = m.z[1, 1] - m.z[2, 2]
+        above = m.z[0, 0] - m.z[1, 1]
+        assert below == pytest.approx(above * 4)
+        assert m.mm_per_m == pytest.approx(m.mm_per_m_land * 4)
+
+    def test_land_exaggeration_left_unset_follows_the_depth_one(self):
+        d, land = self._two_sided()
+        m = build_surface(d, 25.0, 50.0, 7.0, 1.0, land_m=land)
+        assert m.mm_per_m_land == pytest.approx(m.mm_per_m)
+
+    def test_the_waterline_stays_put_whatever_the_scales(self):
+        """Both sides are measured from the water plane, so a shoreline cell
+        must land at the same height no matter how either slider moves."""
+        d, land = self._two_sided()
+        a = build_surface(d, 25.0, 50.0, 3.0, 1.0, land_m=land, land_exag=3.0)
+        b = build_surface(d, 25.0, 50.0, 3.0, 1.0, land_m=land, land_exag=25.0)
+        shore_a = a.z[1, 1] - a.z.min()      # above the deepest point, which is
+        shore_b = b.z[1, 1] - b.z.min()      # what the base thickness sits under
+        assert shore_a == pytest.approx(shore_b)

@@ -40,8 +40,11 @@
 </div>
 
 <div class="card" id="panel">
-  <div class="row"><span>Vertical exaggeration</span><b id="valExag">1.0x</b></div>
-  <input type="range" id="sldExag" min="20" max="400" step="5" value="100">
+  <div class="row"><span>Depth exaggeration</span><b id="valDeep">--</b></div>
+  <input type="range" id="sldDeep" min="5" max="800" step="5" value="100">
+  <div class="row"><span>Land exaggeration</span><b id="valLand">--</b></div>
+  <input type="range" id="sldLand" min="5" max="800" step="5" value="100">
+  <div class="btns"><button class="btn on" id="btnLink">Locked together</button></div>
   <div class="row"><span>Model height</span><b id="valTall">--</b></div>
   <div class="btns">
     <button class="btn on" id="btnWater">Water</button>
@@ -55,6 +58,7 @@
 <div class="card" id="legend">
   <div><i style="background:#123a5c"></i>lake bottom, 1954 soundings interpolated</div>
   <div><i style="background:#4a6a3c"></i>land, 3DEP lidar bare earth 2017</div>
+  <div id="legSplit" style="display:none;color:#e8b34a">split vertical scales &mdash; the two sides are not comparable</div>
   <div id="legMark" style="display:none"><i style="background:#d8b25e"></i><span id="legTxt"></span></div>
 </div>
 
@@ -169,17 +173,20 @@ const VERT = `
 attribute vec3 aPos;
 attribute vec3 aNormal;
 uniform mat4 uMVP;
-uniform float uExag;
+uniform float uDeep;
+uniform float uLand;
 uniform float uPlane;
 varying vec3 vN;
 varying float vRel;
 void main() {
   // Exaggeration works about the water plane, not the bed, so the shoreline
-  // stays put and only the relief grows.
-  float rel = (aPos.y - uPlane) * uExag;
-  vRel = rel;
-  vN = normalize(vec3(aNormal.x / max(uExag, 0.001), aNormal.y, aNormal.z / max(uExag, 0.001)));
-  gl_Position = uMVP * vec4(aPos.x, uPlane + rel, aPos.z, 1.0);
+  // stays put and only the relief grows -- and each side of that plane gets its
+  // own scale, so the lake can be pushed without the hills following.
+  float raw = aPos.y - uPlane;
+  float k = raw < 0.0 ? uDeep : uLand;
+  vRel = raw * k;
+  vN = normalize(vec3(aNormal.x / max(k, 0.001), aNormal.y, aNormal.z / max(k, 0.001)));
+  gl_Position = uMVP * vec4(aPos.x, uPlane + vRel, aPos.z, 1.0);
 }`;
 
 const FRAG = `
@@ -302,14 +309,34 @@ canvas.addEventListener("touchmove", (e) => {
 }, { passive: true });
 canvas.addEventListener("touchend", () => { pinch = 0; });
 
-let exag = 1;
+// Multipliers on top of the exaggeration already baked into the height field,
+// so the readout can show the absolute figure -- what someone would have to
+// type into make_stl to print this -- rather than a number relative to a
+// default nobody remembers.
+let deep = 1, landK = 1, linked = true;
 let showWater = true;
 let showMarks = false;
-el("sldExag").addEventListener("input", (e) => {
-  exag = +e.target.value / 100;
-  el("valExag").textContent = `${exag.toFixed(2)}x`;
-  el("valTall").textContent = `${(D.base + (D.tall - D.base) * exag).toFixed(1)} mm`;
-});
+function refresh() {
+  el("valDeep").textContent = `${(D.exag * deep).toPrecision(3)}x`;
+  el("valLand").textContent = `${(D.landExag * landK).toPrecision(3)}x`;
+  const mm = D.base + (D.plane - D.base) * deep + (D.tall - D.plane) * landK;
+  el("valTall").textContent = `${mm.toFixed(1)} mm`;
+  const split = Math.abs(D.exag * deep - D.landExag * landK) > 1e-6;
+  el("legSplit").style.display = split ? "block" : "none";
+}
+function onSlide(which, value) {
+  if (which === "deep" || linked) { deep = value; el("sldDeep").value = value * 100; }
+  if (which === "land" || linked) { landK = value; el("sldLand").value = value * 100; }
+  refresh();
+}
+el("sldDeep").addEventListener("input", (e) => onSlide("deep", +e.target.value / 100));
+el("sldLand").addEventListener("input", (e) => onSlide("land", +e.target.value / 100));
+el("btnLink").onclick = () => {
+  linked = !linked;
+  el("btnLink").classList.toggle("on", linked);
+  el("btnLink").textContent = linked ? "Locked together" : "Independent";
+  if (linked) onSlide("deep", deep);       // pull land back to match
+};
 function setSpin() { el("btnSpin").classList.toggle("on", view.spin); }
 el("btnSpin").onclick = () => { view.spin = !view.spin; setSpin(); };
 el("btnWater").onclick = () => {
@@ -329,7 +356,7 @@ if (MESH.marked) {
 }
 
 el("sub").textContent = D.sub;
-el("valTall").textContent = `${D.tall.toFixed(1)} mm`;
+refresh();
 if (D.markers) el("legMark").style.display = "block";
 
 // ---- draw -------------------------------------------------------------------
@@ -359,7 +386,7 @@ function draw(now) {
 
   // Orbit around the middle of the model's own vertical range so the object
   // does not swing out of frame as the exaggeration slider moves.
-  const centreY = D.plane + (D.tall - D.plane) * 0.25 * exag;
+  const centreY = D.plane + (D.tall - D.plane) * 0.25 * landK;
   const eye = [
     Math.sin(view.yaw) * Math.cos(view.pitch) * view.dist,
     Math.sin(view.pitch) * view.dist + centreY,
@@ -371,10 +398,11 @@ function draw(now) {
 
   gl.useProgram(prog);
   gl.uniformMatrix4fv(uni(prog, "uMVP"), false, new Float32Array(mvp));
-  gl.uniform1f(uni(prog, "uExag"), exag);
+  gl.uniform1f(uni(prog, "uDeep"), deep);
+  gl.uniform1f(uni(prog, "uLand"), landK);
   gl.uniform1f(uni(prog, "uPlane"), D.plane);
-  gl.uniform1f(uni(prog, "uSpanUp"), (D.tall - D.plane) * exag);
-  gl.uniform1f(uni(prog, "uSpanDown"), (D.plane - D.base) * exag);
+  gl.uniform1f(uni(prog, "uSpanUp"), (D.tall - D.plane) * landK);
+  gl.uniform1f(uni(prog, "uSpanDown"), (D.plane - D.base) * deep);
   const mesh = (showMarks && MESH.marked) ? MESH.marked : MESH.plain;
   attr(prog, "aPos", mesh.pos, 3);
   attr(prog, "aNormal", mesh.norm, 3);

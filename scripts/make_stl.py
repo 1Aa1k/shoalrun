@@ -58,9 +58,10 @@ class Model:
 
     z: np.ndarray          # (ny, nx) top surface, mm above the print bed
     cell_mm: float         # horizontal spacing of the samples
-    mm_per_m: float        # vertical scale, already including exaggeration
+    mm_per_m: float        # vertical scale below the waterline, exaggeration included
     scale_denom: float     # 1:N horizontal
     max_depth_m: float
+    mm_per_m_land: float = 0.0   # scale above the waterline; equal unless split
     land_relief_m: float = 0.0   # highest ground above the water plane
     row0: int = 0          # where the crop was taken from, in source cells
     col0: int = 0
@@ -153,7 +154,8 @@ def land_relative(depth_m: np.ndarray, elev: np.ndarray,
 def build_surface(depth_m: np.ndarray, grid_m: float, width_mm: float,
                   exag: float, base_mm: float, step: int = 1,
                   row0: int = 0, col0: int = 0,
-                  land_m: np.ndarray | None = None) -> Model:
+                  land_m: np.ndarray | None = None,
+                  land_exag: float | None = None) -> Model:
     """Top surface of the slab, in millimetres above the bed.
 
     Land is the plane; water hangs below it by its own exaggerated depth. The
@@ -173,23 +175,31 @@ def build_surface(depth_m: np.ndarray, grid_m: float, width_mm: float,
     scale = width_mm / span_m                  # mm of model per metre of lake
     cell_mm = grid_m * scale * step
     mm_per_m = scale * exag
+    # Land can be given its own exaggeration. One scale is the truthful default
+    # and stays the default; two is a legitimate thing to want when 23 m of
+    # lake has to share an object with 232 m of hillside, and the only real
+    # requirement is that the object says which it is.
+    mm_per_m_land = scale * (exag if land_exag is None else land_exag)
 
     # One field, metres, up positive, zero at the water surface: the lake hangs
     # below it and the land stands above it. Both get the SAME vertical scale --
     # exaggerating the basin harder than the hills would make a picture, not a
     # model, and nothing on the object would say which.
     water = np.isfinite(depth_m)
-    rel = np.where(water, -np.nan_to_num(depth_m, nan=0.0), 0.0)
+    below = np.where(water, -np.nan_to_num(depth_m, nan=0.0), 0.0) * mm_per_m
+    above = np.zeros_like(below)
     if land_m is not None:
-        rel = np.where(water, rel, land_m)
+        above = np.where(water, 0.0, land_m) * mm_per_m_land
+    mm = below + above                          # one is always zero
     max_depth_m = float(np.nan_to_num(depth_m, nan=0.0).max())
     return Model(
-        z=base_mm + (rel - rel.min()) * mm_per_m,
+        z=base_mm + (mm - mm.min()),
         cell_mm=cell_mm,
         mm_per_m=mm_per_m,
+        mm_per_m_land=mm_per_m_land,
         scale_denom=1.0 / scale * 1000.0,      # mm per metre -> 1:N
         max_depth_m=max_depth_m,
-        land_relief_m=float(rel.max()),
+        land_relief_m=(float(land_m.max()) if land_m is not None else 0.0),
         row0=row0,
         col0=col0,
     )
@@ -375,6 +385,8 @@ def main() -> None:
                     help="east-west size of the print (CR-10 bed is 300)")
     ap.add_argument("--exag", type=float, default=None,
                     help="vertical exaggeration; default solves for --target-mm")
+    ap.add_argument("--land-exag", type=float, default=None,
+                    help="separate exaggeration for the land; defaults to --exag")
     ap.add_argument("--target-mm", type=float, default=40.0,
                     help="how tall the relief should print when --exag is not given")
     ap.add_argument("--base-mm", type=float, default=3.0,
@@ -433,8 +445,16 @@ def main() -> None:
     if exag is None:
         exag = min(EXAG_CAP, max(1.0, args.target_mm / max(relief_m * scale, 1e-9)))
 
+    land_exag = args.land_exag
+    if land_exag is None and args.exag is None and land is not None:
+        # Auto mode with the two split apart would be guessing at two unknowns
+        # from one target height. Auto stays single-scale; splitting them is an
+        # explicit act.
+        land_exag = exag
+
     model = build_surface(depth, meta["grid_m"], args.width_mm, exag,
-                          args.base_mm, args.step, origin + i0, origin + j0, land)
+                          args.base_mm, args.step, origin + i0, origin + j0, land,
+                          land_exag)
 
     pins = mark_soundings(model, meta, step=args.step) if args.soundings else 0
     built = piers = 0
@@ -442,7 +462,11 @@ def main() -> None:
         built, piers = mark_structures(model, meta, step=args.step)
 
     tris = solid_triangles(model.z, model.cell_mm)
-    scale_txt = f"1:{model.scale_denom:,.0f} horiz, {exag:.3g}x vertical exaggeration"
+    split = land_exag is not None and abs(land_exag - exag) > 1e-9
+    scale_txt = (f"1:{model.scale_denom:,.0f} horiz, {exag:.3g}x depth / "
+                 f"{land_exag:.3g}x land -- SPLIT vertical scales"
+                 if split else
+                 f"1:{model.scale_denom:,.0f} horiz, {exag:.3g}x vertical exaggeration")
     write_binary_stl(args.out, tris,
                      f"Millinocket Lake bathymetry, MDIFW 1954, {scale_txt}")
 
@@ -459,7 +483,7 @@ def main() -> None:
           f"-> {depth_mm:.1f} mm below the water plane")
     if use_terrain:
         print(f"  highest ground {model.land_relief_m:.0f} m "
-              f"-> {model.land_relief_m * model.mm_per_m:.1f} mm above it")
+              f"-> {model.land_relief_m * model.mm_per_m_land:.1f} mm above it")
     if args.soundings:
         print(f"  {pins} sounding pins")
     if args.structures:
@@ -467,6 +491,14 @@ def main() -> None:
     print(f"  closed solid: {is_closed(tris)}, "
           f"volume {mesh_volume_mm3(tris) / 1000:.0f} cm3")
 
+    split_note = (
+        f"\n  The lake and the land are NOT on the same vertical scale here: depth is\n"
+        f"  exaggerated {exag:.3g}x and land {land_exag:.3g}x. Nothing about the object\n"
+        f"  reveals that, so the two cannot be compared against each other by eye --\n"
+        f"  a slope running into the water changes gradient at the shoreline for no\n"
+        f"  reason but this setting.\n"
+        if split else ""
+    )
     what = (
         "  The lake and the land around it, cut from one slab and sharing one\n"
         "  vertical scale. The waterline is the flat plane the hills rise from and\n"
@@ -504,6 +536,7 @@ What this is
 What it is not
   Depth is exaggerated {exag:.3g}x. At true scale the deepest point of this lake
   would be {model.max_depth_m * model.mm_per_m / exag:.2f} mm -- under three layer lines.
+{split_note}
 
 {land_note}
 

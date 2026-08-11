@@ -5,8 +5,10 @@ Same height field the STL is cut from, so what spins in the browser is the
 object that comes off the bed -- not a prettier cousin of it. One file, no
 network, no library: open it or serve it and it works.
 
-The exaggeration slider is live because the honest answer to "how deep is the
-lake really" is a slider you can drag to 0.2x and watch the whole thing flatten.
+Depth and land get their own live sliders, locked together by default. Split
+them and the page says so in the legend, because at that point the two halves of
+the object can no longer be compared against each other by eye -- a slope running
+into the water changes gradient at the shoreline for no reason but the setting.
 
     .venv/bin/python scripts/make_print_viewer.py --soundings --structures
     python3 -m http.server 9035 --directory dist   # then /print/viewer.html
@@ -48,6 +50,7 @@ def main() -> None:
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--width-mm", type=float, default=200.0)
     ap.add_argument("--exag", type=float, default=None)
+    ap.add_argument("--land-exag", type=float, default=None)
     ap.add_argument("--target-mm", type=float, default=40.0)
     ap.add_argument("--base-mm", type=float, default=3.0)
     ap.add_argument("--land-pad-m", type=float, default=600.0)
@@ -92,8 +95,9 @@ def main() -> None:
     if exag is None:
         exag = min(EXAG_CAP, max(1.0, args.target_mm / max(relief_m * scale, 1e-9)))
 
+    land_exag = args.land_exag if args.land_exag is not None else exag
     model = build_surface(depth, meta["grid_m"], args.width_mm, exag, args.base_mm,
-                          args.step, origin + i0, origin + j0, land)
+                          args.step, origin + i0, origin + j0, land, land_exag)
 
     # The markers ship as a second copy of the surface rather than baked in, so
     # the page can turn them off. Somebody looking at 260 pins with no label
@@ -142,6 +146,8 @@ def main() -> None:
         "zm": quantize(marked_z) if marked_z is not None else None,
         "markText": mark_text,
         "plane": round(plane, 4),
+        "exag": round(exag, 6),
+        "landExag": round(land_exag, 6),
         "base": round(args.base_mm, 4),
         "tall": round(tall, 4),
         "sub": sub,
