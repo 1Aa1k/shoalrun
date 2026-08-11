@@ -26,6 +26,7 @@ Usage:
     .venv/bin/python scripts/make_stl.py                     # 200 mm, 30x
     .venv/bin/python scripts/make_stl.py --width-mm 280 --soundings
     .venv/bin/python scripts/make_stl.py --step 2            # half resolution
+    .venv/bin/python scripts/make_stl.py --step-ft 10        # 10 ft contour terraces
 """
 
 from __future__ import annotations
@@ -151,11 +152,30 @@ def land_relative(depth_m: np.ndarray, elev: np.ndarray,
     return np.maximum(land, 0.0)
 
 
+def terrace(metres: np.ndarray, step_ft: float) -> np.ndarray:
+    """Snap a field of metres to whole steps of feet, measured from the water.
+
+    Floor, not nearest: a terrace then covers everything at least that far from
+    the waterline, which is what a contour band means on a chart. Rounding to
+    nearest would let a 4 ft sounding sit on the 5 ft terrace and read as deeper
+    than it is.
+
+    The steps are in FEET because the source is in feet -- 260 lead-line
+    soundings recorded in 1954 -- and a 3 m contour on data measured in feet is
+    a contour of a unit conversion.
+    """
+    if step_ft <= 0:
+        return metres
+    ft = metres * FT_PER_M
+    return np.floor(ft / step_ft) * step_ft / FT_PER_M
+
+
 def build_surface(depth_m: np.ndarray, grid_m: float, width_mm: float,
                   exag: float, base_mm: float, step: int = 1,
                   row0: int = 0, col0: int = 0,
                   land_m: np.ndarray | None = None,
-                  land_exag: float | None = None) -> Model:
+                  land_exag: float | None = None,
+                  step_ft: float = 0.0, land_step_ft: float = 0.0) -> Model:
     """Top surface of the slab, in millimetres above the bed.
 
     Land is the plane; water hangs below it by its own exaggerated depth. The
@@ -186,12 +206,19 @@ def build_surface(depth_m: np.ndarray, grid_m: float, width_mm: float,
     # exaggerating the basin harder than the hills would make a picture, not a
     # model, and nothing on the object would say which.
     water = np.isfinite(depth_m)
-    below = np.where(water, -np.nan_to_num(depth_m, nan=0.0), 0.0) * mm_per_m
+    # Terracing happens in metres, before either exaggeration, so the steps stay
+    # 10 real feet of water whatever the sliders are doing.
+    d = terrace(np.nan_to_num(depth_m, nan=0.0), step_ft)
+    below = np.where(water, -d, 0.0) * mm_per_m
     above = np.zeros_like(below)
     if land_m is not None:
-        above = np.where(water, 0.0, land_m) * mm_per_m_land
+        # Land steps are off unless asked for. Bare-earth lidar has real
+        # centimetre-scale roughness everywhere, and terracing it turns a
+        # hillside into sandpaper -- 10 ft bands are a chart convention for
+        # water, where the surface is smooth interpolation to begin with.
+        above = np.where(water, 0.0, terrace(land_m, land_step_ft)) * mm_per_m_land
     mm = below + above                          # one is always zero
-    max_depth_m = float(np.nan_to_num(depth_m, nan=0.0).max())
+    max_depth_m = float(d.max())
     return Model(
         z=base_mm + (mm - mm.min()),
         cell_mm=cell_mm,
@@ -199,7 +226,8 @@ def build_surface(depth_m: np.ndarray, grid_m: float, width_mm: float,
         mm_per_m_land=mm_per_m_land,
         scale_denom=1.0 / scale * 1000.0,      # mm per metre -> 1:N
         max_depth_m=max_depth_m,
-        land_relief_m=(float(land_m.max()) if land_m is not None else 0.0),
+        land_relief_m=(float(terrace(land_m, land_step_ft).max())
+                       if land_m is not None else 0.0),
         row0=row0,
         col0=col0,
     )
@@ -387,6 +415,10 @@ def main() -> None:
                     help="vertical exaggeration; default solves for --target-mm")
     ap.add_argument("--land-exag", type=float, default=None,
                     help="separate exaggeration for the land; defaults to --exag")
+    ap.add_argument("--step-ft", type=float, default=0.0,
+                    help="terrace the LAKE into whole steps of feet, e.g. 10")
+    ap.add_argument("--land-step-ft", type=float, default=0.0,
+                    help="terrace the land too; off by default, it reads as noise")
     ap.add_argument("--target-mm", type=float, default=40.0,
                     help="how tall the relief should print when --exag is not given")
     ap.add_argument("--base-mm", type=float, default=3.0,
@@ -454,7 +486,7 @@ def main() -> None:
 
     model = build_surface(depth, meta["grid_m"], args.width_mm, exag,
                           args.base_mm, args.step, origin + i0, origin + j0, land,
-                          land_exag)
+                          land_exag, args.step_ft, args.land_step_ft)
 
     pins = mark_soundings(model, meta, step=args.step) if args.soundings else 0
     built = piers = 0
@@ -462,11 +494,18 @@ def main() -> None:
         built, piers = mark_structures(model, meta, step=args.step)
 
     tris = solid_triangles(model.z, model.cell_mm)
+    steps = []
+    if args.step_ft > 0:
+        steps.append(f"{args.step_ft:g} ft lake steps")
+    if args.land_step_ft > 0:
+        steps.append(f"{args.land_step_ft:g} ft land steps")
+    steps_txt = (", " + " / ".join(steps)) if steps else ""
     split = land_exag is not None and abs(land_exag - exag) > 1e-9
     scale_txt = (f"1:{model.scale_denom:,.0f} horiz, {exag:.3g}x depth / "
-                 f"{land_exag:.3g}x land -- SPLIT vertical scales"
+                 f"{land_exag:.3g}x land -- SPLIT vertical scales" + steps_txt
                  if split else
-                 f"1:{model.scale_denom:,.0f} horiz, {exag:.3g}x vertical exaggeration")
+                 f"1:{model.scale_denom:,.0f} horiz, "
+                 f"{exag:.3g}x vertical exaggeration" + steps_txt)
     write_binary_stl(args.out, tris,
                      f"Millinocket Lake bathymetry, MDIFW 1954, {scale_txt}")
 

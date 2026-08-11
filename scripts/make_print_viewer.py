@@ -148,6 +148,10 @@ def main() -> None:
         "plane": round(plane, 4),
         "exag": round(exag, 6),
         "landExag": round(land_exag, 6),
+        # Millimetres of baked model per foot of real relief, one per side.
+        # The page terraces in feet, so it needs the conversion the bake used.
+        "mmPerFtDeep": round(model.mm_per_m / FT_PER_M, 8),
+        "mmPerFtLand": round(model.mm_per_m_land / FT_PER_M, 8),
         "base": round(args.base_mm, 4),
         "tall": round(tall, 4),
         "sub": sub,

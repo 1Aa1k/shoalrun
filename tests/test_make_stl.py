@@ -248,3 +248,50 @@ class TestSplitScales:
         shore_a = a.z[1, 1] - a.z.min()      # above the deepest point, which is
         shore_b = b.z[1, 1] - b.z.min()      # what the base thickness sits under
         assert shore_a == pytest.approx(shore_b)
+
+
+class TestTerracing:
+    def test_no_step_leaves_the_field_alone(self):
+        from make_stl import terrace
+        d = np.array([1.0, 2.5, 7.3])
+        assert np.array_equal(terrace(d, 0.0), d)
+
+    def test_values_land_on_whole_steps_of_feet(self):
+        from make_stl import FT_PER_M, terrace
+        d = np.array([4.0, 11.0, 26.0, 70.0]) / FT_PER_M     # feet in, metres held
+        out = terrace(d, 10.0) * FT_PER_M
+        assert np.allclose(out, [0.0, 10.0, 20.0, 70.0])
+
+    def test_it_floors_rather_than_rounds(self):
+        """A 9 ft sounding on a 10 ft terrace would print as deeper than it was
+        measured. Floor keeps every terrace a depth the water actually reaches."""
+        from make_stl import FT_PER_M, terrace
+        d = np.array([9.0, 9.9, 19.5]) / FT_PER_M
+        out = terrace(d, 10.0) * FT_PER_M
+        assert np.allclose(out, [0.0, 0.0, 10.0])
+
+    def test_terracing_never_deepens_a_cell(self):
+        from make_stl import terrace
+        rng = np.random.default_rng(7)
+        d = rng.uniform(0, 25, 500)
+        assert np.all(terrace(d, 5.0) <= d + 1e-12)
+
+    def test_lake_steps_do_not_terrace_the_land(self):
+        """Land steps are a separate switch: bare-earth lidar is rough
+        everywhere and banding it reads as noise, not as contours."""
+        d = np.full((4, 4), NAN)
+        d[1:3, 1:3] = 6.0
+        land = np.full((4, 4), 5.0)
+        land[0, 0] = 5.4
+        a = build_surface(d, 25.0, 40.0, 4.0, 1.0, land_m=land, step_ft=10.0)
+        b = build_surface(d, 25.0, 40.0, 4.0, 1.0, land_m=land)
+        assert a.z[0, 0] - a.z[0, 1] == pytest.approx(b.z[0, 0] - b.z[0, 1])
+
+    def test_asking_for_land_steps_does_terrace_it(self):
+        d = np.full((4, 4), NAN)
+        d[1:3, 1:3] = 6.0
+        land = np.full((4, 4), 5.0)
+        land[0, 0] = 5.4                       # under a 10 ft step above its neighbour
+        m = build_surface(d, 25.0, 40.0, 4.0, 1.0, land_m=land,
+                          step_ft=10.0, land_step_ft=10.0)
+        assert m.z[0, 0] == pytest.approx(m.z[0, 1])
