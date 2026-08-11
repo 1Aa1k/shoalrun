@@ -104,6 +104,49 @@ button.ghost { background: transparent; color: var(--ink-dim); }
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 #status.ok { color: var(--ok); } #status.warn { color: var(--warn); }
 
+/* --- narrow screens ------------------------------------------------------ */
+/* This is a PWA for a phone on a lake with no signal, and until now it had no
+   media query at all -- every size was laid out for a desktop window. At 420 px
+   the legend and the disclaimer are each capped near half the width, so both
+   wrap to five or six lines and together they cover the top third of the map.
+
+   Nothing is hidden behind a tap: the legend is docked along the bottom and
+   laid out horizontally instead, where the same rows cost two lines instead of
+   six and the middle of the screen goes back to being the lake. */
+@media (max-width: 560px) {
+  .disclaimer { left: 10px; right: 10px; max-width: none; font-size: 10.5px;
+                padding: 6px 9px; }
+
+  /* Stays at the top, under the disclaimer, rather than docking above the bar:
+     the bar's own height changes with how much the status text wraps, and the
+     report button lives down there too, so anything anchored to the bottom
+     collides with one of them at some screen size. The top edge is fixed. */
+  .legend { top: calc(102px + var(--pad-t)); left: 10px; right: 10px;
+            max-width: none; display: flex; flex-wrap: wrap;
+            align-items: center; gap: 3px 14px; padding: 7px 10px; }
+  .legend .row { margin: 0; }
+  /* The ramp and its note want the full width; the symbol rows pack across it. */
+  .legend .ramp, .legend .ramplab, .legend .note { width: 100%; }
+  .legend .ramp { margin: 5px 0 2px; }
+  .legend .note { margin-top: 5px; font-size: 10px; }
+
+  /* The status column gets its own full-width line under the buttons instead
+     of a 90 px sliver between them -- "GPS: User denie..." is exactly the
+     message someone needs to read in full when the map is not following them.
+     The bar grows by one clamped line, so the report button clears it by a
+     fixed amount. */
+  .bar { flex-wrap: wrap; }
+  .bar .grow { flex-basis: 100%; order: 2; }
+  #btnFlag { padding: 12px 14px; font-size: 14px; bottom: calc(104px + var(--pad-b)); }
+
+  /* Wrapping beats an ellipsis -- "GPS: User denie..." is the one line that
+     explains why the map is not following the boat -- but it is clamped so the
+     bar cannot grow without limit and start eating the map from below. */
+  #status, #counts, #meta { white-space: normal; display: -webkit-box;
+                            -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+                            overflow: hidden; font-size: 10.5px; }
+}
+
 /* --- layers panel -------------------------------------------------------- */
 /* Slides up over the bar. The old build put every control in one wrapping row,
    which on a phone became three rows of buttons eating a third of the map. */
