@@ -57,3 +57,14 @@ export function forwardOf(yaw, pitch) {
     -Math.cos(yaw) * Math.cos(pitch),
   ];
 }
+
+// Model rotation for something that faces `yaw`. Rows are the images of the
+// local axes, so the bow -- local -Z, to agree with forwardOf -- lands exactly
+// on forwardOf(yaw). The transpose of this is the inverse rotation and yaws the
+// model by MINUS the heading: identical at due north, a boat sliding sideways
+// everywhere else, which is why it survived a visual check once already.
+export function modelYaw(yaw) {
+  const c = Math.cos(yaw);
+  const s = Math.sin(yaw);
+  return [c, 0, s, 0, 0, 1, 0, 0, -s, 0, c, 0, 0, 0, 0, 1];
+}

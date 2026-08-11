@@ -769,6 +769,17 @@ function forwardOf(yaw, pitch) {
   ];
 }
 
+// Model rotation for something that faces `yaw`. Rows are the images of the
+// local axes, so the bow -- local -Z, to agree with forwardOf -- lands exactly
+// on forwardOf(yaw). The transpose of this is the inverse rotation and yaws the
+// model by MINUS the heading: identical at due north, a boat sliding sideways
+// everywhere else, which is why it survived a visual check once already.
+function modelYaw(yaw) {
+  const c = Math.cos(yaw);
+  const s = Math.sin(yaw);
+  return [c, 0, s, 0, 0, 1, 0, 0, -s, 0, c, 0, 0, 0, 0, 1];
+}
+
 // Geometry builders for the 3D viewer. Split out of viewer3d.js because that
 // file was doing shaders, camera, input and mesh generation at once, and the
 // mesh generation is the part that changes whenever the terrace setting moves.
@@ -1885,7 +1896,8 @@ const BOAT_COLORS = {
 const BOAT_EYE_M = 1.9;
 // Chase camera. The boat is 1.8 m long, so the distance that frames it is small
 // -- at the 8 m a full-size boat would want, it is a speck.
-const CHASE = { dist: 5.6, height: 1.0, lookAhead: 3.0, min: 2.2, max: 22 };
+const CHASE = { dist: 5.6, height: 1.0, lookAhead: 3.0, min: 2.2, max: 22,
+                follow: 3.2, maxLag: 0.22 };
 
 const boat = {
   x: 0, z: 0, speed: 0,
@@ -2031,19 +2043,26 @@ function cameraFor(dt) {
   boat.x += h[0] * boat.speed * dt;
   boat.z += h[2] * boat.speed * dt;
 
-  // Camera chases the heading rather than being locked to it. The lag is the
-  // whole point: during a turn the hull swings out in frame and settles back,
-  // which is what makes the boat read as turning instead of the world spinning
-  // around a fixed bow.
-  // Free look springs back once the drag ends. Held open, the camera sits off the
-  // bow and the boat reads as crabbing sideways across the lake forever -- which
-  // is invisible in first person and glaring in third.
+  // Camera chases the heading rather than being locked to it. A little lag is
+  // what makes the boat read as turning instead of the world spinning around a
+  // fixed bow. Free look springs back once the drag ends.
   if (!boat.looking) boat.look += (0 - boat.look) * Math.min(1, dt * 1.1);
 
-  let err = boat.heading + boat.look - boat.camYaw;
-  while (err > Math.PI) err -= Math.PI * 2;
-  while (err < -Math.PI) err += Math.PI * 2;
-  boat.camYaw += err * Math.min(1, dt * 3.2);
+  const wrap = (a) => {
+    while (a > Math.PI) a -= Math.PI * 2;
+    while (a < -Math.PI) a += Math.PI * 2;
+    return a;
+  };
+  let err = wrap(boat.heading + boat.look - boat.camYaw);
+  boat.camYaw += err * Math.min(1, dt * CHASE.follow);
+  // A pure exponential follow settles at a *constant* offset during a sustained
+  // turn -- rate/follow radians -- so the boat sits permanently cocked in frame
+  // and reads as sliding sideways rather than turning. Capping the offset ends
+  // the turn with the camera behind the boat, which is where it belongs.
+  if (!boat.looking) {
+    const over = wrap(boat.heading - boat.camYaw);
+    if (Math.abs(over) > CHASE.maxLag) boat.camYaw = boat.heading - Math.sign(over) * CHASE.maxLag;
+  }
   boat.roll += (-turn * Math.min(1, Math.abs(boat.speed) / BOAT_MAX_MS) * 0.13 - boat.roll)
     * Math.min(1, dt * 2.5);
 
@@ -2069,6 +2088,15 @@ function cameraFor(dt) {
   // First person puts the eye at the helm. Third person pulls back along the
   // camera's own yaw -- not the hull's heading -- so the boat swings in frame
   // during a turn instead of the world rotating around a fixed stern.
+  // The hull's own attitude: it banks into its turns and takes the surface slope
+  // under it. This is the boat moving, not the camera, so it is independent of
+  // the sway toggle and of which view you are in.
+  const hull = {
+    y: w.y,
+    pitch: slopeF * 0.8,
+    roll: boat.roll + slopeR * 0.9,
+  };
+
   let eye;
   let target;
   if (boat.chase) {
@@ -2084,16 +2112,20 @@ function cameraFor(dt) {
       ride + 0.35 + (boat.pitch - slopeF * 0.35 * sway) * CHASE.lookAhead,
       boat.z + back[2] * CHASE.lookAhead,
     ];
-    return { eye, target, roll: (boat.roll + slopeR * 0.45 * sway) * 0.35, waveY: ride };
+    // Third person keeps the horizon level. Rolling the camera here would tilt
+    // the whole world while the boat stayed pinned at the same angle on screen --
+    // which looks like the lake wobbling, not the boat leaning. The hull carries
+    // the lean instead, which is the thing you are actually looking at.
+    return { eye, target, roll: 0, hull };
   }
   eye = [boat.x, BOAT_EYE_M + w.y * sway, boat.z];
   return {
     eye,
     target: add3(eye, forwardOf(boat.camYaw, boat.pitch - slopeF * 0.35 * sway)),
-    // Wave roll is added to the turn lean, so a beam sea leans you the way it
-    // should rather than the hull staying stubbornly level.
-    roll: boat.roll + slopeR * 0.45 * sway,
-    waveY: w.y,
+    // First person is the one view where camera roll is right: your head goes
+    // with the hull. A beam sea leans you the way it should.
+    roll: (boat.roll + slopeR * 0.45) * sway,
+    hull,
   };
 }
 
@@ -2139,15 +2171,20 @@ function updatePatch(x, z) {
 
 // Hull sits in the camera's own frame, so it is placed by building a model
 // matrix from the boat's heading and position rather than by baking it in.
-function hullMatrix(waveY) {
-  const c = Math.cos(boat.heading);
-  const s = Math.sin(boat.heading);
-  return [
-    c, 0, -s, 0,
-    0, 1, 0, 0,
-    s, 0, c, 0,
-    boat.x, waveY, boat.z, 1,
-  ];
+// Roll first about the hull's own long axis, then pitch about its beam, then
+// yaw into the world. Rolling last would tilt the boat about a world axis and
+// the bow would swing sideways instead of the deck leaning.
+function hullMatrix(hull) {
+  const cp = Math.cos(hull.pitch), sp = Math.sin(hull.pitch);
+  const cr = Math.cos(hull.roll), sr = Math.sin(hull.roll);
+  const roll = [cr, sr, 0, 0, -sr, cr, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];
+  const pitch = [1, 0, 0, 0, 0, cp, sp, 0, 0, -sp, cp, 0, 0, 0, 0, 1];
+  const yaw = modelYaw(boat.heading);
+  const m = multiply(roll, multiply(pitch, yaw));
+  m[12] = boat.x;
+  m[13] = hull.y;
+  m[14] = boat.z;
+  return m;
 }
 
 let lastT = performance.now();
@@ -2158,7 +2195,7 @@ function draw(now) {
   lastT = now;
   clock += dt;
 
-  const { eye, target, roll, waveY } = cameraFor(dt);
+  const { eye, target, roll, hull } = cameraFor(dt);
   // Boat mode ignores the exaggeration slider. From 1.9 m above the water, 8x
   // turns a 20 ft bottom into a 160 ft canyon and puts every shallow at eye
   // level -- the one view that pretends you are on the lake is the one where
@@ -2262,7 +2299,7 @@ function draw(now) {
     // The boat is 1.8 m and everything else here is metres, so it must not be
     // exaggerated with the terrain or it would tower over its own lake.
     gl.uniform1f(uni(litProg, "uExag"), 1);
-    gl.uniformMatrix4fv(uni(litProg, "uMVP"), false, new Float32Array(multiply(hullMatrix(waveY), multiply(view, projM))));
+    gl.uniformMatrix4fv(uni(litProg, "uMVP"), false, new Float32Array(multiply(hullMatrix(hull), multiply(view, projM))));
     attr(litProg, "aPos", bufHullPos, 3);
     attr(litProg, "aNormal", bufHullNorm, 3);
     attr(litProg, "aShade", bufHullShade, 1);
