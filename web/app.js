@@ -147,6 +147,28 @@ view.scale = Math.min(
 view.rotation = 0;
 view.follow = false;
 
+// #lat,lon,zoom opens the map somewhere specific. Written for handing someone a
+// spot -- "the camps on Evergreen Way" is a URL rather than four sentences of
+// pan-and-zoom directions -- and it costs nothing on a lake with no network,
+// because the whole app is one file and the hash never leaves the device.
+//
+// Anything unparseable is ignored rather than raised on: a mistyped link should
+// open the lake, not a blank screen.
+function applyHash(hash) {
+  const m = /^#(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)(?:,(\d+(?:\.\d+)?))?$/.exec(hash || "");
+  if (!m) return false;
+  const lat = +m[1];
+  const lon = +m[2];
+  if (!isFinite(lat) || !isFinite(lon) || Math.abs(lat) > 90 || Math.abs(lon) > 180) return false;
+  const [x, y] = proj.fwd(lon, lat);
+  view.center = { x, y };
+  view.follow = false;
+  if (m[3]) view.scale = Math.max(0.01, Math.min(4, +m[3]));
+  return true;
+}
+applyHash(location.hash);
+window.addEventListener("hashchange", () => applyHash(location.hash));
+
 // --- marks -----------------------------------------------------------------
 
 async function loadMarks() {
