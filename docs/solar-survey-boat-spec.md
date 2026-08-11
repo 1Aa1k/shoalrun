@@ -168,6 +168,12 @@ easier to open source. `DATA-LICENSE.md` is a starting point for the dataset ter
 
 1. Fishfinder on a friend's boat. Prove the `.sl2` → (lat, lon, depth) → map
    pipeline with zero autonomy. Real data this season if wanted.
+   **The receive side is built** (2026-08-11): `scripts/read_sl2.py` reads the
+   log to soundings plus a track in the shape `web/swept.js` wants. Field
+   offsets inside a frame are unverified until a real file exists —
+   `--probe LOG.sl2` measures them off the file itself rather than trusting a
+   table, so step one is: log ten minutes, run `--probe`, check that the depth
+   column it picks is the one the community table claims.
 2. Hull + manual RC. Prove it survives the lake and the transducer reads clean under
    way.
 3. ArduPilot + lawnmower grid, supervised, line of sight.
