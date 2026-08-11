@@ -1,0 +1,370 @@
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>shoalrun - the print in 3D</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: #0b0f14; overflow: hidden;
+    font: 14px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    color: #e8eef5; }
+  canvas { display: block; width: 100vw; height: 100vh; touch-action: none; cursor: grab; }
+  canvas.drag { cursor: grabbing; }
+  .card { position: fixed; background: rgba(12,18,26,.86); border: 1px solid #22303f;
+    border-radius: 10px; padding: 10px 12px; backdrop-filter: blur(8px); }
+  #head { top: 12px; left: 12px; max-width: min(460px, calc(100vw - 24px)); }
+  #head h1 { margin: 0 0 2px; font-size: 15px; letter-spacing: .01em; }
+  #head p { margin: 0; font-size: 12px; color: #9fb0c2; }
+  #panel { right: 12px; top: 12px; width: 214px; }
+  .row { display: flex; justify-content: space-between; align-items: baseline;
+    font-size: 12px; color: #9fb0c2; margin-top: 8px; }
+  .row:first-child { margin-top: 0; }
+  .row b { color: #e8eef5; font-variant-numeric: tabular-nums; font-weight: 600; }
+  input[type=range] { width: 100%; margin: 4px 0 0; accent-color: #3d9be9; }
+  .btn { flex: 1; background: #16202c; color: #cddced; border: 1px solid #22303f;
+    border-radius: 7px; padding: 6px 8px; font-size: 12px; cursor: pointer; }
+  .btn.on { background: #1d5f9c; border-color: #2e7fc4; color: #fff; }
+  .btns { display: flex; gap: 6px; margin-top: 10px; }
+  #legend { left: 12px; bottom: 12px; font-size: 12px; color: #9fb0c2; }
+  #legend i { display: inline-block; width: 11px; height: 11px; border-radius: 2px;
+    margin-right: 5px; vertical-align: -1px; }
+  #legend div { margin-top: 3px; }
+  #err { position: fixed; inset: 0; display: none; place-items: center; padding: 24px;
+    text-align: center; color: #f2b0a6; }
+</style>
+
+<canvas id="gl"></canvas>
+<div id="err"></div>
+
+<div class="card" id="head">
+  <h1>Millinocket Lake &mdash; the printed object</h1>
+  <p id="sub"></p>
+</div>
+
+<div class="card" id="panel">
+  <div class="row"><span>Vertical exaggeration</span><b id="valExag">1.0x</b></div>
+  <input type="range" id="sldExag" min="20" max="400" step="5" value="100">
+  <div class="row"><span>Model height</span><b id="valTall">--</b></div>
+  <div class="btns">
+    <button class="btn on" id="btnWater">Water</button>
+    <button class="btn on" id="btnSpin">Spin</button>
+  </div>
+</div>
+
+<div class="card" id="legend">
+  <div><i style="background:#123a5c"></i>lake bottom, 1954 soundings interpolated</div>
+  <div><i style="background:#4a6a3c"></i>land, 3DEP lidar bare earth 2017</div>
+  <div id="legMark" style="display:none"><i style="background:#d8b25e"></i>markers, oversized</div>
+</div>
+
+<script id="payload" type="application/json">__DATA__</script>
+<script>
+"use strict";
+const D = JSON.parse(document.getElementById("payload").textContent);
+const el = (id) => document.getElementById(id);
+
+function fatal(msg) {
+  const box = el("err");
+  box.style.display = "grid";
+  box.textContent = String(msg);
+}
+window.addEventListener("error", (e) => fatal(e.message));
+
+const canvas = el("gl");
+const gl = canvas.getContext("webgl", { antialias: true, alpha: false });
+if (!gl) fatal("This device has no WebGL.");
+
+// ---- decode the height field ------------------------------------------------
+// uint16 over the model's own height range: 43 mm across 65,535 steps is 0.7
+// micron, which is four orders of magnitude finer than the printer, and a third
+// the size of sending floats.
+function decode(b64) {
+  const bin = atob(b64);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return new Uint16Array(bytes.buffer);
+}
+const NX = D.nx, NY = D.ny;
+const raw = decode(D.z);
+const Z = new Float32Array(NX * NY);
+for (let i = 0; i < Z.length; i++) Z[i] = raw[i] * D.zscale;
+
+// ---- geometry ---------------------------------------------------------------
+// One vertex per sample, indexed triangles, so the 155k-vertex full-resolution
+// grid does not become 900k loose vertices.
+const pos = new Float32Array(NX * NY * 3);
+const W = NX * D.cell, H = NY * D.cell;
+for (let i = 0; i < NY; i++) {
+  for (let j = 0; j < NX; j++) {
+    const k = (i * NX + j) * 3;
+    pos[k] = j * D.cell - W / 2;
+    pos[k + 1] = Z[i * NX + j];
+    pos[k + 2] = -(i * D.cell - H / 2);   // row 0 is south, and -Z is north here
+  }
+}
+
+// Normals from the height field directly rather than from triangles: a central
+// difference is exact for a grid and costs one pass instead of an accumulation.
+const norm = new Float32Array(NX * NY * 3);
+for (let i = 0; i < NY; i++) {
+  for (let j = 0; j < NX; j++) {
+    const at = (a, b) => Z[Math.min(NY - 1, Math.max(0, a)) * NX
+                         + Math.min(NX - 1, Math.max(0, b))];
+    const dx = (at(i, j + 1) - at(i, j - 1)) / (2 * D.cell);
+    const dz = (at(i + 1, j) - at(i - 1, j)) / (2 * D.cell);
+    const k = (i * NX + j) * 3;
+    norm[k] = -dx; norm[k + 1] = 1; norm[k + 2] = dz;
+  }
+}
+
+const idxArr = (NX * NY > 65535) ? Uint32Array : Uint16Array;
+if (NX * NY > 65535 && !gl.getExtension("OES_element_index_uint")) {
+  fatal("This GPU cannot index a mesh this large. Rebuild the viewer with --step 2.");
+}
+const idx = new idxArr((NX - 1) * (NY - 1) * 6);
+let p = 0;
+for (let i = 0; i < NY - 1; i++) {
+  for (let j = 0; j < NX - 1; j++) {
+    const a = i * NX + j, b = a + 1, c = a + NX, d = c + 1;
+    idx[p++] = a; idx[p++] = c; idx[p++] = b;
+    idx[p++] = b; idx[p++] = c; idx[p++] = d;
+  }
+}
+
+function buffer(data, target) {
+  const b = gl.createBuffer();
+  gl.bindBuffer(target, b);
+  gl.bufferData(target, data, gl.STATIC_DRAW);
+  return b;
+}
+const bufPos = buffer(pos, gl.ARRAY_BUFFER);
+const bufNorm = buffer(norm, gl.ARRAY_BUFFER);
+const bufIdx = buffer(idx, gl.ELEMENT_ARRAY_BUFFER);
+
+// A quad at the water plane, inset slightly so it never z-fights the shore.
+const wq = new Float32Array([
+  -W / 2, 0, -H / 2, W / 2, 0, -H / 2, W / 2, 0, H / 2,
+  -W / 2, 0, -H / 2, W / 2, 0, H / 2, -W / 2, 0, H / 2,
+]);
+const bufWater = buffer(wq, gl.ARRAY_BUFFER);
+
+// ---- shaders ----------------------------------------------------------------
+const VERT = `
+attribute vec3 aPos;
+attribute vec3 aNormal;
+uniform mat4 uMVP;
+uniform float uExag;
+uniform float uPlane;
+varying vec3 vN;
+varying float vRel;
+void main() {
+  // Exaggeration works about the water plane, not the bed, so the shoreline
+  // stays put and only the relief grows.
+  float rel = (aPos.y - uPlane) * uExag;
+  vRel = rel;
+  vN = normalize(vec3(aNormal.x / max(uExag, 0.001), aNormal.y, aNormal.z / max(uExag, 0.001)));
+  gl_Position = uMVP * vec4(aPos.x, uPlane + rel, aPos.z, 1.0);
+}`;
+
+const FRAG = `
+precision mediump float;
+varying vec3 vN;
+varying float vRel;
+uniform float uSpanUp;
+uniform float uSpanDown;
+void main() {
+  vec3 c;
+  if (vRel < 0.0) {
+    // Below the waterline: the deeper it is, the darker and bluer.
+    float t = clamp(-vRel / max(uSpanDown, 0.001), 0.0, 1.0);
+    c = mix(vec3(0.35, 0.62, 0.72), vec3(0.05, 0.16, 0.33), t);
+  } else {
+    float t = clamp(vRel / max(uSpanUp, 0.001), 0.0, 1.0);
+    vec3 low = vec3(0.29, 0.42, 0.24);
+    vec3 mid = vec3(0.55, 0.48, 0.31);
+    vec3 hi  = vec3(0.86, 0.86, 0.83);
+    c = t < 0.5 ? mix(low, mid, t * 2.0) : mix(mid, hi, (t - 0.5) * 2.0);
+  }
+  vec3 n = normalize(vN);
+  float key = max(dot(n, normalize(vec3(-0.55, 0.72, 0.42))), 0.0);
+  float fill = max(dot(n, normalize(vec3(0.5, 0.3, -0.6))), 0.0);
+  gl_FragColor = vec4(c * (0.30 + 0.78 * key + 0.16 * fill), 1.0);
+}`;
+
+// The water plane gets its own vertex shader rather than reusing the terrain
+// one: that shader reads a normal attribute this quad does not have, and a
+// stale attribute array left enabled is the kind of bug that renders fine on
+// one driver and garbage on another.
+const WATER_VERT = `
+attribute vec3 aPos;
+uniform mat4 uMVP;
+uniform float uPlane;
+void main() { gl_Position = uMVP * vec4(aPos.x, uPlane, aPos.z, 1.0); }`;
+
+const WATER_FRAG = `
+precision mediump float;
+void main() { gl_FragColor = vec4(0.24, 0.52, 0.68, 0.34); }`;
+
+function compile(src, type) {
+  const s = gl.createShader(type);
+  gl.shaderSource(s, src);
+  gl.compileShader(s);
+  if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s));
+  return s;
+}
+function program(v, f) {
+  const pr = gl.createProgram();
+  gl.attachShader(pr, compile(v, gl.VERTEX_SHADER));
+  gl.attachShader(pr, compile(f, gl.FRAGMENT_SHADER));
+  gl.linkProgram(pr);
+  if (!gl.getProgramParameter(pr, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(pr));
+  return pr;
+}
+const prog = program(VERT, FRAG);
+const waterProg = program(WATER_VERT, WATER_FRAG);
+
+// ---- matrices ---------------------------------------------------------------
+function multiply(a, b) {
+  const o = new Array(16).fill(0);
+  for (let i = 0; i < 4; i++)
+    for (let j = 0; j < 4; j++)
+      for (let k = 0; k < 4; k++) o[i * 4 + j] += a[i * 4 + k] * b[k * 4 + j];
+  return o;
+}
+function perspective(fovy, aspect, near, far) {
+  const f = 1 / Math.tan(fovy / 2);
+  return [f / aspect, 0, 0, 0, 0, f, 0, 0,
+          0, 0, (far + near) / (near - far), -1,
+          0, 0, (2 * far * near) / (near - far), 0];
+}
+const sub = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
+const dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+const cross = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2],
+                         a[0] * b[1] - a[1] * b[0]];
+function norm3(v) { const l = Math.hypot(v[0], v[1], v[2]) || 1; return [v[0] / l, v[1] / l, v[2] / l]; }
+function lookAt(eye, target, up) {
+  const z = norm3(sub(eye, target)), x = norm3(cross(up, z)), y = cross(z, x);
+  return [x[0], y[0], z[0], 0, x[1], y[1], z[1], 0, x[2], y[2], z[2], 0,
+          -dot(x, eye), -dot(y, eye), -dot(z, eye), 1];
+}
+
+// ---- camera and controls ----------------------------------------------------
+const view = { yaw: 0.6, pitch: 0.72, dist: Math.max(W, H) * 1.25, spin: true };
+const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+let drag = null;
+
+canvas.addEventListener("pointerdown", (e) => {
+  drag = { x: e.clientX, y: e.clientY };
+  view.spin = false;
+  setSpin();
+  canvas.classList.add("drag");
+  canvas.setPointerCapture(e.pointerId);
+});
+canvas.addEventListener("pointermove", (e) => {
+  if (!drag) return;
+  view.yaw += (e.clientX - drag.x) * 0.006;
+  view.pitch = clamp(view.pitch - (e.clientY - drag.y) * 0.005, 0.06, 1.53);
+  drag = { x: e.clientX, y: e.clientY };
+});
+const release = () => { drag = null; canvas.classList.remove("drag"); };
+canvas.addEventListener("pointerup", release);
+canvas.addEventListener("pointercancel", release);
+canvas.addEventListener("wheel", (e) => {
+  e.preventDefault();
+  view.dist = clamp(view.dist * (e.deltaY > 0 ? 1.1 : 0.91), W * 0.25, W * 5);
+}, { passive: false });
+
+// Two-finger pinch, because this is the kind of thing that gets shown to
+// someone on a phone.
+let pinch = 0;
+canvas.addEventListener("touchmove", (e) => {
+  if (e.touches.length !== 2) return;
+  const d = Math.hypot(e.touches[0].clientX - e.touches[1].clientX,
+                       e.touches[0].clientY - e.touches[1].clientY);
+  if (pinch) view.dist = clamp(view.dist * (pinch / d), W * 0.25, W * 5);
+  pinch = d;
+}, { passive: true });
+canvas.addEventListener("touchend", () => { pinch = 0; });
+
+let exag = 1;
+let showWater = true;
+el("sldExag").addEventListener("input", (e) => {
+  exag = +e.target.value / 100;
+  el("valExag").textContent = `${exag.toFixed(2)}x`;
+  el("valTall").textContent = `${(D.base + (D.tall - D.base) * exag).toFixed(1)} mm`;
+});
+function setSpin() { el("btnSpin").classList.toggle("on", view.spin); }
+el("btnSpin").onclick = () => { view.spin = !view.spin; setSpin(); };
+el("btnWater").onclick = () => {
+  showWater = !showWater;
+  el("btnWater").classList.toggle("on", showWater);
+};
+
+el("sub").textContent = D.sub;
+el("valTall").textContent = `${D.tall.toFixed(1)} mm`;
+if (D.markers) el("legMark").style.display = "block";
+
+// ---- draw -------------------------------------------------------------------
+function attr(pr, name, buf, size) {
+  const loc = gl.getAttribLocation(pr, name);
+  if (loc < 0) return;
+  gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+  gl.enableVertexAttribArray(loc);
+  gl.vertexAttribPointer(loc, size, gl.FLOAT, false, 0, 0);
+}
+const uni = (pr, n) => gl.getUniformLocation(pr, n);
+
+let last = performance.now();
+function draw(now) {
+  const dt = Math.min(0.05, (now - last) / 1000) || 0.016;
+  last = now;
+  if (view.spin) view.yaw += dt * 0.22;
+
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const w = Math.round(canvas.clientWidth * dpr), h = Math.round(canvas.clientHeight * dpr);
+  if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; }
+
+  gl.viewport(0, 0, canvas.width, canvas.height);
+  gl.clearColor(0.043, 0.059, 0.078, 1);
+  gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+  gl.enable(gl.DEPTH_TEST);
+
+  // Orbit around the middle of the model's own vertical range so the object
+  // does not swing out of frame as the exaggeration slider moves.
+  const centreY = D.plane + (D.tall - D.plane) * 0.25 * exag;
+  const eye = [
+    Math.sin(view.yaw) * Math.cos(view.pitch) * view.dist,
+    Math.sin(view.pitch) * view.dist + centreY,
+    Math.cos(view.yaw) * Math.cos(view.pitch) * view.dist,
+  ];
+  const mvp = multiply(
+    lookAt(eye, [0, centreY, 0], [0, 1, 0]),
+    perspective(0.85, canvas.width / canvas.height, W * 0.02, W * 12));
+
+  gl.useProgram(prog);
+  gl.uniformMatrix4fv(uni(prog, "uMVP"), false, new Float32Array(mvp));
+  gl.uniform1f(uni(prog, "uExag"), exag);
+  gl.uniform1f(uni(prog, "uPlane"), D.plane);
+  gl.uniform1f(uni(prog, "uSpanUp"), (D.tall - D.plane) * exag);
+  gl.uniform1f(uni(prog, "uSpanDown"), (D.plane - D.base) * exag);
+  attr(prog, "aPos", bufPos, 3);
+  attr(prog, "aNormal", bufNorm, 3);
+  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, bufIdx);
+  gl.drawElements(gl.TRIANGLES, idx.length,
+                  idxArr === Uint32Array ? gl.UNSIGNED_INT : gl.UNSIGNED_SHORT, 0);
+
+  if (showWater) {
+    gl.enable(gl.BLEND);
+    gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+    gl.useProgram(waterProg);
+    gl.uniformMatrix4fv(uni(waterProg, "uMVP"), false, new Float32Array(mvp));
+    gl.uniform1f(uni(waterProg, "uPlane"), D.plane);
+    const nLoc = gl.getAttribLocation(prog, "aNormal");
+    if (nLoc >= 0) gl.disableVertexAttribArray(nLoc);
+    attr(waterProg, "aPos", bufWater, 3);
+    gl.drawArrays(gl.TRIANGLES, 0, 6);
+    gl.disable(gl.BLEND);
+  }
+
+  requestAnimationFrame(draw);
+}
+requestAnimationFrame(draw);
+</script>
