@@ -95,21 +95,29 @@ def main() -> None:
     model = build_surface(depth, meta["grid_m"], args.width_mm, exag, args.base_mm,
                           args.step, origin + i0, origin + j0, land)
 
+    # The markers ship as a second copy of the surface rather than baked in, so
+    # the page can turn them off. Somebody looking at 260 pins with no label
+    # asks what the dots are, and the answer -- these are the only real
+    # measurements, everything else is interpolation -- is the whole point of
+    # having drawn them.
+    plain_z = model.z.copy()
     pins = mark_soundings(model, meta, step=args.step) if args.soundings else 0
     built = piers = 0
     if args.structures:
         built, piers = mark_structures(model, meta, step=args.step)
+    marked_z = model.z.copy() if (pins or built or piers) else None
+    model.z[...] = plain_z
 
-    # The water plane is wherever land stops and water starts, which after
-    # build_surface is simply the height a zero-depth cell landed at.
-    tall = float(model.z.max())
+    tall = float(np.maximum(plain_z, marked_z if marked_z is not None else plain_z).max())
     plane = args.base_mm + model.max_depth_m * model.mm_per_m
 
     # uint16 over the model's own range: 43 mm in 65,535 steps is well under a
     # micron, four orders finer than the printer resolves, at half the bytes of
     # float32 and a third of JSON numbers.
     zmax = max(tall, 1e-6)
-    quant = np.clip(np.round(model.z / zmax * 65535.0), 0, 65535).astype("<u2")
+    def quantize(z):
+        q = np.clip(np.round(z / zmax * 65535.0), 0, 65535).astype("<u2")
+        return base64.b64encode(q.tobytes()).decode("ascii")
 
     ny, nx = model.z.shape
     sub = (f"{args.width_mm:.0f} x {ny * model.cell_mm:.0f} x {tall:.1f} mm at "
@@ -119,15 +127,23 @@ def main() -> None:
             if use_terrain else
             "Land is flat because no elevation data is loaded.")
 
+    bits = []
+    if pins:
+        bits.append(f"{pins} soundings, 1954")
+    if built or piers:
+        bits.append(f"{built + piers} buildings and piers, OSM")
+    mark_text = " + ".join(bits) + " (oversized)" if bits else ""
+
     payload = {
         "nx": nx, "ny": ny,
         "cell": round(model.cell_mm, 6),
         "zscale": zmax / 65535.0,
-        "z": base64.b64encode(quant.tobytes()).decode("ascii"),
+        "z": quantize(plain_z),
+        "zm": quantize(marked_z) if marked_z is not None else None,
+        "markText": mark_text,
         "plane": round(plane, 4),
         "base": round(args.base_mm, 4),
         "tall": round(tall, 4),
-        "markers": bool(args.soundings or args.structures),
         "sub": sub,
     }
 

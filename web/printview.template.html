@@ -47,12 +47,15 @@
     <button class="btn on" id="btnWater">Water</button>
     <button class="btn on" id="btnSpin">Spin</button>
   </div>
+  <div class="btns" id="markRow" style="display:none">
+    <button class="btn" id="btnMarks">Show measurements</button>
+  </div>
 </div>
 
 <div class="card" id="legend">
   <div><i style="background:#123a5c"></i>lake bottom, 1954 soundings interpolated</div>
   <div><i style="background:#4a6a3c"></i>land, 3DEP lidar bare earth 2017</div>
-  <div id="legMark" style="display:none"><i style="background:#d8b25e"></i>markers, oversized</div>
+  <div id="legMark" style="display:none"><i style="background:#d8b25e"></i><span id="legTxt"></span></div>
 </div>
 
 <script id="payload" type="application/json">__DATA__</script>
@@ -83,36 +86,47 @@ function decode(b64) {
   return new Uint16Array(bytes.buffer);
 }
 const NX = D.nx, NY = D.ny;
-const raw = decode(D.z);
-const Z = new Float32Array(NX * NY);
-for (let i = 0; i < Z.length; i++) Z[i] = raw[i] * D.zscale;
+function heights(b64) {
+  const raw = decode(b64);
+  const out = new Float32Array(NX * NY);
+  for (let i = 0; i < out.length; i++) out[i] = raw[i] * D.zscale;
+  return out;
+}
+// Two complete fields rather than a sparse patch list: at 39k samples the
+// second copy is 78 KB, and swapping whole buffers keeps the normals correct
+// without recomputing them around every pin on every toggle.
+const FIELDS = { plain: heights(D.z), marked: D.zm ? heights(D.zm) : null };
 
 // ---- geometry ---------------------------------------------------------------
 // One vertex per sample, indexed triangles, so the 155k-vertex full-resolution
 // grid does not become 900k loose vertices.
-const pos = new Float32Array(NX * NY * 3);
 const W = NX * D.cell, H = NY * D.cell;
-for (let i = 0; i < NY; i++) {
-  for (let j = 0; j < NX; j++) {
-    const k = (i * NX + j) * 3;
-    pos[k] = j * D.cell - W / 2;
-    pos[k + 1] = Z[i * NX + j];
-    pos[k + 2] = -(i * D.cell - H / 2);   // row 0 is south, and -Z is north here
-  }
-}
 
-// Normals from the height field directly rather than from triangles: a central
-// difference is exact for a grid and costs one pass instead of an accumulation.
-const norm = new Float32Array(NX * NY * 3);
-for (let i = 0; i < NY; i++) {
-  for (let j = 0; j < NX; j++) {
-    const at = (a, b) => Z[Math.min(NY - 1, Math.max(0, a)) * NX
-                         + Math.min(NX - 1, Math.max(0, b))];
-    const dx = (at(i, j + 1) - at(i, j - 1)) / (2 * D.cell);
-    const dz = (at(i + 1, j) - at(i - 1, j)) / (2 * D.cell);
-    const k = (i * NX + j) * 3;
-    norm[k] = -dx; norm[k + 1] = 1; norm[k + 2] = dz;
+function surface(Z) {
+  const pos = new Float32Array(NX * NY * 3);
+  for (let i = 0; i < NY; i++) {
+    for (let j = 0; j < NX; j++) {
+      const k = (i * NX + j) * 3;
+      pos[k] = j * D.cell - W / 2;
+      pos[k + 1] = Z[i * NX + j];
+      pos[k + 2] = -(i * D.cell - H / 2);  // row 0 is south, and -Z is north here
+    }
   }
+  // Normals from the height field directly rather than from triangles: a
+  // central difference is exact for a grid and costs one pass instead of an
+  // accumulation.
+  const norm = new Float32Array(NX * NY * 3);
+  for (let i = 0; i < NY; i++) {
+    for (let j = 0; j < NX; j++) {
+      const at = (a, b) => Z[Math.min(NY - 1, Math.max(0, a)) * NX
+                           + Math.min(NX - 1, Math.max(0, b))];
+      const dx = (at(i, j + 1) - at(i, j - 1)) / (2 * D.cell);
+      const dz = (at(i + 1, j) - at(i - 1, j)) / (2 * D.cell);
+      const k = (i * NX + j) * 3;
+      norm[k] = -dx; norm[k + 1] = 1; norm[k + 2] = dz;
+    }
+  }
+  return { pos, norm };
 }
 
 const idxArr = (NX * NY > 65535) ? Uint32Array : Uint16Array;
@@ -135,8 +149,12 @@ function buffer(data, target) {
   gl.bufferData(target, data, gl.STATIC_DRAW);
   return b;
 }
-const bufPos = buffer(pos, gl.ARRAY_BUFFER);
-const bufNorm = buffer(norm, gl.ARRAY_BUFFER);
+function upload(Z) {
+  const { pos, norm } = surface(Z);
+  return { pos: buffer(pos, gl.ARRAY_BUFFER), norm: buffer(norm, gl.ARRAY_BUFFER) };
+}
+const MESH = { plain: upload(FIELDS.plain),
+               marked: FIELDS.marked ? upload(FIELDS.marked) : null };
 const bufIdx = buffer(idx, gl.ELEMENT_ARRAY_BUFFER);
 
 // A quad at the water plane, inset slightly so it never z-fights the shore.
@@ -286,6 +304,7 @@ canvas.addEventListener("touchend", () => { pinch = 0; });
 
 let exag = 1;
 let showWater = true;
+let showMarks = false;
 el("sldExag").addEventListener("input", (e) => {
   exag = +e.target.value / 100;
   el("valExag").textContent = `${exag.toFixed(2)}x`;
@@ -297,6 +316,17 @@ el("btnWater").onclick = () => {
   showWater = !showWater;
   el("btnWater").classList.toggle("on", showWater);
 };
+
+if (MESH.marked) {
+  el("markRow").style.display = "flex";
+  el("legMark").style.display = "block";
+  el("legTxt").textContent = D.markText;
+  el("btnMarks").onclick = () => {
+    showMarks = !showMarks;
+    el("btnMarks").classList.toggle("on", showMarks);
+    el("btnMarks").textContent = showMarks ? "Hide measurements" : "Show measurements";
+  };
+}
 
 el("sub").textContent = D.sub;
 el("valTall").textContent = `${D.tall.toFixed(1)} mm`;
@@ -345,8 +375,9 @@ function draw(now) {
   gl.uniform1f(uni(prog, "uPlane"), D.plane);
   gl.uniform1f(uni(prog, "uSpanUp"), (D.tall - D.plane) * exag);
   gl.uniform1f(uni(prog, "uSpanDown"), (D.plane - D.base) * exag);
-  attr(prog, "aPos", bufPos, 3);
-  attr(prog, "aNormal", bufNorm, 3);
+  const mesh = (showMarks && MESH.marked) ? MESH.marked : MESH.plain;
+  attr(prog, "aPos", mesh.pos, 3);
+  attr(prog, "aNormal", mesh.norm, 3);
   gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, bufIdx);
   gl.drawElements(gl.TRIANGLES, idx.length,
                   idxArr === Uint32Array ? gl.UNSIGNED_INT : gl.UNSIGNED_SHORT, 0);
