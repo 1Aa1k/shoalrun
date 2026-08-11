@@ -14,3 +14,6 @@ data/sdb/*.npy
 # a default flipped so a screenshot can reach a state that needs a click. They
 # are throwaway, and 4.8 MB of them once made it into a commit.
 dist/_*.html
+
+# Printable solids: 12 MB per STL and regenerable in a second from make_stl.py.
+dist/print/
