@@ -708,33 +708,112 @@ function rampColor(ft) {
   ];
 }
 
-// One offscreen canvas at grid resolution, drawn scaled by the renderer. Built
-// once per (theme, shallowFt) pair rather than per frame -- 120k pixels is
-// cheap once and wasteful sixty times a second.
+// Bilinear depth at a fractional grid cell, using only the cells that have
+// data. Returns null where there is nothing to interpolate from.
+//
+// Sampling DEPTH and then choosing a band is the whole point: banding first and
+// then scaling shows the grid's own 25 m squares along every band edge, which
+// is the interpolation's resolution masquerading as the chart's.
+function sampleDepth(g, fx, fy) {
+  const x0 = Math.floor(fx), y0 = Math.floor(fy);
+  let sum = 0, weight = 0;
+  for (let dy = 0; dy <= 1; dy++) {
+    for (let dx = 0; dx <= 1; dx++) {
+      const x = Math.min(g.nx - 1, Math.max(0, x0 + dx));
+      const y = Math.min(g.ny - 1, Math.max(0, y0 + dy));
+      const v = g.d[y * g.nx + x];
+      if (v === NODATA) continue;
+      const w = (dx ? fx - x0 : 1 - (fx - x0)) * (dy ? fy - y0 : 1 - (fy - y0));
+      sum += v * w;
+      weight += w;
+    }
+  }
+  return weight > 0.35 ? sum / weight : null;
+}
+
+// Each canvas is nx*ss by ny*ss RGBA, so one is a few megabytes. An unbounded
+// cache keyed on the shallow-water slider would hold one per position the
+// slider passed through -- a leak that only shows up on the device with the
+// least memory. Two is enough to keep a theme toggle instant.
+const SHADE_CACHE_MAX = 2;
+
+// 3x, not 4x: 8.3 m cells instead of 6.25 m, which is already far finer than
+// the eye picks out at any usable zoom, for half the pixels and half the
+// memory. This runs on a phone with no signal.
+const CHART_SS = 3;
+
+// Resampling costs ~120 ms for the whole lake and colouring it costs ~25 ms, so
+// the two are separated: the depth field is resampled once per grid and every
+// later change of theme or shallow-water setting only re-colours it. Rebuilding
+// both on each `input` event made dragging the shallow slider drop frames.
+function resampledDepth(g, ss) {
+  g._ssCache = g._ssCache || new Map();
+  const hit = g._ssCache.get(ss);
+  if (hit) return hit;
+
+  const W = g.nx * ss, H = g.ny * ss;
+  const out = new Float32Array(W * H);
+  for (let row = 0; row < H; row++) {
+    // ImageData row 0 is the TOP of the image = north, while grid row 0 is
+    // south, so the sample point is measured up from the bottom.
+    const fy = (H - 1 - row) / ss;
+    for (let col = 0; col < W; col++) {
+      const v = sampleDepth(g, col / ss, fy);
+      out[row * W + col] = v === null ? NO_WATER : v;
+    }
+  }
+  return cachePut(g._ssCache, ss, { data: out, w: W, h: H }, 2);
+}
+
+// Depth is never negative, so one sentinel keeps the resampled field a plain
+// Float32Array instead of a field plus a mask.
+const NO_WATER = -1;
+
+function cachePut(map, key, value, limit) {
+  map.set(key, value);
+  while (map.size > limit) map.delete(map.keys().next().value);
+  return value;
+}
+
+// One offscreen canvas, drawn scaled by the renderer. Built once per
+// (theme, shallowFt) pair rather than per frame -- wasteful sixty times a
+// second, cheap once.
+//
+// The chart theme is supersampled because it cannot be smoothed: its bands are
+// flat areas with hard edges, and smoothing turns every band boundary into an
+// airbrushed halo. Drawing the bands at 4x the grid instead keeps the edges
+// hard while putting them where the interpolated depth actually crosses, so a
+// band edge follows the bottom rather than the grid. The night ramp is
+// continuous and is smoothed by the renderer, so it stays at 1x.
 function shadeCanvas(g, shallowFt, theme = "night") {
   const key = `${theme}|${shallowFt}`;
   g._shadeCache = g._shadeCache || new Map();
   const hit = g._shadeCache.get(key);
   if (hit) return hit;
   const chart = theme === "chart";
+  const ss = chart ? CHART_SS : 1;
+  const field = chart ? resampledDepth(g, ss) : null;
 
   const cv = document.createElement("canvas");
-  cv.width = g.nx;
-  cv.height = g.ny;
+  cv.width = g.nx * ss;
+  cv.height = g.ny * ss;
   const ctx = cv.getContext("2d");
-  const img = ctx.createImageData(g.nx, g.ny);
+  const img = ctx.createImageData(cv.width, cv.height);
 
-  for (let row = 0; row < g.ny; row++) {
-    // ImageData row 0 is the TOP of the image = north, while grid row 0 is
-    // south. Flipping here means the renderer can draw it as a plain rect.
-    const src = (g.ny - 1 - row) * g.nx;
-    const dst = row * g.nx;
-    for (let col = 0; col < g.nx; col++) {
-      const v = g.d[src + col];
+  for (let row = 0; row < cv.height; row++) {
+    const dst = row * cv.width;
+    // The night ramp reads the grid straight; row 0 of the image is north and
+    // row 0 of the grid is south, so it is the one that has to flip here.
+    const src = chart ? 0 : (g.ny - 1 - row) * g.nx;
+    for (let col = 0; col < cv.width; col++) {
       const o = (dst + col) * 4;
-      if (v === NODATA) {
-        img.data[o + 3] = 0;
-        continue;
+      let v;
+      if (chart) {
+        v = field.data[dst + col];
+        if (v === NO_WATER) { img.data[o + 3] = 0; continue; }
+      } else {
+        v = g.d[src + col];
+        if (v === NODATA) { img.data[o + 3] = 0; continue; }
       }
       const [r, gg, b] = chart ? bandColor(v) : rampColor(v);
       const shallow = shallowFt > 0 && v <= shallowFt;
@@ -748,8 +827,7 @@ function shadeCanvas(g, shallowFt, theme = "night") {
   }
 
   ctx.putImageData(img, 0, 0);
-  g._shadeCache.set(key, cv);
-  return cv;
+  return cachePut(g._shadeCache, key, cv, SHADE_CACHE_MAX);
 }
 
 // A veil over water the 1954 survey never reached.
@@ -811,8 +889,7 @@ function reachCanvas(g, nearM, theme = "night") {
   }
 
   ctx.putImageData(img, 0, 0);
-  g._reachCache.set(key, cv);
-  return cv;
+  return cachePut(g._reachCache, key, cv, SHADE_CACHE_MAX);
 }
 
 // Hazard scanning: given a GPS fix, decide what is worth interrupting a boater
