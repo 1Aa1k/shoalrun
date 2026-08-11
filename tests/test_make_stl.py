@@ -295,3 +295,52 @@ class TestTerracing:
         m = build_surface(d, 25.0, 40.0, 4.0, 1.0, land_m=land,
                           step_ft=10.0, land_step_ft=10.0)
         assert m.z[0, 0] == pytest.approx(m.z[0, 1])
+
+
+class TestFilament:
+    """The estimate exists to answer 'is this a 40 g print or a 400 g print'
+    before eight hours of it happen, so its bounds have to be right."""
+
+    def _box(self):
+        z = np.full((30, 30), 20.0)
+        return solid_triangles(z, 4.0), mesh_volume_mm3(solid_triangles(z, 4.0))
+
+    def test_full_infill_uses_the_whole_volume(self):
+        from make_stl import filament_estimate
+        tris, vol = self._box()
+        est = filament_estimate(tris, vol, infill=1.0)
+        assert est["used_cm3"] == pytest.approx(vol / 1000)
+
+    def test_zero_infill_still_prints_the_shell(self):
+        from make_stl import filament_estimate
+        tris, vol = self._box()
+        est = filament_estimate(tris, vol, infill=0.0)
+        assert 0 < est["used_cm3"] < vol / 1000
+        assert est["shell_share"] == pytest.approx(1.0)
+
+    def test_a_thin_plate_cannot_use_more_than_it_is(self):
+        """Shell thickness exceeds the object, and a naive sum would claim more
+        plastic than the part contains."""
+        from make_stl import filament_estimate
+        z = np.full((20, 20), 0.6)          # thinner than two solid skins
+        tris = solid_triangles(z, 3.0)
+        vol = mesh_volume_mm3(tris)
+        est = filament_estimate(tris, vol, infill=0.15)
+        assert est["used_cm3"] <= vol / 1000 + 1e-9
+
+    def test_mass_and_length_agree_with_the_volume(self):
+        from make_stl import filament_estimate
+        tris, vol = self._box()
+        est = filament_estimate(tris, vol, infill=0.2)
+        assert est["grams"] == pytest.approx(est["used_cm3"] * 1.24)
+        area_mm2 = np.pi * (1.75 / 2) ** 2
+        assert est["metres"] == pytest.approx(est["used_cm3"] * 1000 / area_mm2 / 1000)
+
+    def test_more_infill_never_uses_less(self):
+        from make_stl import filament_estimate
+        tris, vol = self._box()
+        prev = 0.0
+        for f in (0.0, 0.1, 0.25, 0.5, 1.0):
+            g = filament_estimate(tris, vol, infill=f)["grams"]
+            assert g >= prev
+            prev = g

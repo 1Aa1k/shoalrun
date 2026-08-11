@@ -389,6 +389,46 @@ def is_closed(tris: np.ndarray) -> bool:
     return bool(np.all(counts == 2))
 
 
+def filament_estimate(tris: np.ndarray, volume_mm3: float, infill: float = 0.15,
+                      wall_mm: float = 0.8, skin_mm: float = 0.8,
+                      dia_mm: float = 1.75, density: float = 1.24) -> dict:
+    """What a slicer will actually pull off the spool for this solid.
+
+    A slicer does not print the volume of the mesh. It prints a shell -- two
+    perimeters and a few solid layers top and bottom -- and then sparse infill
+    inside it, so a 243 cm3 object is nowhere near 243 cm3 of plastic.
+
+    Triangles are sorted into top, bottom and wall by their normal, because the
+    three get different treatment: the top skin follows the terrain and is much
+    larger than the footprint, which is the term a rule-of-thumb estimate gets
+    wrong on a landscape.
+
+    Defaults are Cura's for a 0.4 mm nozzle at 0.2 mm layers: 2 perimeters
+    (0.8 mm), 4 solid layers (0.8 mm), 15% infill, PLA at 1.24 g/cm3.
+    """
+    n = np.cross(tris[:, 1] - tris[:, 0], tris[:, 2] - tris[:, 0])
+    area = np.linalg.norm(n, axis=1) / 2.0
+    with np.errstate(invalid="ignore", divide="ignore"):
+        nz = np.where(area > 0, n[:, 2] / (2 * area), 0.0)
+
+    top = float(area[nz > 0.1].sum())
+    bottom = float(area[nz < -0.1].sum())
+    wall = float(area[np.abs(nz) <= 0.1].sum())
+
+    shell = top * skin_mm + bottom * skin_mm + wall * wall_mm
+    # A thin object is all shell; it cannot use more plastic than it has volume.
+    shell = min(shell, volume_mm3)
+    used = shell + max(0.0, volume_mm3 - shell) * infill
+    return {
+        "solid_cm3": volume_mm3 / 1000.0,
+        "used_cm3": used / 1000.0,
+        "grams": used / 1000.0 * density,
+        "metres": used / (math.pi * (dia_mm / 2) ** 2) / 1000.0,
+        "spool_pct": used / 1000.0 * density / 1000.0 * 100.0,
+        "shell_share": shell / used if used else 0.0,
+    }
+
+
 def write_binary_stl(path: Path, tris: np.ndarray, header: str = "") -> None:
     n = len(tris)
     normals = np.cross(tris[:, 1] - tris[:, 0], tris[:, 2] - tris[:, 0])
@@ -435,6 +475,8 @@ def main() -> None:
                     help="raise a pin at each of the 260 real 1954 measurements")
     ap.add_argument("--structures", action="store_true",
                     help="mark OSM buildings, camps and piers (oversized markers)")
+    ap.add_argument("--infill", type=float, default=0.15,
+                    help="infill fraction used for the filament estimate")
     ap.add_argument("--out", type=Path, default=OUT_DIR / "millinocket.stl")
     args = ap.parse_args()
 
@@ -527,8 +569,12 @@ def main() -> None:
         print(f"  {pins} sounding pins")
     if args.structures:
         print(f"  {built} building/camp markers, {piers} pier markers")
-    print(f"  closed solid: {is_closed(tris)}, "
-          f"volume {mesh_volume_mm3(tris) / 1000:.0f} cm3")
+    vol = mesh_volume_mm3(tris)
+    print(f"  closed solid: {is_closed(tris)}, volume {vol / 1000:.0f} cm3")
+    est = filament_estimate(tris, vol, infill=args.infill)
+    print(f"  filament at {args.infill * 100:.0f}% infill: {est['grams']:.0f} g, "
+          f"{est['metres']:.0f} m, {est['spool_pct']:.0f}% of a 1 kg spool "
+          f"({est['shell_share'] * 100:.0f}% of it is shell)")
 
     split_note = (
         f"\n  The lake and the land are NOT on the same vertical scale here: depth is\n"
@@ -589,6 +635,10 @@ What it is not
   spans one cell.
   0.2 mm layers gives {int(tall_mm / 0.2)} layers.
   Print it flat on the bed, bottom face down.
+  At {args.infill * 100:.0f}% infill, 2 perimeters, 4 solid layers: about
+  {est['grams']:.0f} g / {est['metres']:.0f} m, {est['spool_pct']:.0f}% of a 1 kg spool.
+  {est['shell_share'] * 100:.0f}% of that is shell, so turning the infill down
+  saves less than it looks like it should.
 """)
     print(f"wrote {notes}")
 
