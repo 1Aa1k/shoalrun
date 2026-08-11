@@ -344,3 +344,42 @@ class TestFilament:
             g = filament_estimate(tris, vol, infill=f)["grams"]
             assert g >= prev
             prev = g
+
+
+class TestHollowShell:
+    def test_a_shell_is_closed_and_wound_outward(self):
+        from make_stl import shell_floor
+        m = build_surface(basin(), 25.0, 90.0, 10.0, 3.0)
+        tris = solid_triangles(m.z, m.cell_mm, shell_floor(m.z, 1.2))
+        assert is_closed(tris)
+        assert mesh_volume_mm3(tris) > 0
+
+    def test_a_floating_shell_holds_its_thickness(self):
+        """Every cell is well above the bed, so the volume is simply area times
+        thickness -- if it is not, the two surfaces are not parallel."""
+        from make_stl import shell_floor
+        z = np.full((10, 12), 20.0)
+        tris = solid_triangles(z, 2.0, shell_floor(z, 1.5))
+        assert mesh_volume_mm3(tris) == pytest.approx(9 * 2.0 * 11 * 2.0 * 1.5)
+
+    def test_the_shell_lands_on_the_bed_where_the_surface_is_thin(self):
+        """Otherwise the deepest part of the lake floats and prints in mid-air."""
+        from make_stl import shell_floor
+        z = np.array([[0.5, 4.0], [9.0, 0.9]])
+        assert np.array_equal(shell_floor(z, 1.6), [[0.0, 2.4], [7.4, 0.0]])
+
+    def test_hollowing_removes_most_of_the_volume(self):
+        from make_stl import shell_floor
+        m = build_surface(basin(), 25.0, 90.0, 10.0, 3.0)
+        solid = mesh_volume_mm3(solid_triangles(m.z, m.cell_mm))
+        hollow = mesh_volume_mm3(solid_triangles(m.z, m.cell_mm, shell_floor(m.z, 1.2)))
+        assert hollow < solid * 0.5
+
+    def test_supports_are_counted_where_the_ceiling_is_flat(self):
+        """A flat underside high off the bed is the worst case and must not
+        estimate as free."""
+        from make_stl import support_estimate
+        flat = np.full((20, 20), 30.0)
+        steep = np.tile(np.arange(20) * 30.0, (20, 1))    # 30 mm per cell: near vertical
+        assert support_estimate(flat, 1.0)["area_share"] == pytest.approx(1.0)
+        assert support_estimate(steep, 1.0)["grams"] < support_estimate(flat, 1.0)["grams"]

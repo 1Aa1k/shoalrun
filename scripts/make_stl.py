@@ -317,12 +317,27 @@ def mark_structures(model: Model, meta: dict, step: int = 1) -> tuple[int, int]:
     return built, piers
 
 
-def solid_triangles(z: np.ndarray, cell_mm: float) -> np.ndarray:
-    """Close the height field into a manifold solid: top, four walls, bottom.
+def shell_floor(z: np.ndarray, shell_mm: float) -> np.ndarray:
+    """Underside of a constant-thickness shell, clamped to the bed.
+
+    Where the surface is lower than the shell is thick the underside hits zero
+    and the object is simply solid there, which is what keeps the deep end of
+    the lake attached to the bed instead of floating over it.
+    """
+    return np.clip(z - shell_mm, 0.0, None)
+
+
+def solid_triangles(z: np.ndarray, cell_mm: float,
+                    z_bot: np.ndarray | None = None) -> np.ndarray:
+    """Close the height field into a manifold solid: top, walls, bottom.
 
     Every edge of the result is shared by exactly two triangles -- the walls
-    reuse the top surface's own boundary vertices rather than recomputing them,
+    reuse the surfaces' own boundary vertices rather than recomputing them,
     which is the only way that can be true by construction instead of by luck.
+
+    With `z_bot` the bottom is a second height field instead of a flat plane,
+    which is how the hollow shell gets made: same lattice, same perimeter, so
+    the walls still close it exactly.
     """
     ny, nx = z.shape
     xs = np.arange(nx) * cell_mm
@@ -359,10 +374,23 @@ def solid_triangles(z: np.ndarray, cell_mm: float) -> np.ndarray:
     nxt = lambda a: np.roll(a, -1, axis=0)
     walls = corners(lo, nxt(lo), nxt(hi), hi)
 
-    # Bottom fans from the centre rather than from a corner: a corner fan puts
-    # every vertex along its own two edges in a zero-area triangle.
-    centre = np.tile([[xs[-1] / 2, ys[-1] / 2, 0.0]], (len(lo), 1))
-    bottom = np.stack([centre, nxt(lo), lo], axis=1)
+    if z_bot is None:
+        # Bottom fans from the centre rather than from a corner: a corner fan
+        # puts every vertex along its own two edges in a zero-area triangle.
+        centre = np.tile([[xs[-1] / 2, ys[-1] / 2, 0.0]], (len(lo), 1))
+        bottom = np.stack([centre, nxt(lo), lo], axis=1)
+    else:
+        # Same grid as the top, wound the other way so it faces down and out.
+        bottom = corners(
+            pts(X[:-1, :-1], Y[:-1, :-1], z_bot[:-1, :-1]),
+            pts(X[1:, :-1], Y[1:, :-1], z_bot[1:, :-1]),
+            pts(X[1:, 1:], Y[1:, 1:], z_bot[1:, 1:]),
+            pts(X[:-1, 1:], Y[:-1, 1:], z_bot[:-1, 1:]),
+        )
+        per_zb = np.concatenate([z_bot[0, :], z_bot[1:, -1],
+                                 z_bot[-1, -2::-1], z_bot[-2:0:-1, 0]])
+        lo = np.stack([per_x, per_y, per_zb], axis=1)
+        walls = corners(lo, nxt(lo), nxt(hi), hi)
 
     return np.concatenate([top, walls, bottom])
 
@@ -387,6 +415,28 @@ def is_closed(tris: np.ndarray) -> bool:
     key = np.sort(edges, axis=1)
     _, counts = np.unique(key, axis=0, return_counts=True)
     return bool(np.all(counts == 2))
+
+
+def support_estimate(z_bot: np.ndarray, cell_mm: float, density: float = 0.15,
+                     overhang_deg: float = 45.0, density_pla: float = 1.24) -> dict:
+    """What the supports under a hollow shell cost.
+
+    A slicer supports a downward face only where it is shallower than its
+    overhang angle -- steep shell walls hold themselves up, because each layer
+    is offset from the one below by less than the wall is thick. Flat ceilings
+    do not, and a terraced lake bottom is flat ceilings by construction.
+
+    This is the number that decides whether hollowing is worth it, so it is
+    computed rather than assumed.
+    """
+    gy, gx = np.gradient(z_bot, cell_mm)
+    slope = np.hypot(gx, gy)                      # rise over run of the underside
+    needs = (slope < math.tan(math.radians(overhang_deg))) & (z_bot > 0.4)
+    volume = float((z_bot * needs).sum()) * cell_mm * cell_mm * density
+    return {
+        "grams": volume / 1000.0 * density_pla,
+        "area_share": float(needs.mean()),
+    }
 
 
 def filament_estimate(tris: np.ndarray, volume_mm3: float, infill: float = 0.15,
@@ -475,6 +525,8 @@ def main() -> None:
                     help="raise a pin at each of the 260 real 1954 measurements")
     ap.add_argument("--structures", action="store_true",
                     help="mark OSM buildings, camps and piers (oversized markers)")
+    ap.add_argument("--shell-mm", type=float, default=0.0,
+                    help="hollow it out, leaving a shell this thick (needs supports)")
     ap.add_argument("--infill", type=float, default=0.15,
                     help="infill fraction used for the filament estimate")
     ap.add_argument("--out", type=Path, default=OUT_DIR / "millinocket.stl")
@@ -535,7 +587,8 @@ def main() -> None:
     if args.structures:
         built, piers = mark_structures(model, meta, step=args.step)
 
-    tris = solid_triangles(model.z, model.cell_mm)
+    floor = shell_floor(model.z, args.shell_mm) if args.shell_mm > 0 else None
+    tris = solid_triangles(model.z, model.cell_mm, floor)
     steps = []
     if args.step_ft > 0:
         steps.append(f"{args.step_ft:g} ft lake steps")
@@ -572,9 +625,20 @@ def main() -> None:
     vol = mesh_volume_mm3(tris)
     print(f"  closed solid: {is_closed(tris)}, volume {vol / 1000:.0f} cm3")
     est = filament_estimate(tris, vol, infill=args.infill)
-    print(f"  filament at {args.infill * 100:.0f}% infill: {est['grams']:.0f} g, "
-          f"{est['metres']:.0f} m, {est['spool_pct']:.0f}% of a 1 kg spool "
-          f"({est['shell_share'] * 100:.0f}% of it is shell)")
+    sup = {"grams": 0.0, "area_share": 0.0}
+    solid_g = filament_estimate(solid_triangles(model.z, model.cell_mm),
+                                mesh_volume_mm3(solid_triangles(model.z, model.cell_mm)),
+                                infill=args.infill)["grams"]
+    if args.shell_mm > 0:
+        sup = support_estimate(floor, model.cell_mm)
+        print(f"  hollow {args.shell_mm:g} mm shell: {est['grams']:.0f} g of part")
+        print(f"  supports under {sup['area_share'] * 100:.0f}% of the footprint: "
+              f"about {sup['grams']:.0f} g more, so {est['grams'] + sup['grams']:.0f} g "
+              f"all in")
+    else:
+        print(f"  filament at {args.infill * 100:.0f}% infill: {est['grams']:.0f} g, "
+              f"{est['metres']:.0f} m, {est['spool_pct']:.0f}% of a 1 kg spool "
+              f"({est['shell_share'] * 100:.0f}% of it is shell)")
 
     split_note = (
         f"\n  The lake and the land are NOT on the same vertical scale here: depth is\n"
@@ -602,6 +666,17 @@ def main() -> None:
         if use_terrain else
         "  Land is flat because there is no elevation data loaded, not because it\n"
         "  is flat. Run scripts/fetch_terrain.py and rebuild to get the hills."
+    )
+    support_note = (
+        f"  HOLLOW at {args.shell_mm:g} mm, so it needs supports: the underside is a\n"
+        f"  ceiling over {sup['area_share'] * 100:.0f}% of the footprint, and a terraced lake\n"
+        f"  bottom is flat ceilings by construction. The shell floats about\n"
+        f"  {tall_mm - args.shell_mm:.0f} mm off the bed, so the support is a tower under the\n"
+        f"  whole object -- removable, but it doubles the print and leaves the\n"
+        f"  underside rough. Solid at 15% infill is {solid_g:.0f} g against {est['grams'] + sup['grams']:.0f} g here."
+        if args.shell_mm > 0 else
+        "  No supports and no raft: the deepest overhang is the shoreline cliff,\n"
+        "  which spans one cell."
     )
     marker_note = (
         f"  {built} buildings and camps and {piers} piers are marked from OSM. The\n"
@@ -631,8 +706,7 @@ What it is not
   every measured point; the smooth surface between the pins is arithmetic.
 
 {marker_note}Printing (CR-10, 0.4 mm nozzle, PLA)
-  No supports and no raft: the deepest overhang is the shoreline cliff, which
-  spans one cell.
+{support_note}
   0.2 mm layers gives {int(tall_mm / 0.2)} layers.
   Print it flat on the bed, bottom face down.
   At {args.infill * 100:.0f}% infill, 2 perimeters, 4 solid layers: about
