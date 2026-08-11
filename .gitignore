@@ -17,3 +17,9 @@ dist/_*.html
 
 # Printable solids: 12 MB per STL and regenerable in a second from make_stl.py.
 dist/print/
+
+# Lidar height-above-ground, 42 MB, regenerable:
+#   fetch_terrain.py --collection 3dep-lidar-hag --res-m 2 --pad-m 300
+data/hag_2m.npz
+# Microsoft's whole-state footprint zip, 188 MB, streamed and clipped once.
+data/cache/

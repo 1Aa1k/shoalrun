@@ -37,11 +37,13 @@ OUT = ROOT / "data" / "terrain.npz"
 
 STAC = "https://planetarycomputer.microsoft.com/api/stac/v1"
 COLLECTION = "3dep-lidar-dtm"   # bare earth; -dsm is the same lidar with the trees on
+# -hag is the same flight again, reported as height above the ground it found,
+# which is what a building looks like from above when the ground is subtracted.
 MAX_ITEMS = 60                  # hard bound so a wide --pad-m cannot run away
 M_PER_DEG_LAT = 111_320.0
 
 
-def target_lattice(meta: dict, pad_m: float) -> dict:
+def target_lattice(meta: dict, pad_m: float, res_m: float | None = None) -> dict:
     """The depth grid's lattice, grown outward by whole cells.
 
     Whole cells matter: a fractional offset would mean resampling the depth grid
@@ -50,7 +52,7 @@ def target_lattice(meta: dict, pad_m: float) -> dict:
     """
     step_m = meta["grid_m"]
     pad = int(np.ceil(pad_m / step_m))
-    return {
+    lat = {
         "lon0": meta["lon0"] - pad * meta["dlon"],
         "lat0": meta["lat0"] - pad * meta["dlat"],
         "dlon": meta["dlon"],
@@ -60,9 +62,26 @@ def target_lattice(meta: dict, pad_m: float) -> dict:
         "pad": pad,
         "grid_m": step_m,
     }
+    if res_m is None or abs(res_m - step_m) < 1e-9:
+        return lat
+    # A finer lattice over the same ground. Depth is a 25 m interpolation and
+    # nothing is gained by resampling it finer, but a camp is 8 m by 12 m and
+    # simply does not exist at 25 m -- so anything looking for structures needs
+    # its own grid, keyed to the same corner so the two still line up.
+    k = step_m / res_m
+    lat.update({
+        "dlon": meta["dlon"] / k,
+        "dlat": meta["dlat"] / k,
+        "nx": int(round(lat["nx"] * k)),
+        "ny": int(round(lat["ny"] * k)),
+        "pad": int(round(pad * k)),
+        "grid_m": res_m,
+    })
+    return lat
 
 
-def fetch(lat_lattice: dict, verbose: bool = True) -> np.ndarray:
+def fetch(lat_lattice: dict, verbose: bool = True,
+          collection: str = COLLECTION) -> np.ndarray:
     """Mosaic every DTM tile that touches the lattice into one float32 array.
 
     Tiles are reprojected one at a time into the target and merged where the
@@ -78,10 +97,10 @@ def fetch(lat_lattice: dict, verbose: bool = True) -> np.ndarray:
     bbox = [west, south, east, north]
 
     catalog = pystac_client.Client.open(STAC, modifier=planetary_computer.sign_inplace)
-    items = list(catalog.search(collections=[COLLECTION], bbox=bbox,
+    items = list(catalog.search(collections=[collection], bbox=bbox,
                                 limit=MAX_ITEMS).items())
     if not items:
-        raise SystemExit(f"no {COLLECTION} tiles over {bbox}")
+        raise SystemExit(f"no {collection} tiles over {bbox}")
     if len(items) >= MAX_ITEMS:
         raise SystemExit(f"{len(items)} tiles hit the {MAX_ITEMS} cap -- lower --pad-m")
 
@@ -118,15 +137,20 @@ def main() -> None:
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--pad-m", type=float, default=1500.0,
                     help="metres of land to fetch beyond the depth grid")
+    ap.add_argument("--collection", default=COLLECTION,
+                    help="3dep-lidar-dtm (ground), -dsm (with the trees), "
+                         "-hag (height above ground)")
+    ap.add_argument("--res-m", type=float, default=None,
+                    help="output cell size; defaults to the depth grid's 25 m")
     ap.add_argument("--out", type=Path, default=OUT)
     args = ap.parse_args()
 
     meta = json.loads(DEPTH_GRID.read_text())
-    lattice = target_lattice(meta, args.pad_m)
+    lattice = target_lattice(meta, args.pad_m, args.res_m)
     print(f"target {lattice['nx']} x {lattice['ny']} cells at {lattice['grid_m']:.0f} m "
           f"({lattice['pad']} cells of pad)")
 
-    elev = fetch(lattice)
+    elev = fetch(lattice, collection=args.collection)
     good = np.isfinite(elev)
     if not good.any():
         raise SystemExit("every tile came back empty")
@@ -140,7 +164,7 @@ def main() -> None:
         lon0=lattice["lon0"], lat0=lattice["lat0"],
         dlon=lattice["dlon"], dlat=lattice["dlat"],
         pad=lattice["pad"], grid_m=lattice["grid_m"],
-        source=f"{COLLECTION} ME_Eastern_B1_2017, bare earth, 2 m, "
+        source=f"{args.collection} ME_Eastern_B1_2017, 2 m source, "
                f"bilinear onto {lattice['grid_m']:.0f} m",
     )
     lo, hi = np.nanpercentile(elev[good], [1, 99])

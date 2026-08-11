@@ -405,16 +405,47 @@ export class MapView {
     const T = this.t;
     const showNames = this.scale > 0.25;
     ctx.font = "10px ui-sans-serif, system-ui, sans-serif";
+
+    // A camp road is a dozen addresses 30 m apart, so at any zoom that shows
+    // the numbers the labels overlap into a smear. Keep the boxes already drawn
+    // and drop anything that lands on one: a readable half is worth more than
+    // an unreadable whole, and the ring is still there to say a camp exists.
+    const boxes = [];
+    const placeLabel = (text, x, y, color) => {
+      const w = ctx.measureText(text).width;
+      const box = [x, y - 9, x + w, y + 2];
+      for (const b of boxes) {
+        if (box[0] < b[2] && box[2] > b[0] && box[1] < b[3] && box[3] > b[1]) return;
+      }
+      boxes.push(box);
+      ctx.fillStyle = color;
+      ctx.fillText(text, x, y);
+    };
+
     for (const s of items) {
       if (s.type === "Point") {
         const [x, y] = this.toScreen(s.pts[0][0], s.pts[0][1]);
         if (x < -20 || y < -20 || x > this.w + 20 || y > this.h + 20) continue;
+        // An address is a camp E911 knows is there and nobody has traced. Drawn
+        // hollow so it never reads as a footprint: the position is good to
+        // tens of metres and the shape is unknown.
+        if (s.kind === "address") {
+          if (this.scale < 0.18) continue;
+          ctx.strokeStyle = T.building;
+          ctx.lineWidth = 1;
+          ctx.globalAlpha = 0.7;
+          ctx.beginPath();
+          ctx.arc(x, y, 2.5, 0, Math.PI * 2);
+          ctx.stroke();
+          ctx.globalAlpha = 1;
+          if (this.scale > 0.45 && s.name) {
+            placeLabel(s.name, x + 6, y + 3, T.label);
+          }
+          continue;
+        }
         ctx.fillStyle = T.building;
         ctx.fillRect(x - 2, y - 2, 4, 4);
-        if (showNames && s.name) {
-          ctx.fillStyle = "rgba(200,210,220,0.75)";
-          ctx.fillText(s.name, x + 6, y + 3);
-        }
+        if (showNames && s.name) placeLabel(s.name, x + 6, y + 3, T.label);
         continue;
       }
       ctx.beginPath();
@@ -442,8 +473,7 @@ export class MapView {
       }
       if (showNames && s.name) {
         const [x, y] = this.toScreen(s.pts[0][0], s.pts[0][1]);
-        ctx.fillStyle = "rgba(200,210,220,0.8)";
-        ctx.fillText(s.name, x + 5, y - 4);
+        placeLabel(s.name, x + 5, y - 4, T.label);
       }
     }
   }

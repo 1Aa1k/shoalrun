@@ -39,6 +39,35 @@ That disclaimer travels with the derived contours in `data/contours.geojson`,
 and it is not softened by interpolation. If anything, interpolating 260 sparse
 1954 soundings makes it *more* true, not less.
 
+## Camp locations — Maine E911 NG addresses
+
+The `address` points in `data/structures.geojson` come from the Maine Office of
+GIS [Maine E911 Addresses][me911] layer. Maine public records; no licence
+condition beyond crediting the source.
+
+These are the locations dispatchers send ambulances to. They are placed off
+aerial imagery and are good to a few tens of metres — the map draws them hollow
+for that reason — and they say a camp exists without saying what shape it is.
+
+[me911]: https://services1.arcgis.com/RbMX0mRVOFNTdLzd/arcgis/rest/services/Maine_E911_Addresses_Feature/FeatureServer
+
+## Building footprints — Microsoft, ODbL 1.0 (share-alike)
+
+`data/structures_ms.geojson` is clipped from [Microsoft US Building
+Footprints][msbf], published under ODbL 1.0 — the same share-alike terms as the
+shoreline above. Attribution: **© Microsoft, ODbL 1.0**. Machine-generated from
+Bing imagery: positions are good, outlines are approximate. Kept in the repo as
+a cross-check; not currently shipped in `dist/`.
+
+[msbf]: https://github.com/microsoft/USBuildingFootprints
+
+## Terrain and structure detections — USGS 3DEP lidar
+
+`data/terrain.npz` and `data/hag_2m.npz` are 3DEP `ME_Eastern_B1_2017`, US
+Government public domain, via Microsoft Planetary Computer. The detections in
+`data/structures_lidar.geojson` are our own work product and are **detections,
+not a survey** — the file's own metadata says so.
+
 ## What this project is, in plain terms
 
 A **navigation aid built from data whose own publisher says not to navigate
@@ -60,9 +89,12 @@ are the difference between a useful tool and a liability.
 ## Attribution block for redistribution
 
 ```
-Shoreline © OpenStreetMap contributors, ODbL 1.0
+Shoreline and structures © OpenStreetMap contributors, ODbL 1.0
 Contains modified Copernicus Sentinel-2 data 2019-2026
 Depth soundings: Maine Dept of Inland Fisheries & Wildlife (1954, rev. 1979)
   -- "Data not to be used for navigation purposes."
+Camp locations: Maine Office of GIS, Maine E911 addresses
+Elevation: USGS 3DEP lidar ME_Eastern_B1_2017 (public domain)
+Building footprints (repo only, not shipped): © Microsoft, ODbL 1.0
 shoalrun code: MIT
 ```
