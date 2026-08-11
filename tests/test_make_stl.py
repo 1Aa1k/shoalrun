@@ -161,3 +161,47 @@ class TestSoundingPins:
         meta = {"lon0": 0.0, "lat0": 0.0, "dlon": 1.0, "dlat": 1.0}
         assert make_stl.mark_soundings(m, meta) == 1
         assert m.z.max() == pytest.approx(plane)
+
+
+class TestMarkers:
+    def test_a_polygon_feature_reduces_to_its_centroid(self, tmp_path):
+        """Buildings arrive as rings. At 25 m per cell a 15 m footprint cannot be
+        drawn, so it has to become a point -- and the point has to be inside it."""
+        import make_stl
+
+        gj = {"type": "FeatureCollection", "features": [{
+            "properties": {"kind": "building"},
+            "geometry": {"type": "Polygon",
+                         "coordinates": [[[0, 0], [2, 0], [2, 2], [0, 2], [0, 0]]]},
+        }]}
+        path = tmp_path / "s.geojson"
+        path.write_text(__import__("json").dumps(gj))
+        pts = make_stl._points(path, {"building"})
+        assert len(pts) == 1
+        assert pts[0][0] == pytest.approx(0.8, abs=0.5)   # inside the ring
+        assert pts[0][1] == pytest.approx(0.8, abs=0.5)
+
+    def test_kinds_that_were_not_asked_for_are_skipped(self, tmp_path):
+        import make_stl
+
+        gj = {"type": "FeatureCollection", "features": [
+            {"properties": {"kind": "pier"},
+             "geometry": {"type": "Point", "coordinates": [1, 1]}},
+            {"properties": {"kind": "building"},
+             "geometry": {"type": "Point", "coordinates": [2, 2]}},
+        ]}
+        path = tmp_path / "s.geojson"
+        path.write_text(__import__("json").dumps(gj))
+        assert make_stl._points(path, {"pier"}) == [(1.0, 1.0)]
+
+    def test_a_marker_off_the_edge_is_dropped_not_wrapped(self):
+        """Negative indices would wrap to the far side of the array and put a
+        camp on the opposite shore."""
+        import make_stl
+
+        m = build_surface(basin(), 25.0, 60.0, 10.0, 2.0)
+        meta = {"lon0": 0.0, "lat0": 0.0, "dlon": 1.0, "dlat": 1.0}
+        before = m.z.copy()
+        assert make_stl.raise_markers(m, [(-5.0, -5.0), (99.0, 99.0)],
+                                      meta, 1.0, 1.0) == 0
+        assert np.array_equal(m.z, before)
