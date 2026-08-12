@@ -43,17 +43,29 @@ is.*
 
 ### 1. The app
 
+It is already up, at **https://sproultech.com/shoalrun**. That is the link to
+send someone. (The same build also publishes to https://1aa1k.github.io/shoalrun/
+from `master:/docs`.)
+
 `dist/index.html` is the whole thing — 2.6 MB, one file, no network calls,
 no dependencies. Everything is in it: the map, the 3D lake bottom and the info
 page are three tabs along the bottom, not three links to hand somebody.
 
-Put it on any static host with HTTPS:
+To put it somewhere else, any static host with HTTPS will do:
 
 ```bash
 npx vercel deploy --prod dist/       # or Netlify, GitHub Pages, anything
 ```
 
-HTTPS is not optional: browsers refuse geolocation without it.
+HTTPS is not optional: browsers refuse geolocation without it. So does a
+`Permissions-Policy` header that denies it — sproultech.com sends one site-wide
+and needed an explicit carve-out for this path. Worth checking on any host,
+because the failure is silent: the page loads, the lake draws, and the boat
+never appears.
+
+If the app ends up at a clean URL with no trailing slash, the service worker
+needs `Service-Worker-Allowed` set to that path, or it can only claim the
+directory below it and the installed app runs without its offline cache.
 
 Ship `sw.js` and `manifest.json` alongside (the build already writes them). They
 make it installable, which matters more than it sounds — see below.

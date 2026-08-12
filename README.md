@@ -176,6 +176,9 @@ python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
 node --test web/*.test.mjs                 # alerting, depth, sync, draw rules
 ```
 
+Live at **https://sproultech.com/shoalrun** (and https://1aa1k.github.io/shoalrun/,
+published from `master:/docs` by the same build).
+
 `dist/index.html` is one self-contained file — data, code, styles inlined,
 zero network calls at runtime. Open it from the phone's local storage or add it to
 the home screen. There is no cell service on that lake; anything that fetches at
