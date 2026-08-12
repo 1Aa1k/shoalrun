@@ -85,6 +85,30 @@ const THEMES = {
 
 const MAX_MARKER_PX = 18;
 
+/**
+ * Whether a candidate gets drawn at the current detail level.
+ *
+ * Pulled out of the draw loop because it is the single most consequential
+ * decision this renderer makes -- it is what somebody at the helm sees and does
+ * not see -- and a rule that important should be assertable without a canvas.
+ *
+ * DRAWING ONLY. Every candidate stays in the alert index either way; the alarm
+ * does not care what is on screen.
+ *
+ * @param {{tier: string}} rock
+ * @param {"verified"|"all"} detail
+ */
+export function drawnAt(rock, detail) {
+  if (detail === "all") return true;
+  return EVIDENCED.has(rock.tier);
+}
+
+// An allow-list, not a deny-list. Written the other way round -- "anything that
+// is not `unverified`" -- a tier added upstream would start appearing on the
+// default map without anyone deciding it should, which is the exact failure
+// this whole filter exists to undo.
+const EVIDENCED = new Set(["confirmed", "likely"]);
+
 const CLASS_KEY = {
   island: "island",
   exposed: "exposed",
@@ -606,23 +630,45 @@ export class MapView {
   _drawRocks(state) {
     const ctx = this.ctx;
     const T = this.t;
+
+    // Marks are floored at a few pixels so a one-metre rock stays tappable. At
+    // whole-lake zoom that floor is doing all the work: 1,359 marks, every one
+    // of them the same minimum blob, and they merge into a solid band of colour
+    // around the entire shoreline. The shoreline, the depth shading and the
+    // contours -- everything the view is for at that zoom -- disappear behind
+    // it, and a band that says "rock everywhere" tells a boater nothing.
+    //
+    // So the floor and the opacity ride the zoom. Nothing is hidden; zoomed out
+    // the marks read as texture on the shore, and by the time the view is close
+    // enough to steer by they are back to full size and full weight.
+    const DETAIL_SCALE = 0.25;   // px per metre: about 1.7 km across on a phone
+    const TEXTURE_SCALE = 0.06;  // about 7 km across -- the whole lake
+    const z = Math.max(0, Math.min(1,
+      (this.scale - TEXTURE_SCALE) / (DETAIL_SCALE - TEXTURE_SCALE)));
+    const minRad = 1.5 + z * 2.5;
+    const zoomAlpha = 0.4 + z * 0.6;
+
     for (const r of state.rocks) {
-      if (!state.showShore && !r.offshore) continue;
-      // Guest mode shows only what the evidence supports. A stranger to the
-      // lake cannot weigh 3,549 unverified marks against 48 confirmed ones, so
-      // showing all of them makes every alert look identical and teaches them
-      // to ignore all of it.
-      if (state.guest && r.tier === "unverified") continue;
+      // One axis, not two. The old pair -- an offshore filter and a guest-mode
+      // filter -- interacted badly: the offshore cut hid marks by distance from
+      // shore, and the confirmed rocks on this lake sit a median 2 m from shore,
+      // so tidying the map by distance threw away exactly the marks that hold
+      // up while keeping the unverified cloud that does not.
+      //
+      // Now the cut is on evidence. Verified shows the 1,359 marks something
+      // stands behind, wherever they are; everything shows the other 3,549 too.
+      if (!drawnAt(r, state.detail)) continue;
       const [sx, sy] = this.toScreen(r.x, r.y);
       if (sx < -30 || sy < -30 || sx > this.w + 30 || sy > this.h + 30) continue;
 
       const mark = state.marks.get(r.id);
       const verdict = mark && mark.verdict;
-      if (verdict === "absent") {
-        // Kept visible but greyed: the user said it is not there, and hiding it
-        // outright would make a mistaken dismissal permanent and invisible.
-        ctx.globalAlpha = 0.35;
-      }
+      // Dismissed marks stay visible but greyed: the user said it is not there,
+      // and hiding it outright would make a mistaken dismissal permanent and
+      // invisible. A mark the user confirmed keeps full weight at every zoom --
+      // that is the one they went to the trouble of vouching for.
+      ctx.globalAlpha =
+        verdict === "confirmed" ? 1 : zoomAlpha * (verdict === "absent" ? 0.35 : 1);
 
       // Appearance is driven by NAIP verification, not by the raw detector
       // class. An unconfirmed candidate is drawn faint and hollow so the map
@@ -647,7 +693,10 @@ export class MapView {
       // 96,700 m2 is a 175 m radius, which at any useful zoom renders as a disc
       // that covers the screen and hides the hazards next to it. Beyond the cap
       // the marker stops meaning "this big" and starts meaning "look here".
-      const rad = Math.min(MAX_MARKER_PX, Math.max(4, Math.sqrt(r.area_m2 / Math.PI) * this.scale));
+      const rad = Math.min(
+        MAX_MARKER_PX,
+        Math.max(verdict === "confirmed" ? 4 : minRad,
+                 Math.sqrt(r.area_m2 / Math.PI) * this.scale));
 
       if (T.chartMode) {
         // Islands are landmasses, not point dangers; they are already drawn as
@@ -667,7 +716,8 @@ export class MapView {
       // drawn hollow so they read as "land here" rather than "rock here".
       ctx.globalAlpha *= unconfirmed ? 0.0 : r.cls === "island" ? 0.12 : verdict === "confirmed" ? 0.9 : 0.75;
       ctx.fill();
-      ctx.globalAlpha = verdict === "absent" ? 0.35 : 1;
+      ctx.globalAlpha =
+        verdict === "confirmed" ? 1 : zoomAlpha * (verdict === "absent" ? 0.35 : 1);
       ctx.lineWidth = verdict === "confirmed" ? 2.5 : unconfirmed ? 0.8 : 1.8;
       if (unconfirmed) ctx.setLineDash([2, 3]);
       ctx.strokeStyle = color;

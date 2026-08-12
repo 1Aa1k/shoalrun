@@ -5,7 +5,8 @@ import { DepthGrid, contoursAt, contoursAtLevels, rampCss, CHART_BAND_EDGES } fr
 import { logFix, allTracks, allMarks, setMark, clearMark, exportAll, trackCount } from "./store.js";
 import { SweptGrid, coverageStats, sweptFromFixes } from "./swept.js";
 import { FLAG_STATUS, alertsFor, flagToHazard, makeFlag, reviewQueue } from "./flags.js";
-import { autoSync, isConfigured, whoAmI } from "./sync.js";
+import { autoSync, isConfigured, whoAmI, joinLake, leaveLake, lakeCode, endpoint } from "./sync.js";
+import { initViews, isActive, show as showView } from "./views.js";
 
 // DATA is injected at build time so the app is one self-contained file with no
 // network dependency of any kind. There is no cell service on this lake.
@@ -18,6 +19,12 @@ const { lake: LAKE_GEO, rocks: ROCK_GEO, depth: DEPTH_RAW, soundings: SOUNDING_R
 const INTERVALS = [2, 5, 10, 15, 20, 30];
 
 const el = (id) => document.getElementById(id);
+
+// Tier totals, counted off the data actually loaded rather than baked into the
+// build, so the number under the button cannot drift from the number of marks
+// on the screen.
+const TIERS = { confirmed: 0, likely: 0, unverified: 0 };
+
 const state = {
   lake: [],
   rocks: [],
@@ -41,7 +48,22 @@ const state = {
   // beyond that the surface starts being invention.
   reachNearM: 120,
   showSoundings: true,
-  showShore: false,
+  // How much of the candidate set gets drawn.
+  //
+  //   "verified" -- confirmed and likely only. 48 marks cross-checked at 0.3 m
+  //                 plus 1,311 that return infrared, so a dry surface breaking
+  //                 the water. This is the default.
+  //   "all"      -- adds the 3,549 unverified. Imagery on this lake was measured
+  //                 to carry no depth information, so these persisted across six
+  //                 flights and mean nothing more than that.
+  //
+  // This used to be two separate toggles -- "guest mode" and "all rocks" -- on
+  // opposite ends of the panel, and the app opened with 1,673 marks ringing the
+  // whole shoreline in magenta. A map where every mark looks the same is a map
+  // that teaches you to ignore all of them, including the 48 that are real.
+  //
+  // DRAWING ONLY. Every hazard stays in the alert index either way.
+  detail: "verified",
   showCamps: true,
   structures: [],
   fix: null,
@@ -49,9 +71,9 @@ const state = {
   speed: 0,
   corridor: null,
   alert: "clear",
-  guest: false,
   flags: [],
   showSwept: true,
+  sound: true,
   trip: `trip-${Date.now()}`,
   logged: 0,
 };
@@ -123,6 +145,10 @@ ROCK_GEO.features.forEach((f, i) => {
   state.rocks.push(rock);
   index.insert(x, y, rock);
 });
+
+for (const r of state.rocks) {
+  if (r.tier in TIERS) TIERS[r.tier]++;
+}
 
 // Lake area in projected metres, for the coverage readout. Computed from the
 // same rings the map draws, so it cannot drift from what is on screen.
@@ -353,7 +379,7 @@ function evaluate() {
 
 function buzz(pattern) {
   if (navigator.vibrate) navigator.vibrate(pattern);
-  if (el("sound").checked && state.alert === "danger") beep();
+  if (state.sound && state.alert === "danger") beep();
 }
 
 let audioCtx = null;
@@ -387,19 +413,28 @@ function renderAlert(result) {
 
 // --- UI --------------------------------------------------------------------
 
+// The status line is hidden until it has something to say. A permanently
+// present grey strip costs a line of map to tell you nothing; appearing is what
+// makes it worth reading when it does.
 function setStatus(msg, kind = "") {
   const s = el("status");
   s.textContent = msg;
-  s.className = kind;
+  s.className = `status show ${kind}`;
 }
 
 function refreshCounts() {
   const confirmed = [...state.marks.values()].filter((m) => m.verdict === "confirmed").length;
   const absent = [...state.marks.values()].filter((m) => m.verdict === "absent").length;
-  const shown = state.showShore ? state.rocks.length : state.rocks.filter((r) => r.offshore).length;
-  el("counts").textContent =
-    `${shown} shown of ${state.rocks.length} - ${confirmed} confirmed, ${absent} dismissed` +
-    (state.showShore ? "" : " (offshore >50 m; all still alarm)");
+  const verified = TIERS.confirmed + TIERS.likely;
+  const yours = confirmed || absent
+    ? ` You have confirmed ${confirmed} and dismissed ${absent}.`
+    : "";
+  el("detailNote").textContent =
+    state.detail === "all"
+      ? `Showing all ${state.rocks.length}, including ${TIERS.unverified} unverified — ` +
+        `persistent in the imagery, meaning unknown.${yours}`
+      : `Showing ${verified} marks with evidence behind them. ` +
+        `${TIERS.unverified} unverified are hidden — they still set off the alarm.${yours}`;
 }
 
 let selected = null;
@@ -498,13 +533,17 @@ function setTheme(name) {
   view.theme = name;
   const chart = name === "chart";
   document.body.classList.toggle("chart", chart);
-  el("btnTheme").textContent = chart ? "Chart" : "Night";
+  el("btnThemeChart").classList.toggle("on", chart);
+  el("btnThemeNight").classList.toggle("on", !chart);
+  // Printed soundings are a chart convention and the night theme does not draw
+  // them, so the control that turns them on and off goes with them.
   el("btnSoundings").style.display = chart ? "" : "none";
   state.contours = contourSet(state.contourInterval);
   if (state.grid) el("legendRamp").style.background = rampCss(state.grid.maxFt, name);
 }
 
-el("btnTheme").onclick = () => setTheme(state.theme === "chart" ? "night" : "chart");
+el("btnThemeChart").onclick = () => setTheme("chart");
+el("btnThemeNight").onclick = () => setTheme("night");
 
 el("btnSoundings").onclick = () => {
   state.showSoundings = !state.showSoundings;
@@ -569,34 +608,30 @@ el("btnSwept").onclick = () => {
   view.draw(state);
 };
 
-// Guest mode. The case that actually motivated all of this: somebody else at
-// the helm who does not know the lake.
+// How much of the candidate set to draw. The case that motivated all of this:
+// somebody else at the helm who does not know the lake.
 //
-// A guest cannot use 4,908 markers. 3,549 of them are unverified -- the imagery
-// cannot see depth on this lake -- and a stranger has no way to weigh that, so
-// the honest markers drown in the doubtful ones and every alert looks the same.
-// What a guest can use is "stay on the water we have driven", which is the one
-// claim in the whole tool backed by direct evidence.
+// Nobody can use 4,908 markers, and a stranger least of all -- 3,549 of them are
+// unverified because the imagery cannot see depth on this lake, and a guest has
+// no way to weigh that. The honest markers drown in the doubtful ones and every
+// mark ends up looking the same.
 //
-// So this hides the unverified layer, keeps the hazards that hold up, and
-// leans on the driven-water layer. It shows LESS, on purpose.
-el("btnGuest").onclick = () => {
-  state.guest = !state.guest;
-  el("btnGuest").classList.toggle("on", state.guest);
-  if (state.guest) {
+// So the default shows LESS, on purpose, and leans on the driven-water layer,
+// which is the one claim in the whole tool backed by direct evidence.
+function setDetail(level) {
+  state.detail = level;
+  el("btnDetailVerified").classList.toggle("on", level === "verified");
+  el("btnDetailAll").classList.toggle("on", level === "all");
+  if (level === "verified") {
     state.showSwept = true;
     el("btnSwept").classList.add("on");
-    setStatus(
-      "Guest mode: unverified marks hidden. Stay on the green water - that is " +
-        "water this boat has actually driven. White water is unknown, not " +
-        "necessarily bad.",
-      "ok",
-    );
-  } else {
-    setStatus("All candidates shown, including unverified ones.", "warn");
   }
+  refreshCounts();
   view.draw(state);
-};
+}
+
+el("btnDetailVerified").onclick = () => setDetail("verified");
+el("btnDetailAll").onclick = () => setDetail("all");
 
 // One tap: "something here". No typing, no category, no menu -- a guest at the
 // helm has an interaction budget of exactly one press, and a report that is too
@@ -679,6 +714,11 @@ el("btnReview").onclick = () => {
       if (b.dataset.act === "go") {
         view.center = { x: g.x, y: g.y };
         view.follow = false;
+        el("btnFollow").classList.remove("on");
+        // The report is a place on the lake, so showing it means being on the
+        // map -- reviewing from the info tab and having nothing visibly happen
+        // is the kind of dead button that makes people stop trusting a tool.
+        showView("map");
         view.draw(state);
         return;
       }
@@ -708,10 +748,12 @@ el("btnReview").onclick = () => {
   });
 };
 
-el("btnShore").onclick = () => {
-  state.showShore = !state.showShore;
-  el("btnShore").classList.toggle("on", state.showShore);
-  refreshCounts();
+el("btnSound").onclick = () => {
+  state.sound = !state.sound;
+  const b = el("btnSound");
+  b.classList.toggle("on", state.sound);
+  b.classList.toggle("off", !state.sound);
+  b.querySelector(".ic").innerHTML = state.sound ? "&#128266;" : "&#128263;";
 };
 
 el("btnFollow").onclick = () => {
@@ -849,15 +891,83 @@ window.addEventListener("unhandledrejection", (e) => {
   setStatus(`ERROR: ${e.reason && e.reason.message ? e.reason.message : e.reason}`, "warn");
 });
 
+// The GPS watch, the alarm and the track log keep running in every view -- the
+// boat does not stop moving because somebody opened the info tab. Only the
+// drawing pauses, because redrawing a canvas nobody is looking at is pure
+// battery on a phone that is already holding a wake lock.
 function frame(now) {
   if (sim.on) stepSim(now || performance.now());
-  view.draw(state);
+  if (isActive("map")) view.draw(state);
   requestAnimationFrame(frame);
 }
 
+// --- sharing ---------------------------------------------------------------
+// The worker and the join/leave calls have existed since the sync module was
+// written; there was no way to reach them from the app, so the handover doc
+// told people to do something the UI could not do.
+
+function refreshSync() {
+  const box = el("syncState");
+  if (isConfigured()) {
+    box.className = "syncstate on";
+    box.textContent = `Joined ${lakeCode()}. Syncing when this phone has signal.`;
+  } else {
+    box.className = "syncstate";
+    box.textContent = "Not joined. Everything stays on this phone.";
+  }
+  el("lakeCode").value = lakeCode() || "";
+  el("syncUrl").value = endpoint() || "";
+}
+
+el("btnJoin").onclick = () => {
+  const code = el("lakeCode").value.trim();
+  const url = el("syncUrl").value.trim();
+  if (!code || !url) {
+    setStatus("A lake code and a sync address are both needed to join.", "warn");
+    return;
+  }
+  // Refuse plaintext outright rather than joining and failing quietly later:
+  // this uploads boat positions, and a URL somebody mistyped as http is a
+  // silent downgrade of exactly the thing they were asked to consent to.
+  if (!/^https:\/\//i.test(url)) {
+    setStatus("The sync address has to start with https://", "warn");
+    return;
+  }
+  joinLake(code, url);
+  refreshSync();
+  setStatus(`Joined ${lakeCode()}.`, "ok");
+};
+
+el("btnLeave").onclick = () => {
+  leaveLake();
+  refreshSync();
+  setStatus("Left. Nothing leaves this phone.", "ok");
+};
+
 el("meta").textContent = DATA_META.summary;
+el("tierConfirmed").textContent = TIERS.confirmed.toLocaleString();
+el("tierLikely").textContent = TIERS.likely.toLocaleString();
+el("tierUnverified").textContent = TIERS.unverified.toLocaleString();
 el("valInterval").textContent = `${state.contourInterval} ft`;
 if (state.grid) el("rampMax").textContent = `${state.grid.maxFt} ft`;
+refreshSync();
+refreshCounts();
+
+// The 3D view builds a 156k-triangle mesh and takes a WebGL context, so it is
+// stood up the first time somebody opens that tab and never on a device that
+// does not. See views.js.
+initViews({
+  "3d": () => {
+    try {
+      if (typeof window.__initViewer3d === "function") window.__initViewer3d();
+    } catch (err) {
+      // A device without WebGL throws out of setup by design, and it has
+      // already painted its own explanation over the 3D canvas. What must not
+      // happen is that failure taking the map down with it.
+      console.warn("3D view unavailable:", err);
+    }
+  },
+});
 // Chart is the default: this gets used outdoors, in daylight, most of the time.
 setTheme(new URLSearchParams(location.search).get("theme") === "night" ? "night" : "chart");
 loadMarks().then(() => {

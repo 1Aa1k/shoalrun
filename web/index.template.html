@@ -9,6 +9,20 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <style>
+/* =========================================================================
+   ONE APP, THREE VIEWS.
+
+   The map, the 3D bottom and the honesty page used to be separate HTML files
+   with separate chrome, separate themes and separate control languages, and
+   moving between them felt like moving between three tools that happened to
+   share a lake. They are now three views behind one tab bar, sharing one set
+   of tokens, one button style and one theme switch.
+
+   The layout rule everything below follows: the lake gets the screen. Chrome
+   is a strip at the top (is something ahead), a strip at the bottom (where am
+   I in the app), and nothing else that is not either a live number or one tap
+   from being needed.
+   ========================================================================= */
 :root {
   --bg: #080d13;
   --panel: rgba(14, 20, 28, .92);
@@ -25,143 +39,75 @@
   --r: 10px;
   --pad-b: env(safe-area-inset-bottom, 0px);
   --pad-t: env(safe-area-inset-top, 0px);
+  /* Height of the tab bar. Every view anchors its own bottom chrome off this
+     one number so nothing can end up underneath it. */
+  --tabs-h: calc(52px + var(--pad-b));
 }
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 html, body { margin: 0; height: 100%; overflow: hidden;
   background: var(--bg); color: var(--ink);
   font: 15px/1.45 ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   -webkit-font-smoothing: antialiased; }
-#map { position: absolute; inset: 0; width: 100%; height: 100%; touch-action: none; }
 
 .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-variant-numeric: tabular-nums; }
 
-/* --- alert banner ------------------------------------------------------- */
-/* Sized for a glance from the helm, not for reading. The clear state is
-   deliberately quiet so that the loud states mean something. */
-.alert { position: absolute; top: 0; left: 0; right: 0; z-index: 5;
-  padding: calc(12px + var(--pad-t)) 16px 12px;
-  font-size: 21px; font-weight: 700; letter-spacing: -.01em;
-  text-align: center; transition: background .15s, color .15s;
-  backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); }
-.alert.clear   { background: rgba(10,15,21,.72); color: var(--ink-dim);
-  font-weight: 600; font-size: 14px; letter-spacing: .04em; text-transform: uppercase;
-  border-bottom: 1px solid var(--line-soft); }
-.alert.caution { background: #a05f00; color: #fff; box-shadow: 0 6px 24px rgba(160,95,0,.4); }
-.alert.danger  { background: var(--danger); color: #fff;
-  animation: pulse .7s infinite alternate; box-shadow: 0 6px 30px rgba(216,50,28,.5); }
-@keyframes pulse { to { background: #ff3b26; } }
+/* --- view switching ------------------------------------------------------ */
+.view { position: absolute; inset: 0 0 var(--tabs-h) 0; display: none; }
+.view.active { display: block; }
+#map, #gl { position: absolute; inset: 0; width: 100%; height: 100%;
+  touch-action: none; display: block; }
 
-/* --- floating cards ------------------------------------------------------ */
-.card { position: absolute; z-index: 3;
-  background: var(--panel); border: 1px solid var(--line); border-radius: var(--r);
-  backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
-  box-shadow: 0 8px 28px rgba(0,0,0,.45); }
+/* The map view is a column: lake on top, a foot underneath that carries the
+   legend and the status line. The foot's height is not fixed -- the legend
+   wraps to two rows on a narrow phone and the status line appears and
+   disappears -- so the lake is sized by flex against it rather than by every
+   floating control guessing a `bottom` offset that is right on one screen and
+   overlapping on the next. That guessing is what put the Layers button on top
+   of the legend. */
+#view-map.active { display: flex; flex-direction: column; }
+.lake { position: relative; flex: 1; min-height: 0; }
+.mapfoot { flex: none; background: var(--panel); border-top: 1px solid var(--line-soft);
+  backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); }
 
-.legend { top: calc(58px + var(--pad-t)); left: 10px; padding: 9px 11px; font-size: 12px;
-  max-width: 46vw; }
-.legend .row { display: flex; align-items: center; gap: 8px; margin: 4px 0; color: var(--ink-dim); }
-.legend .row b { color: var(--ink); font-weight: 600; }
-.dot { width: 9px; height: 9px; border-radius: 50%; flex: none; }
-.legend .note { margin-top: 7px; border-top: 1px solid var(--line-soft); padding-top: 6px;
-  color: var(--ink-faint); font-size: 11px; line-height: 1.4; }
-/* Gradient is set from JS off the same ramp the map draws with, so the legend
-   cannot drift out of sync with the water. */
-.legend .ramp { height: 7px; border-radius: 4px; margin: 7px 0 3px; background: #2e76a2; }
-.legend .ramplab { display: flex; justify-content: space-between;
-  font-size: 10px; color: var(--ink-faint); }
+/* --- tab bar ------------------------------------------------------------- */
+/* The one piece of chrome that is on screen in every view, in the same place,
+   saying the same thing. It is what makes this read as one app. */
+.tabs { position: absolute; left: 0; right: 0; bottom: 0; z-index: 20;
+  height: var(--tabs-h); padding-bottom: var(--pad-b);
+  display: flex; background: var(--panel-solid);
+  border-top: 1px solid var(--line); }
+/* Addressed by id so these beat the generic `button` / `button.on` rules in
+   both themes without needing a per-theme override. A tab is a tab, lit or not;
+   the accent belongs on its label and its top edge, not filling the whole
+   thing in like a pressed button. */
+#tabs button { flex: 1; background: none; border: 0; border-radius: 0;
+  color: var(--ink-faint); font: 600 12px/1 inherit; letter-spacing: .04em;
+  text-transform: uppercase; padding: 0; height: 100%;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 4px; }
+#tabs button .ic { font-size: 17px; line-height: 1; }
+#tabs button.on { background: none; color: var(--accent);
+  box-shadow: inset 0 2px 0 var(--accent); }
 
-.disclaimer { top: calc(58px + var(--pad-t)); right: 10px; max-width: 42vw;
-  background: rgba(216,50,28,.13); border-color: rgba(216,50,28,.42);
-  color: #f2b0a6; padding: 8px 10px; font-size: 11px; line-height: 1.4; }
-.disclaimer b { color: #ffd9d2; }
-
-/* Depth under the boat. Its own card because it is the one number that changes
-   continuously, and burying it in the status line makes it unreadable. */
-.depthnow { right: 10px; bottom: calc(76px + var(--pad-b)); padding: 8px 12px;
-  text-align: right; min-width: 92px; }
-.depthnow .v { font-size: 26px; font-weight: 700; line-height: 1; }
-.depthnow .u { font-size: 10px; color: var(--ink-faint); letter-spacing: .09em;
-  text-transform: uppercase; margin-top: 4px; }
-
-/* --- bottom bar ---------------------------------------------------------- */
-.bar { position: absolute; left: 0; right: 0; bottom: 0; z-index: 6;
-  padding: 9px 10px calc(9px + var(--pad-b));
-  background: var(--panel); border-top: 1px solid var(--line);
-  backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
-  display: flex; gap: 7px; align-items: center; }
-.bar .grow { flex: 1; min-width: 0; }
-
+/* --- shared controls ----------------------------------------------------- */
 button, .btn { background: #18212b; color: var(--ink); border: 1px solid var(--line);
   border-radius: 8px; padding: 9px 12px; font-size: 13.5px; font-weight: 600;
   font-family: inherit; cursor: pointer; transition: background .12s, border-color .12s;
   white-space: nowrap; text-decoration: none; display: inline-block; }
 button:active { transform: translateY(1px); }
-button.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+button.on, .btn.on { background: var(--accent); border-color: var(--accent); color: #fff; }
 button.ghost { background: transparent; color: var(--ink-dim); }
 
-#status, #counts, #meta { font-size: 11.5px; color: var(--ink-faint);
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-#status.ok { color: var(--ok); } #status.warn { color: var(--warn); }
-
-/* --- narrow screens ------------------------------------------------------ */
-/* This is a PWA for a phone on a lake with no signal, and until now it had no
-   media query at all -- every size was laid out for a desktop window. At 420 px
-   the legend and the disclaimer are each capped near half the width, so both
-   wrap to five or six lines and together they cover the top third of the map.
-
-   Nothing is hidden behind a tap: the legend is docked along the bottom and
-   laid out horizontally instead, where the same rows cost two lines instead of
-   six and the middle of the screen goes back to being the lake. */
-@media (max-width: 560px) {
-  .disclaimer { left: 10px; right: 10px; max-width: none; font-size: 10.5px;
-                padding: 6px 9px; }
-
-  /* Stays at the top, under the disclaimer, rather than docking above the bar:
-     the bar's own height changes with how much the status text wraps, and the
-     report button lives down there too, so anything anchored to the bottom
-     collides with one of them at some screen size. The top edge is fixed. */
-  .legend { top: calc(102px + var(--pad-t)); left: 10px; right: 10px;
-            max-width: none; display: flex; flex-wrap: wrap;
-            align-items: center; gap: 3px 14px; padding: 7px 10px; }
-  .legend .row { margin: 0; }
-  /* The ramp and its note want the full width; the symbol rows pack across it. */
-  .legend .ramp, .legend .ramplab, .legend .note { width: 100%; }
-  .legend .ramp { margin: 5px 0 2px; }
-  .legend .note { margin-top: 5px; font-size: 10px; }
-
-  /* The status column gets its own full-width line under the buttons instead
-     of a 90 px sliver between them -- "GPS: User denie..." is exactly the
-     message someone needs to read in full when the map is not following them.
-     The bar grows by one clamped line, so the report button clears it by a
-     fixed amount. */
-  .bar { flex-wrap: wrap; }
-  .bar .grow { flex-basis: 100%; order: 2; }
-  #btnFlag { padding: 12px 14px; font-size: 14px; bottom: calc(104px + var(--pad-b)); }
-
-  /* Wrapping beats an ellipsis -- "GPS: User denie..." is the one line that
-     explains why the map is not following the boat -- but it is clamped so the
-     bar cannot grow without limit and start eating the map from below. */
-  #status, #counts, #meta { white-space: normal; display: -webkit-box;
-                            -webkit-line-clamp: 2; -webkit-box-orient: vertical;
-                            overflow: hidden; font-size: 10.5px; }
-}
-
-/* --- layers panel -------------------------------------------------------- */
-/* Slides up over the bar. The old build put every control in one wrapping row,
-   which on a phone became three rows of buttons eating a third of the map. */
-.panel { position: absolute; left: 0; right: 0; bottom: 0; z-index: 7;
-  background: var(--panel-solid); border-top: 1px solid var(--line);
-  border-radius: 14px 14px 0 0; padding: 14px 16px calc(16px + var(--pad-b));
-  transform: translateY(105%); transition: transform .2s cubic-bezier(.3,.8,.4,1);
-  box-shadow: 0 -10px 40px rgba(0,0,0,.5); }
-.panel.open { transform: translateY(0); }
-.panel h4 { margin: 0 0 12px; font-size: 11px; letter-spacing: .1em;
-  text-transform: uppercase; color: var(--ink-faint); font-weight: 700; }
-.panel .grip { width: 34px; height: 4px; border-radius: 2px; background: var(--line);
-  margin: -6px auto 12px; }
+.card { position: absolute; z-index: 3;
+  background: var(--panel); border: 1px solid var(--line); border-radius: var(--r);
+  backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+  box-shadow: 0 8px 28px rgba(0,0,0,.45); }
 
 .slider { margin: 14px 0; }
+/* A control that does nothing in the current mode. Left visible rather than
+   removed, so the panel does not reflow under a finger already on its way. */
+.slider.na { opacity: .4; pointer-events: none; }
 .slider .lab { display: flex; justify-content: space-between; align-items: baseline;
   font-size: 12.5px; color: var(--ink-dim); margin-bottom: 7px; }
 .slider .lab b { color: var(--ink); font-size: 14px; font-weight: 700; }
@@ -177,18 +123,121 @@ input[type=range]::-moz-range-thumb { width: 20px; height: 20px; border-radius: 
   background: var(--accent); border: 2px solid #fff; box-shadow: 0 2px 6px rgba(0,0,0,.5); }
 input[type=range]:disabled { opacity: .4; }
 
-.toggles { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 4px; }
-.toggles button { flex: 1 1 auto; }
-.panel .foot { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line-soft);
-  font-size: 11px; color: var(--ink-faint); line-height: 1.45; }
+input[type=text] { width: 100%; background: #0a0f15; color: var(--ink);
+  border: 1px solid var(--line); border-radius: 8px; padding: 9px 10px;
+  font: 14px/1.3 inherit; }
 
-/* --- detail sheet -------------------------------------------------------- */
-.sheet { position: absolute; left: 0; right: 0; bottom: 0; z-index: 10;
+/* Sheets and panels slide up from the bottom edge of their view, clearing the
+   tab bar rather than covering it -- the way out of a panel must never be the
+   thing the panel is sitting on top of. */
+.drawer { position: absolute; left: 0; right: 0; bottom: 0; z-index: 12;
+  max-height: calc(100% - 12px); overflow-y: auto;
   background: var(--panel-solid); border-top: 1px solid var(--line);
-  border-radius: 14px 14px 0 0; padding: 16px 16px calc(16px + var(--pad-b));
+  border-radius: 14px 14px 0 0; padding: 14px 16px 18px;
   transform: translateY(105%); transition: transform .2s cubic-bezier(.3,.8,.4,1);
   box-shadow: 0 -10px 40px rgba(0,0,0,.5); }
-.sheet.open { transform: translateY(0); }
+.drawer.open { transform: translateY(0); }
+.drawer .grip { width: 34px; height: 4px; border-radius: 2px; background: var(--line);
+  margin: -4px auto 12px; }
+.drawer h4 { margin: 18px 0 8px; font-size: 11px; letter-spacing: .1em;
+  text-transform: uppercase; color: var(--ink-faint); font-weight: 700; }
+.drawer h4:first-of-type { margin-top: 0; }
+.toggles { display: flex; flex-wrap: wrap; gap: 7px; }
+.toggles button { flex: 1 1 auto; }
+.foot { margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--line-soft);
+  font-size: 11px; color: var(--ink-faint); line-height: 1.45; }
+
+/* =========================== MAP VIEW ==================================== */
+
+/* --- alert strip ---------------------------------------------------------- */
+/* Sized for a glance from the helm, not for reading. The clear state is
+   deliberately quiet so that the loud states mean something. */
+.alert { position: absolute; top: 0; left: 0; right: 0; z-index: 5;
+  padding: calc(11px + var(--pad-t)) 16px 10px;
+  font-size: 21px; font-weight: 700; letter-spacing: -.01em;
+  text-align: center; transition: background .15s, color .15s;
+  backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); }
+.alert.clear   { background: rgba(10,15,21,.72); color: var(--ink-dim);
+  font-weight: 600; font-size: 14px; letter-spacing: .04em; text-transform: uppercase; }
+.alert.caution { background: #a05f00; color: #fff; box-shadow: 0 6px 24px rgba(160,95,0,.4); }
+.alert.danger  { background: var(--danger); color: #fff;
+  animation: pulse .7s infinite alternate; box-shadow: 0 6px 30px rgba(216,50,28,.5); }
+@keyframes pulse { to { background: #ff3b26; } }
+
+/* One line under the alert, never removed, never behind a tap. The long version
+   of this argument lives on the Info tab; this is the part that has to be on
+   screen while somebody is steering by the map. */
+.caveat { position: absolute; left: 0; right: 0; z-index: 4;
+  top: calc(52px + var(--pad-t));
+  padding: 5px 12px; text-align: center;
+  font-size: 11px; line-height: 1.35; letter-spacing: .01em;
+  background: rgba(216,50,28,.16); color: #f2b0a6;
+  border-bottom: 1px solid rgba(216,50,28,.32);
+  backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); }
+.caveat b { color: #ffd9d2; }
+
+/* --- helm controls -------------------------------------------------------- */
+/* A vertical stack on the right edge instead of a row of labelled buttons in a
+   bottom bar. Same three controls, thumb-sized, and they cost a 56 px strip of
+   the map's edge rather than a full band across its bottom. */
+.helm { position: absolute; right: 10px; z-index: 6;
+  bottom: 12px; display: flex; flex-direction: column; gap: 8px; }
+.helm button { width: 56px; height: 52px; padding: 0; border-radius: 12px;
+  background: var(--panel); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 2px; font-size: 9.5px; font-weight: 600; letter-spacing: .03em;
+  text-transform: uppercase; color: var(--ink-dim);
+  box-shadow: 0 4px 16px rgba(0,0,0,.4); }
+.helm button .ic { font-size: 17px; line-height: 1; color: var(--ink); }
+.helm button.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+.helm button.on .ic { color: #fff; }
+.helm button.off .ic { opacity: .45; }
+
+/* Depth under the boat. Its own card because it is the one number that changes
+   continuously, and burying it in a status line makes it unreadable. */
+.depthnow { left: 10px; bottom: 12px; padding: 8px 12px; min-width: 92px; }
+.depthnow .v { font-size: 26px; font-weight: 700; line-height: 1; }
+.depthnow .u { font-size: 10px; color: var(--ink-faint); letter-spacing: .09em;
+  text-transform: uppercase; margin-top: 4px; }
+
+/* One tap, thumb-sized, always on screen. A guest is at the helm and possibly
+   rattled from having just hit something; anything smaller or buried in a menu
+   will not get pressed, and an unused report is worth nothing. */
+#btnFlag { position: absolute; left: 10px; bottom: 78px; z-index: 7;
+  background: #a8600a; border-color: #d4800f; color: #fff;
+  font-size: 14px; font-weight: 600; padding: 13px 15px;
+  border-radius: 12px; box-shadow: 0 4px 14px rgba(0,0,0,.45); }
+#btnFlag.done { background: #1f7a4d; border-color: #2ea56a; }
+
+/* --- legend strip --------------------------------------------------------- */
+/* Docked to the bottom edge of the map, one line, horizontally scrollable if it
+   has to be. The old legend was a stacked card that ate the top third of a
+   phone screen along with the disclaimer above it. What survived the cut is the
+   part you cannot read the map without: what the marks mean and what the water
+   shading means. Everything else -- survey method, attribution, what the tiers
+   are worth -- moved to the Info tab, where there is room to say it properly. */
+.legend { display: flex; flex-wrap: wrap; align-items: center;
+  gap: 3px 13px; padding: 6px 10px; font-size: 11px; color: var(--ink-dim); }
+.legend .row { display: flex; align-items: center; gap: 6px; flex: none; }
+.legend .row b { color: var(--ink); font-weight: 600; }
+.dot { width: 9px; height: 9px; border-radius: 50%; flex: none; }
+.sym { width: 13px; flex: none; text-align: center;
+  font: 700 12px/1 ui-monospace, SFMono-Regular, Menlo, monospace; color: #c8188c; }
+.legend .scale { display: flex; align-items: center; gap: 6px; flex: none;
+  color: var(--ink-faint); }
+.legend .ramp { width: 74px; height: 7px; border-radius: 4px; background: #2e76a2; flex: none; }
+
+/* Status line. Above the legend, only when it has something to say -- an empty
+   grey bar taking a line of map is worse than no bar. Clamped to two lines so a
+   long GPS error cannot push the lake off the screen. */
+.status { padding: 5px 10px; font-size: 11px; line-height: 1.35;
+  color: var(--ink-faint); border-bottom: 1px solid var(--line-soft);
+  display: none; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+  overflow: hidden; }
+.status.show { display: -webkit-box; display: block; }
+.status.ok { color: var(--ok); } .status.warn { color: var(--warn); }
+
+/* --- detail sheet --------------------------------------------------------- */
 .sheet h3 { margin: 0 0 12px; font-size: 17px; font-weight: 700; letter-spacing: -.01em; }
 .kv { display: flex; justify-content: space-between; gap: 12px; padding: 7px 0;
   border-bottom: 1px solid var(--line-soft); font-size: 13px; color: var(--ink-dim); }
@@ -197,23 +246,111 @@ input[type=range]:disabled { opacity: .4; }
 .sheet .row { display: flex; gap: 7px; margin-top: 14px; }
 .sheet .row button { flex: 1; }
 #btnConfirm { background: #7d1a10; border-color: #a52a1a; color: #fff; }
-/* One tap, thumb-sized, always on screen. A guest is at the helm and possibly
-   rattled from having just hit something; anything smaller or buried in a menu
-   will not get pressed, and an unused report is worth nothing. */
-#btnFlag { position: fixed; right: 14px; bottom: 92px; z-index: 40;
-           background: #a8600a; border-color: #d4800f; color: #fff;
-           font-size: 15px; font-weight: 600; padding: 14px 16px;
-           border-radius: 12px; box-shadow: 0 4px 14px rgba(0,0,0,.45); }
-#btnFlag.done { background: #1f7a4d; border-color: #2ea56a; }
+
 .rev { border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px;
        margin-bottom: 7px; font-size: 13px; }
-.rev .who { color: var(--dim); font-size: 12px; }
-.rev .acts { display: flex; gap: 6px; margin-top: 6px; }
+.rev .who { color: var(--ink-dim); font-size: 12px; }
+.rev .acts { display: flex; gap: 6px; margin-top: 6px; flex-wrap: wrap; }
 
-/* --- chart theme --------------------------------------------------------- */
-/* When the map goes to paper, the chrome has to follow. Dark glass panels
-   floating over a buff chart read as a different app bolted on top, and in the
-   sunlight the chart mode exists for they are the unreadable part. */
+/* --- narrow screens ------------------------------------------------------- */
+@media (max-width: 560px) {
+  .depthnow { min-width: 80px; padding: 7px 10px; }
+  .depthnow .v { font-size: 22px; }
+  .helm button { width: 50px; height: 48px; }
+}
+
+/* =========================== 3D VIEW ===================================== */
+
+.nogl { position: absolute; inset: 0; display: none; align-items: center;
+  justify-content: center; text-align: center; padding: 24px;
+  color: var(--ink-dim); font-size: 15px; line-height: 1.5; }
+.nogl.show { display: flex; }
+
+.v3dtop { top: calc(10px + var(--pad-t)); left: 10px; right: 10px;
+  padding: 9px 12px; z-index: 5; }
+.v3dtop h1 { margin: 0; font-size: 15px; font-weight: 700; letter-spacing: -.01em; }
+.v3dtop .sub { font-size: 11px; color: var(--ink-faint); margin-top: 3px; }
+.v3dtop .warn { font-size: 11px; color: #f2b0a6; margin-top: 5px;
+  padding-top: 5px; border-top: 1px solid var(--line-soft); line-height: 1.4; }
+.v3dtop .warn b { color: #ffd9d2; }
+
+/* Live numbers, right edge, same role the depth card plays on the map. */
+.hud { position: absolute; right: 10px; top: calc(96px + var(--pad-t)); z-index: 4;
+  padding: 8px 11px; text-align: right; min-width: 96px; }
+.hud .n { font-size: 19px; font-weight: 700; line-height: 1.1;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-variant-numeric: tabular-nums; }
+.hud .u { font-size: 9.5px; color: var(--ink-faint); letter-spacing: .06em;
+  text-transform: uppercase; margin: 1px 0 8px; }
+.hud .u:last-child { margin-bottom: 0; }
+
+/* Drive pad, mirrored off the map's helm stack so the two views put the thing
+   your thumb reaches for in the same corner. */
+.pad { position: absolute; right: 10px; bottom: 12px; z-index: 6;
+  display: none; grid-template-columns: repeat(3, 46px); grid-template-rows: repeat(2, 44px);
+  gap: 6px; }
+.pad.show { display: grid; }
+.pad button { padding: 0; font-size: 15px; background: var(--panel);
+  backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); }
+#padFwd { grid-column: 2; grid-row: 1; }
+#padLeft { grid-column: 1; grid-row: 2; }
+#padBack { grid-column: 2; grid-row: 2; }
+#padRight { grid-column: 3; grid-row: 2; }
+
+.v3dmodes { position: absolute; left: 10px; bottom: 12px; z-index: 6;
+  display: flex; gap: 6px; }
+.v3dmodes button { padding: 12px 14px; background: var(--panel);
+  backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); }
+
+.spawnRow { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+.spawnRow .lab { font-size: 11px; color: var(--ink-faint); letter-spacing: .06em;
+  text-transform: uppercase; flex: none; width: 100%; }
+.spawnRow button { flex: 1 1 auto; }
+
+/* =========================== INFO VIEW =================================== */
+
+.doc { position: absolute; inset: 0; overflow-y: auto;
+  padding: calc(16px + var(--pad-t)) 16px 24px; -webkit-overflow-scrolling: touch; }
+.doc h1 { font-size: 20px; margin: 0 0 4px; letter-spacing: -.02em; }
+.doc .lede { color: var(--ink-dim); font-size: 13px; margin: 0 0 20px; }
+.doc h2 { font-size: 11px; letter-spacing: .1em; text-transform: uppercase;
+  color: var(--ink-faint); font-weight: 700; margin: 24px 0 8px; }
+.doc p { font-size: 13.5px; line-height: 1.55; color: var(--ink-dim); margin: 0 0 10px; }
+.doc p b, .doc li b { color: var(--ink); }
+.doc ul { margin: 0 0 10px; padding-left: 18px; }
+.doc li { font-size: 13.5px; line-height: 1.55; color: var(--ink-dim); margin-bottom: 5px; }
+.doc .block { border: 1px solid var(--line); border-radius: var(--r);
+  padding: 12px 14px; margin-bottom: 12px; background: var(--panel); }
+.doc .block.alarm { background: rgba(216,50,28,.10); border-color: rgba(216,50,28,.38); }
+.doc .block.alarm p { color: #f2b0a6; }
+.doc .block.alarm b { color: #ffd9d2; }
+
+/* The evidence table is the single most important thing in this app that is not
+   the map itself, so it is laid out as a table and not as prose. */
+.tiers { width: 100%; border-collapse: collapse; font-size: 13px; margin-bottom: 10px; }
+.tiers th { text-align: left; font-size: 10px; letter-spacing: .08em;
+  text-transform: uppercase; color: var(--ink-faint); font-weight: 700;
+  padding: 0 8px 6px 0; border-bottom: 1px solid var(--line); }
+.tiers td { padding: 8px 8px 8px 0; border-bottom: 1px solid var(--line-soft);
+  color: var(--ink-dim); vertical-align: top; }
+.tiers td:first-child { color: var(--ink); font-weight: 600; white-space: nowrap; }
+.tiers td.n { font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-variant-numeric: tabular-nums; color: var(--ink); text-align: right;
+  white-space: nowrap; }
+
+.doc .row { display: flex; gap: 7px; flex-wrap: wrap; margin-bottom: 10px; }
+.doc .row button { flex: 1 1 auto; }
+.field { margin-bottom: 8px; }
+.field label { display: block; font-size: 11px; letter-spacing: .06em;
+  text-transform: uppercase; color: var(--ink-faint); margin-bottom: 4px; font-weight: 600; }
+.syncstate { font-size: 12px; color: var(--ink-faint); margin-bottom: 10px; }
+.syncstate.on { color: var(--ok); }
+
+/* =========================== CHART THEME ================================= */
+/* When the map goes to paper, all the chrome follows -- in every view. Dark
+   glass panels floating over a buff chart read as a different app bolted on
+   top, and in the sunlight that chart mode exists for they are the unreadable
+   part. */
 body.chart {
   --bg: #e3d5ac;
   --panel: rgba(252, 249, 240, .94);
@@ -225,138 +362,326 @@ body.chart {
   --ink-faint: #6f7c86;
   --accent: #1d5f96;
 }
-body.chart .alert.clear { background: rgba(252,249,240,.86); color: #4c5a66;
-  border-bottom: 1px solid #c3b48c; }
+body.chart .alert.clear { background: rgba(252,249,240,.86); color: #4c5a66; }
 body.chart button, body.chart .btn { background: #efe7d3; color: var(--ink); border-color: #c3b48c; }
-body.chart button.on, body.chart .btn.on { background: var(--accent); border-color: var(--accent); color: #fff; }
-body.chart .disclaimer { background: rgba(190,20,20,.10); border-color: rgba(160,20,20,.45); color: #7d1a10; }
-body.chart .disclaimer b { color: #4d0d06; }
-body.chart .legend .note, body.chart .foot { color: #6f7c86; }
+/* Must come after the line above, and must exist: `body.chart button` outranks
+   `button.on`, so without this every lit control -- every layer toggle, the
+   selected 3D mode -- renders in chart mode as though it were off. */
+body.chart button.on, body.chart .btn.on { background: var(--accent);
+  border-color: var(--accent); color: #fff; }
+body.chart .helm button { background: var(--panel); color: var(--ink-dim); }
+body.chart .helm button.on { background: var(--accent); color: #fff; }
+body.chart .caveat { background: rgba(190,20,20,.10);
+  border-bottom-color: rgba(160,20,20,.40); color: #7d1a10; }
+body.chart .caveat b { color: #4d0d06; }
+body.chart .doc .block.alarm { background: rgba(190,20,20,.09);
+  border-color: rgba(160,20,20,.38); }
+body.chart .doc .block.alarm p { color: #7d1a10; }
+body.chart .doc .block.alarm b { color: #4d0d06; }
 body.chart #btnConfirm { background: #a3006b; border-color: #7d0052; }
-body.chart .card, body.chart .panel, body.chart .sheet { box-shadow: 0 6px 22px rgba(90,72,32,.28); }
-body.chart .sym { filter: none; }
+body.chart .card, body.chart .drawer { box-shadow: 0 6px 22px rgba(90,72,32,.28); }
+body.chart input[type=text] { background: #fff; }
+body.chart .v3dtop .warn { color: #7d1a10; }
+body.chart .v3dtop .warn b { color: #4d0d06; }
 
 /* Legend swaps with the theme, because the two themes say the same things with
    different marks: colour-coded dots on the dark map, NOAA symbols on paper. */
 .legend .forChart { display: none; }
 body.chart .legend .forNight { display: none; }
 body.chart .legend .forChart { display: flex; }
-body.chart .legend .note.forChart { display: block; }
-.sym { width: 15px; flex: none; text-align: center;
-  font: 700 13px/1 ui-monospace, SFMono-Regular, Menlo, monospace; color: #c8188c; }
 
-body.sim::after { content: "SIMULATION"; position: absolute; top: 50%; left: 0; right: 0;
+body.sim::after { content: "SIMULATION"; position: absolute; top: 45%; left: 0; right: 0;
   text-align: center; font-size: 42px; font-weight: 800; color: rgba(255,255,255,.07);
   pointer-events: none; letter-spacing: .12em; z-index: 2; }
 </style>
 </head>
 <body>
-<canvas id="map"></canvas>
-<div id="alert" class="alert clear">waiting for GPS</div>
 
-<div class="card legend" id="legend">
-  <div class="row forNight"><span class="dot" style="background:#ffc043"></span> <b>shoal</b> &mdash; submerged</div>
-  <div class="row forNight"><span class="dot" style="background:#ff6a5a"></span> <b>rock</b> &mdash; breaks surface</div>
-  <div class="row forNight"><span class="dot" style="background:#9fb1bf"></span> exposed ledge</div>
-  <div class="row forNight"><span class="dot" style="background:#63788a"></span> unmapped island</div>
-  <div class="row forNight"><span class="dot" style="background:#ff3521"></span> you confirmed</div>
+<!-- ============================ MAP ==================================== -->
+<section class="view active" id="view-map">
+ <div class="lake">
+  <canvas id="map"></canvas>
 
-  <div class="row forChart"><span class="sym">&#43;</span> <b>shoal</b> &mdash; submerged rock</div>
-  <div class="row forChart"><span class="sym">&#42;</span> <b>rock</b> &mdash; breaks surface</div>
-  <div class="row forChart"><span class="sym" style="color:#33556b">18</span> sounding, ft (1954)</div>
-  <div class="row forChart"><span class="sym" style="color:#a3006b">&#43;</span> you confirmed</div>
+  <div id="alert" class="alert clear">waiting for GPS</div>
 
-  <div class="ramp" id="legendRamp"></div>
-  <div class="ramplab"><span>0 ft</span><span id="rampMax">76 ft</span></div>
-
-  <div class="note" id="legendReach" style="display:none">
-    <b>Survey reach on.</b> Clear water was sounded in 1954; fog is how far the
-    depth there had to be guessed. 42% of this lake is more than 200 m from any
-    measurement, and some of it is 1.9 km.
-  </div>
-  <div class="note">Depth measured along 12 east&ndash;west transects, MDIFW
-    Aug 1954; up to 660 m between lines is interpolated.
-    Camps &amp; piers &copy; OpenStreetMap contributors (ODbL); hollow rings are
-    Maine E911 addresses &mdash; a camp is there, its outline is untraced.</div>
-</div>
-
-<div class="card disclaimer">
-  Satellite-derived and <b>unverified</b>. An aid, not a chart. Absence of a
-  marker is not evidence of clear water.
-</div>
-
-<div class="card depthnow" id="depthNow" style="display:none">
-  <div class="v mono" id="depthVal">--</div>
-  <div class="u">ft under boat</div>
-</div>
-
-<div class="sheet" id="sheet">
-  <h3 id="sheetTitle">Rock</h3>
-  <div id="sheetBody"></div>
-  <div class="row">
-    <button id="btnConfirm">It's there</button>
-    <button id="btnAbsent">Not there</button>
-    <button id="btnUnmark" class="ghost">Clear</button>
-    <button id="btnClose" class="ghost">Close</button>
-  </div>
-</div>
-
-<div class="panel" id="panel">
-  <div class="grip"></div>
-  <h4>Depth lines</h4>
-
-  <div class="slider">
-    <div class="lab"><span>Contour interval</span><b id="valInterval">10 ft</b></div>
-    <input type="range" id="sldInterval" min="0" max="5" step="1" value="2">
+  <div class="caveat">
+    <b>Unverified.</b> An aid, not a chart. No marker does not mean clear water.
   </div>
 
-  <div class="slider">
-    <div class="lab"><span>Highlight shallower than</span><b id="valShallow">off</b></div>
-    <input type="range" id="sldShallow" min="0" max="30" step="1" value="0">
+  <div class="card depthnow" id="depthNow" style="display:none">
+    <div class="v mono" id="depthVal">--</div>
+    <div class="u">ft under boat</div>
   </div>
 
-  <div class="toggles">
-    <button id="btnTheme">Chart</button>
-    <button id="btnDepth" class="on">Depth shading</button>
-    <button id="btnLines" class="on">Contour lines</button>
-    <button id="btnSoundings" class="on">Soundings</button>
-    <button id="btnReach">Survey reach</button>
-    <button id="btnCamps" class="on">Camps</button>
-    <button id="btnShore">All rocks</button>
-    <button id="btnSwept" class="on">Driven water</button>
+  <button id="btnFlag"><span>&#9888;</span> Something here</button>
+
+  <div class="helm">
+    <button id="btnFollow" class="on"><span class="ic">&#10021;</span>Follow</button>
+    <button id="btnSound" class="on"><span class="ic">&#128266;</span>Alarm</button>
+    <button id="btnLayers"><span class="ic">&#9776;</span>Layers</button>
+  </div>
+ </div>
+
+ <div class="mapfoot">
+  <div class="status" id="status"></div>
+
+  <div class="legend" id="legend">
+    <div class="row forNight"><span class="dot" style="background:#ffc043"></span><b>shoal</b> submerged</div>
+    <div class="row forNight"><span class="dot" style="background:#ff6a5a"></span><b>rock</b> breaks surface</div>
+    <div class="row forNight"><span class="dot" style="background:#9fb1bf"></span>ledge</div>
+    <div class="row forNight"><span class="dot" style="background:#63788a"></span>island</div>
+    <div class="row forNight"><span class="dot" style="background:#ff3521"></span>you confirmed</div>
+
+    <div class="row forChart"><span class="sym">&#43;</span><b>shoal</b> submerged</div>
+    <div class="row forChart"><span class="sym">&#42;</span><b>rock</b> breaks surface</div>
+    <div class="row forChart"><span class="sym" style="color:#33556b">18</span>sounding, ft</div>
+    <div class="row forChart"><span class="sym" style="color:#a3006b">&#43;</span>you confirmed</div>
+
+    <div class="scale"><span>0 ft</span><span class="ramp" id="legendRamp"></span><span id="rampMax">76 ft</span></div>
+  </div>
+ </div>
+
+  <!-- detail sheet ------------------------------------------------------- -->
+  <div class="drawer sheet" id="sheet">
+    <div class="grip"></div>
+    <h3 id="sheetTitle">Rock</h3>
+    <div id="sheetBody"></div>
+    <div class="row">
+      <button id="btnConfirm">It's there</button>
+      <button id="btnAbsent">Not there</button>
+      <button id="btnUnmark" class="ghost">Clear</button>
+      <button id="btnClose" class="ghost">Close</button>
+    </div>
   </div>
 
-  <div class="toggles" style="margin-top:7px">
-    <button id="btnGuest" style="flex:1 1 100%">Guest mode - follow driven water</button>
+  <!-- layers ------------------------------------------------------------- -->
+  <!-- Grouped by the question each control answers, rather than eleven loose
+       buttons in one wrapping row. Anything that is not a decision about what
+       the map draws -- exporting a track, reviewing other people's reports,
+       joining a lake -- lives on the Info tab instead of at the helm. -->
+  <div class="drawer" id="panel">
+    <div class="grip"></div>
+
+    <h4>Marks shown</h4>
+    <div class="toggles">
+      <button id="btnDetailVerified" class="on">Verified only</button>
+      <button id="btnDetailAll">Every candidate</button>
+    </div>
+    <div class="foot" id="detailNote" style="margin-top:8px"></div>
+
+    <h4>Water</h4>
+    <div class="toggles">
+      <button id="btnDepth" class="on">Depth shading</button>
+      <button id="btnLines" class="on">Contour lines</button>
+      <button id="btnSoundings" class="on">1954 soundings</button>
+      <button id="btnReach">Survey reach</button>
+      <button id="btnSwept" class="on">Driven water</button>
+      <button id="btnCamps" class="on">Camps &amp; piers</button>
+    </div>
+
+    <div class="slider">
+      <div class="lab"><span>Contour interval</span><b id="valInterval">10 ft</b></div>
+      <input type="range" id="sldInterval" min="0" max="5" step="1" value="2">
+    </div>
+    <div class="slider">
+      <div class="lab"><span>Highlight shallower than</span><b id="valShallow">off</b></div>
+      <input type="range" id="sldShallow" min="0" max="30" step="1" value="0">
+    </div>
+
+    <!-- Two buttons with the live one lit, not one button that renames itself.
+         A single toggle labelled "Chart" while chart mode is on cannot say
+         whether it is describing the screen or offering to change it. -->
+    <h4>Screen</h4>
+    <div class="toggles">
+      <button id="btnThemeChart">Chart &mdash; for sun</button>
+      <button id="btnThemeNight">Night &mdash; for dusk</button>
+    </div>
+
+    <div class="toggles" style="margin-top:14px">
+      <button id="btnPanelClose" class="ghost" style="flex:1 1 100%">Done</button>
+    </div>
+  </div>
+</section>
+
+<!-- ============================= 3D ==================================== -->
+<section class="view" id="view-3d">
+  <canvas id="gl"></canvas>
+
+  <div class="nogl" id="nogl">
+    <p>This device has no WebGL, so the 3D view cannot run.<br>
+    The map works without it.</p>
   </div>
 
-  <div class="toggles" style="margin-top:7px">
-    <button id="btnExport">Export track</button>
-    <button id="btnReview">Review reports (<span id="nPending">0</span>)</button>
-    <button id="btnPanelClose" class="ghost">Done</button>
+  <div class="card v3dtop">
+    <h1>Lake bottom</h1>
+    <div class="sub" id="stats"></div>
+    <div class="warn"><b>1954 survey, interpolated.</b> The survey boat ran 12
+      east&ndash;west lines. Everything between them &mdash; gaps up to 660 m &mdash;
+      is interpolation. This is basin shape, not rocks.</div>
   </div>
 
-  <div id="reviewList" style="display:none; margin-top:10px; max-height:38vh; overflow:auto"></div>
-
-  <div class="foot" id="meta"></div>
-</div>
-
-<button id="btnFlag" title="Report something here">
-  <span>&#9888;</span> Something here
-</button>
-
-<div class="bar">
-  <button id="btnFollow" class="on">Follow</button>
-  <button id="btnLayers">Layers</button>
-  <a class="btn" id="btn3d" href="./3d.html">3D</a>
-  <label class="btn ghost" style="display:flex;align-items:center;gap:6px;font-weight:600">
-    <input type="checkbox" id="sound" checked style="accent-color:var(--accent)"> Alarm
-  </label>
-  <div class="grow">
-    <div id="status"></div>
-    <div id="counts"></div>
+  <div class="card hud" id="hud">
+    <div class="n" id="hudDepth">--</div>
+    <div class="u">ft under boat</div>
+    <div class="n" id="hudReach">--</div>
+    <div class="u">to nearest sounding</div>
+    <div class="n" id="hudSpeed">0.0</div>
+    <div class="u">knots</div>
+    <div class="n" id="hudNear">--</div>
+    <div class="u">to nearest hazard</div>
   </div>
-</div>
+
+  <div class="pad" id="pad">
+    <button id="padFwd">&#9650;</button>
+    <button id="padLeft">&#9664;</button>
+    <button id="padBack">&#9660;</button>
+    <button id="padRight">&#9654;</button>
+  </div>
+
+  <div class="v3dmodes">
+    <button id="mode_orbit">Orbit</button>
+    <button id="mode_fly">Fly</button>
+    <button id="mode_boat">Boat</button>
+    <button id="btnGear">&#9881;</button>
+  </div>
+
+  <div class="drawer" id="sliders">
+    <div class="grip"></div>
+    <h4>Where to start</h4>
+    <div class="spawnRow" id="spawnRow">
+      <button id="spawn_neoc">NEOC</button>
+      <button id="spawn_shoals">Shoals</button>
+      <button id="spawn_deep">Deep basin</button>
+    </div>
+    <div class="spawnRow" id="swayRow">
+      <span class="lab">Camera</span>
+      <button id="btnChase" class="on">Third person</button>
+      <button id="btnSway" class="on">Sway</button>
+    </div>
+
+    <h4>Shape</h4>
+    <div class="slider" id="exagRow">
+      <div class="lab"><span>Vertical exaggeration</span><b id="valExag">30x</b></div>
+      <input type="range" id="sldExag" min="1" max="60" step="1" value="30">
+    </div>
+    <div class="slider">
+      <div class="lab"><span>Depth steps</span><b id="valTerrace">3 ft</b></div>
+      <input type="range" id="sldTerrace" min="1" max="15" step="1" value="3">
+    </div>
+    <div class="slider">
+      <div class="lab"><span>Wave height</span><b id="valWave">1.1 m</b></div>
+      <input type="range" id="sldWave" min="0" max="45" step="1" value="20">
+    </div>
+    <div class="slider">
+      <div class="lab"><span>Voxel size</span><b id="valBlock">25 m</b></div>
+      <input type="range" id="sldBlock" min="1" max="8" step="1" value="1">
+    </div>
+    <div class="slider">
+      <div class="lab"><span>Highlight shallower than</span><b id="valShallow3d">off</b></div>
+      <input type="range" id="sldShallow3d" min="0" max="30" step="1" value="0">
+    </div>
+    <div class="toggles">
+      <button id="btnReset">Reset view</button>
+      <button id="btnGearClose" class="ghost">Done</button>
+    </div>
+    <div class="foot" id="hint">Drag to orbit &middot; pinch or scroll to zoom</div>
+  </div>
+</section>
+
+<!-- ============================ INFO =================================== -->
+<!-- The honesty page. It exists because the alternative was a red block sitting
+     permanently over the top-right corner of the map saying a compressed
+     version of it badly. Nothing here is behind a tap-to-expand: it is one
+     scroll, in the order somebody would ask the questions. -->
+<section class="view" id="view-info">
+  <div class="doc">
+    <h1>shoalrun</h1>
+    <p class="lede">Millinocket Lake. Offline. Nothing leaves this phone unless
+      you join a lake code below.</p>
+
+    <div class="block alarm">
+      <p><b>72% of the hazard map is unverified, and that is a measurement, not
+      a disclaimer.</b> Aerial imagery on this lake was tested against the 260
+      MDIFW soundings and cannot tell 10 ft of water from 25 ft &mdash; AUC 0.507,
+      a coin flip. The water is too stained to see the bottom through. Submerged
+      hazards are not reliably mapped and, from imagery, cannot be.</p>
+      <p style="margin-bottom:0">What this shows you is where we have driven and
+      where we know rocks are. It does not show you everywhere a rock is.</p>
+    </div>
+
+    <h2>What stands behind a mark</h2>
+    <table class="tiers">
+      <tr><th>Tier</th><th class="n" style="text-align:right">Count</th><th>What it means</th></tr>
+      <tr><td>confirmed</td><td class="n" id="tierConfirmed">--</td>
+          <td>Above the waterline, cross-checked at 0.3 m</td></tr>
+      <tr><td>likely</td><td class="n" id="tierLikely">--</td>
+          <td>Returns infrared &mdash; a dry surface breaking the water</td></tr>
+      <tr><td>unverified</td><td class="n" id="tierUnverified">--</td>
+          <td>Persistent across six flights. Meaning unknown</td></tr>
+    </table>
+    <p>The map shows the first two by default. <b>Every candidate</b> in Layers
+      adds the third &mdash; useful if you know the lake and are looking for
+      something specific, misleading if you do not.</p>
+    <p>All of them alarm regardless of what is drawn. Hidden from view is not the
+      same as hidden from the alarm.</p>
+
+    <h2>The two things worth trusting</h2>
+    <ul>
+      <li><b>Driven water.</b> A pass that hit nothing proves depth along that
+        line. It is the one evidence source on this lake that does not depend on
+        seeing through the water, and it grows every time you go out.</li>
+      <li><b>Verified reports.</b> Somebody who knows the lake looked and said
+        yes. A report stays inert until then.</li>
+    </ul>
+
+    <h2>Depth</h2>
+    <p>Every contour and every shade of blue comes from <b>MDIFW, August
+      1954</b>: 12 east&ndash;west transects, sounded by lead line. Up to 660 m
+      between lines, all of it interpolated. <b>Survey reach</b> in Layers fogs
+      everything more than 120 m from a real measurement &mdash; that is 42% of
+      the lake, and in places 1.9 km.</p>
+
+    <h2>Your data</h2>
+    <div class="row">
+      <button id="btnExport">Export track</button>
+      <button id="btnReview">Review reports (<span id="nPending">0</span>)</button>
+    </div>
+    <div id="reviewList" style="display:none; margin-bottom:12px"></div>
+
+    <h2>Share with other boats</h2>
+    <p>Until a lake code is set, nothing leaves this phone. Joining means boat
+      positions and reports go to a server &mdash; that is a decision for the
+      people being tracked, not for whoever set the phone up.</p>
+    <div class="syncstate" id="syncState">Not joined. Everything stays local.</div>
+    <div class="field">
+      <label for="lakeCode">Lake code</label>
+      <input type="text" id="lakeCode" placeholder="MILLINOCKET" autocapitalize="characters" autocomplete="off">
+    </div>
+    <div class="field">
+      <label for="syncUrl">Sync address</label>
+      <input type="text" id="syncUrl" placeholder="https://…workers.dev" autocomplete="off" inputmode="url">
+    </div>
+    <div class="row">
+      <button id="btnJoin">Join</button>
+      <button id="btnLeave" class="ghost">Leave</button>
+    </div>
+
+    <h2>Sources</h2>
+    <p>Rock candidates from NAIP aerial persistence (6 flights, 2011&ndash;2023,
+      quality-weighted) plus Sentinel-2 and hand-mapped rock. Depth from MDIFW
+      1954. Camps and piers &copy; OpenStreetMap contributors (ODbL); hollow
+      rings are Maine E911 addresses &mdash; a camp is there, its outline is
+      untraced.</p>
+    <p class="foot" id="meta"></p>
+  </div>
+</section>
+
+<!-- ============================ TABS =================================== -->
+<nav class="tabs" id="tabs">
+  <button data-view="map" class="on"><span class="ic">&#9678;</span>Map</button>
+  <button data-view="3d"><span class="ic">&#9650;</span>3D</button>
+  <button data-view="info"><span class="ic">&#9432;</span>Info</button>
+</nav>
 
 <script>window.SHOALRUN_DATA = /*__DATA__*/;</script>
 <script type="module">/*__APP__*/</script>

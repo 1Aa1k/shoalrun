@@ -70,7 +70,7 @@ single image; they separate only across dates.
 3. `detect_rocks.py` — water mask per scene, then persistence across scenes.
 4. `export_depth_grid.py` — the interpolated depth surface as a compact grid,
    plus a companion grid of how far each cell is from a real 1954 sounding.
-5. `build_app.py` — inline everything into two offline HTML files (map + 3D).
+5. `build_app.py` — inline everything into one offline HTML file (map, 3D, info).
 
 ### Three things that had to be fixed, and are worth knowing
 
@@ -172,8 +172,8 @@ python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
 .venv/bin/python scripts/detect_rocks.py   # candidates
 .venv/bin/python scripts/verify.py         # stats + overview.png
 .venv/bin/python scripts/export_depth_grid.py  # depth surface for the app
-.venv/bin/python scripts/build_app.py      # dist/index.html + dist/3d.html
-node --test web/hazard.test.mjs            # alerting logic
+.venv/bin/python scripts/build_app.py      # dist/index.html
+node --test web/*.test.mjs                 # alerting, depth, sync, draw rules
 ```
 
 `dist/index.html` is one self-contained file — data, code, styles inlined,
@@ -183,6 +183,42 @@ runtime works in the driveway and fails on the water.
 
 Append `?sim=1` to drive a synthetic boat through the eastern arm and watch the
 alerting without leaving the dock. `?theme=night` opens in the dark palette.
+
+### One page, three tabs
+
+The map, the 3D bottom and the honesty page were three HTML files with three
+sets of chrome, and moving between them felt like moving between three tools
+that happened to share a lake. They are three tabs in one document now:
+
+| tab | what it is |
+|---|---|
+| **Map** | the helm view — alert strip, lake, one line of legend |
+| **3D** | the interpolated 1954 bottom, orbit / fly / boat |
+| **Info** | what the evidence tiers are worth, export, report review, lake code |
+
+`#map`, `#3d` and `#info` deep-link to a tab; `#lat,lon,zoom` still opens the
+map at a spot. `dist/3d.html` survives as a redirect for anything bookmarked.
+
+The 3D view is wrapped in a function at build time and stood up the first time
+its tab is opened — it takes a WebGL context and builds a 156k-triangle mesh,
+and neither should happen on a phone that only ever opens the map. Only the
+visible view animates; the GPS watch, the alarm and the track log run in all
+three.
+
+### What the map draws by default
+
+Verified marks only: the 48 confirmed above the waterline plus the 1,311 that
+return infrared. The 3,549 unverified are one tap away under **Layers → Every
+candidate**, and they alarm either way — hidden from view is not hidden from the
+alarm.
+
+This replaced two separate toggles ("guest mode" and "all rocks") that cut on
+different axes and fought each other. The offshore cut in particular was
+backwards: the confirmed rocks on this lake sit a median 2 m from shore, so
+tidying the map by distance from shore threw away exactly the marks that hold
+up. Marker size and opacity also ride the zoom, because 1,359 marks all sitting
+at the minimum tappable radius merge into a solid band around the shoreline and
+hide the depth shading the view is for.
 
 ### Two themes, and why the light one is the default
 
@@ -209,7 +245,7 @@ The interval became a slider, the depth shading and the contour lines now come
 from the same numbers, and the 3D viewer reads the identical surface — so the
 mesh and the lines cannot disagree about where 20 ft is.
 
-### 3D viewer — `dist/3d.html`
+### 3D viewer — the 3D tab
 
 Hand-rolled WebGL, no library, because a CDN script tag is a runtime network
 dependency wearing a hat. Three camera modes:

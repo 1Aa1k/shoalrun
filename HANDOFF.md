@@ -29,8 +29,11 @@ knows the lake looked).
 If you hand this to a business, say that out loud. An operation putting it in
 front of paying renters is in a different position from a friend using it on
 his own boat, and "the app said the water was clear" is a sentence you do not
-want said about a tool with your name on it. The app states its own limits on
-the settings panel; do not let anyone remove that text.
+want said about a tool with your name on it.
+
+The app states its own limits in two places and both are load-bearing: one line
+under the alert strip that is on screen the whole time the map is, and the whole
+first half of the **Info** tab. Do not let anyone remove either.
 
 Practical framing that is both honest and useful: *this shows you where we have
 driven, and where we know rocks are. It does not show you everywhere a rock
@@ -40,8 +43,11 @@ is.*
 
 ### 1. The app
 
-`dist/index.html` is the whole thing — 2.3 MB, one file, no network calls,
-no dependencies. Put it on any static host with HTTPS:
+`dist/index.html` is the whole thing — 2.6 MB, one file, no network calls,
+no dependencies. Everything is in it: the map, the 3D lake bottom and the info
+page are three tabs along the bottom, not three links to hand somebody.
+
+Put it on any static host with HTTPS:
 
 ```bash
 npx vercel deploy --prod dist/       # or Netlify, GitHub Pages, anything
@@ -73,7 +79,10 @@ npx wrangler kv namespace create SHOALRUN
 npx wrangler deploy
 ```
 
-Then, in the app's settings, join with a lake code and the Worker URL.
+Then open the app's **Info** tab, scroll to *Share with other boats*, and enter
+the lake code and the Worker URL. The address has to be `https://` — the app
+refuses anything else rather than joining and quietly failing later, because
+what is being uploaded is where the boat has been.
 
 **Until a lake code is set, nothing leaves the phone.** That is the default and
 it is deliberate. Turning on sync means boat positions go to a server, which is

@@ -23,12 +23,18 @@ DATA = ROOT / "data"
 DIST = ROOT / "dist"
 
 # Dependency order matters: geo defines what hazard and render consume.
-MODULES = ["geo.js", "depth.js", "hazard.js", "swept.js", "flags.js", "sync.js", "render.js", "store.js", "app.js"]
+MODULES = ["geo.js", "depth.js", "hazard.js", "swept.js", "flags.js", "sync.js",
+           "render.js", "store.js", "views.js", "app.js"]
 
-# The 3D viewer is a separate page on purpose. An orbiting camera is the wrong
-# control surface for someone at the helm, and keeping it out of the map page
-# means it cannot be reached by accident under way. It shares geo and depth so
-# both views read the same surface.
+# The 3D viewer used to be its own page. Three HTML files meant three URLs to
+# hand somebody, three sets of chrome and three visual languages for one lake,
+# so it is a tab in the same document now.
+#
+# It still gets its own scope. Wrapped in a function it can be stood up on first
+# view rather than at load -- it takes a WebGL context and builds a 156k-triangle
+# mesh, neither of which should happen on a phone that only ever opens the map --
+# and the scope also keeps its `el`, `draw` and `resize` from colliding with the
+# map's, which is why geo.js and depth.js can appear in both lists.
 VIEWER_MODULES = ["geo.js", "depth.js", "mat3d.js", "scene3d.js", "shaders3d.js", "viewer3d.js"]
 
 IMPORT_RE = re.compile(r"^\s*import\s+.*?;\s*$", re.M | re.S)
@@ -151,8 +157,19 @@ def main():
     data_json = json.dumps(payload, separators=(",", ":"))
     DIST.mkdir(exist_ok=True)
 
-    def bundle(template, modules, dest):
-        js = "\n".join(strip_module_syntax((WEB / m).read_text()) for m in modules)
+    def concat(modules):
+        return "\n".join(strip_module_syntax((WEB / m).read_text()) for m in modules)
+
+    def bundle(template, modules, dest, lazy=None):
+        js = concat(modules)
+        if lazy:
+            # One entry point, called by views.js the first time the tab opens.
+            js += (
+                "\n\n// --- lazily initialised view ---\n"
+                "window.__initViewer3d = function () {\n"
+                + concat(lazy)
+                + "\n};\n"
+            )
         html = (WEB / template).read_text()
         html = html.replace("/*__DATA__*/", data_json)
         html = html.replace("/*__APP__*/", js)
@@ -178,8 +195,18 @@ def main():
         path.write_text(html)
         return path
 
-    out = bundle("index.template.html", MODULES, "index.html")
-    out3d = bundle("viewer3d.template.html", VIEWER_MODULES, "3d.html")
+    out = bundle("index.template.html", MODULES, "index.html", lazy=VIEWER_MODULES)
+
+    # 3d.html was a real page for a week and is in at least one handover doc and
+    # whatever anyone bookmarked. Keeping a redirect costs 300 bytes; letting a
+    # saved link 404 on a phone with no signal costs somebody their map.
+    (DIST / "3d.html").write_text(
+        "<!doctype html><meta charset=utf-8>"
+        '<title>shoalrun</title>'
+        '<meta http-equiv="refresh" content="0; url=./index.html#3d">'
+        '<p>The 3D view is a tab inside the app now. '
+        '<a href="./index.html#3d">Open it</a>.</p>\n'
+    )
 
     # Ship the PWA shell alongside: the page needs HTTPS for geolocation, and a
     # service worker so offline availability is deterministic rather than
@@ -189,9 +216,21 @@ def main():
         if src.exists():
             (DIST / extra).write_text(src.read_text())
 
+    # docs/ is the GitHub Pages copy. It was written by hand once and then went
+    # eight days stale behind dist/, which means a Pages link and a dist link
+    # were two different apps -- and the Pages one is the link somebody is more
+    # likely to be sent. Republish it from the same build rather than trusting
+    # anyone to remember.
+    docs = ROOT / "docs"
+    if (docs / ".nojekyll").exists():
+        for name in ("index.html", "3d.html", "sw.js", "manifest.json"):
+            src = DIST / name
+            if src.exists():
+                (docs / name).write_text(src.read_text())
+
     print(f"wrote {out}  ({out.stat().st_size / 1024:.0f} KB, fully offline)")
-    print(f"wrote {out3d}  ({out3d.stat().st_size / 1024:.0f} KB, 3D depth viewer)")
-    print(f"  + sw.js, manifest.json (installable PWA)")
+    print("  map + 3D bottom + info, one page, three tabs")
+    print("  + 3d.html redirect, sw.js, manifest.json (installable PWA)")
     print(f"  {payload['meta']['summary']}")
 
 

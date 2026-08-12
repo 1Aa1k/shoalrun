@@ -9,9 +9,15 @@
 // Cache-first, unconditionally: a stale hazard map that opens beats a fresh one
 // that cannot load. Updates land on the next visit with signal.
 
-// Bumped when the shell list changes, so the activate handler drops the old
-// cache instead of serving a version that has never heard of 3d.html.
-const CACHE = 'shoalrun-v2';
+// Bumped whenever the shell changes shape, so the activate handler drops the
+// old cache instead of serving it. This one matters more than a version bump
+// usually does: cache-first means a phone that installed the previous build
+// would open the three-page version of the app, from cache, indefinitely --
+// looking exactly like a working app that had simply not changed.
+//
+// 3d.html is now a redirect into index.html#3d rather than a page, and it stays
+// in the shell so a bookmark still resolves offline.
+const CACHE = 'shoalrun-v3';
 const SHELL = ['./', './index.html', './3d.html', './manifest.json'];
 
 self.addEventListener('install', (e) => {

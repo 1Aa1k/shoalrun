@@ -39,14 +39,20 @@ const canvas = el("gl");
 // on someone else's machine.
 function fatal(msg) {
   const box = el("nogl");
-  box.style.display = "grid";
+  box.classList.add("show");
   box.innerHTML =
     `<div><p style="color:#f2b0a6;font-weight:700">3D view failed to start</p>` +
     `<p style="font-family:ui-monospace,Menlo,monospace;font-size:12px;white-space:pre-wrap">${
       String(msg).replace(/[<&]/g, (c) => (c === "<" ? "&lt;" : "&amp;"))
-    }</p><p><a href="./index.html" style="color:#3d9be9">Back to the map</a></p></div>`;
+    }</p><p>The map tab still works.</p></div>`;
 }
-window.addEventListener("error", (e) => fatal(e.message));
+
+// Only while this view is being stood up. Once it is running, an error anywhere
+// in the app would otherwise blank the 3D tab with a driver-failure message
+// that has nothing to do with what went wrong -- the map has its own handler
+// and it reports to the status line where the user can see it.
+const onSetupError = (e) => fatal(e.message);
+window.addEventListener("error", onSetupError);
 
 const gl = canvas.getContext("webgl", { antialias: true, alpha: false });
 if (!gl) {
@@ -457,6 +463,11 @@ function cameraFor(dt) {
 function resize() {
   const dpr = Math.min(window.devicePixelRatio || 1, 2);
   const r = canvas.getBoundingClientRect();
+  // A hidden section measures 0x0. Resizing the drawing buffer to nothing while
+  // the map tab is open would leave the 3D view blank on return, so a rotate or
+  // a keyboard opening in another view is simply ignored -- the next real frame
+  // in this view resizes anyway.
+  if (r.width < 1 || r.height < 1) return;
   canvas.width = Math.round(r.width * dpr);
   canvas.height = Math.round(r.height * dpr);
 }
@@ -515,7 +526,30 @@ function hullMatrix(hull) {
 let lastT = performance.now();
 let clock = 0;
 
+// This view shares a page with the map now, and both run their own animation
+// loop. Rendering 156k triangles behind a tab nobody is on costs a phone real
+// battery for frames that are never composited, so the loop stays alive -- it
+// has to, to pick up again instantly -- but skips the work.
+const section3d = el("view-3d");
+const onScreen = () => section3d.classList.contains("active");
+let wasOnScreen = true;
+
 function draw(now) {
+  const visible = onScreen();
+  if (!visible) {
+    // Reset the clock, or the first frame back computes a dt of however many
+    // seconds the tab was hidden and the camera lurches.
+    lastT = now;
+    wasOnScreen = false;
+    requestAnimationFrame(draw);
+    return;
+  }
+  if (!wasOnScreen) {
+    // Any rotate or window change while this view was hidden was ignored,
+    // because a hidden canvas measures zero. Pick it up on the way back in.
+    wasOnScreen = true;
+    resize();
+  }
   const dt = Math.min(0.05, (now - lastT) / 1000) || 0.016;
   lastT = now;
   clock += dt;
@@ -827,6 +861,11 @@ canvas.addEventListener("wheel", (e) => {
 }, { passive: false });
 
 window.addEventListener("keydown", (e) => {
+  // The keys are bound to the window, and the window now also holds a map and a
+  // form with a lake code in it. WASD typed into a text field should not steer
+  // the boat, and space should not be swallowed on a tab this view is not on.
+  if (!onScreen()) return;
+  if (e.target && /^(INPUT|TEXTAREA)$/.test(e.target.tagName)) return;
   const k = e.key.toLowerCase();
   keys.add(k === "shift" ? "shift" : k);
   if (k === "v" && mode === "boat") { boat.chase = !boat.chase; syncChaseBtn(); }
@@ -923,11 +962,14 @@ el("btnSway").onclick = () => {
   el("btnSway").classList.toggle("on", opts.sway);
 };
 
-el("btnGear").onclick = () => {
-  const open = document.body.classList.toggle("open");
+// Same drawer the map's Layers button opens, in the same place, with the same
+// grip on top -- one gesture to learn instead of two.
+function setGear(open) {
+  el("sliders").classList.toggle("open", open);
   el("btnGear").classList.toggle("on", open);
-};
-el("caveat").onclick = () => el("caveat").classList.toggle("open");
+}
+el("btnGear").onclick = () => setGear(!el("sliders").classList.contains("open"));
+el("btnGearClose").onclick = () => setGear(false);
 
 el("btnReset").onclick = () => {
   orbit.yaw = 0;
@@ -960,5 +1002,8 @@ const wanted = params.get("mode");
 setMode(MODES.includes(wanted) ? wanted : "orbit");
 const wantSpawn = params.get("at");
 if (wantSpawn && SPAWNS[wantSpawn]) spawnAt(wantSpawn);
+
+// Setup survived. Hand errors back to the app's own reporting from here.
+window.removeEventListener("error", onSetupError);
 
 requestAnimationFrame(draw);
