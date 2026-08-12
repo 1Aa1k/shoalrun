@@ -135,8 +135,13 @@ def main() -> None:
     if pins:
         bits.append(f"{pins} soundings, 1954")
     if built or piers:
-        bits.append(f"{built + piers} buildings and piers, OSM")
+        bits.append(f"{built} houses and {piers} piers "
+                    f"(OSM + Maine E911)")
     mark_text = " + ".join(bits) + " (oversized)" if bits else ""
+    # What the toggle should call them, so the button says what it does rather
+    # than "measurements" when the things on screen are houses.
+    mark_noun = ("houses" if (built and not pins) else
+                 "houses and pins" if (built and pins) else "measurements")
 
     payload = {
         "nx": nx, "ny": ny,
@@ -144,7 +149,15 @@ def main() -> None:
         "zscale": zmax / 65535.0,
         "z": quantize(plain_z),
         "zm": quantize(marked_z) if marked_z is not None else None,
+        # Which samples a marker stands on. Without this the houses are drawn in
+        # the terrain's own colour ramp and a 1.6 mm glyph on a 43 mm model is
+        # invisible from anywhere but a raking angle -- which is exactly how the
+        # first build of this looked.
+        "mk": (base64.b64encode(
+            ((marked_z - plain_z) > 1e-6).astype("uint8").tobytes()).decode("ascii")
+            if marked_z is not None else None),
         "markText": mark_text,
+        "markNoun": mark_noun,
         "plane": round(plane, 4),
         "exag": round(exag, 6),
         "landExag": round(land_exag, 6),

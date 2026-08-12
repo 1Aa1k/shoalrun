@@ -109,6 +109,18 @@ function heights(b64) {
 // without recomputing them around every pin on every toggle.
 const FIELDS = { plain: heights(D.z), marked: D.zm ? heights(D.zm) : null };
 
+// Which samples carry a marker, as 0/1 per vertex. Painted rather than left to
+// the terrain ramp: a 1.6 mm house on a 43 mm model is a rounding error in the
+// colour scale and reads as ground unless it is given its own colour.
+const MARK = (() => {
+  if (!D.mk) return null;
+  const raw = atob(D.mk);
+  const out = new Float32Array(raw.length);
+  for (let i = 0; i < raw.length; i++) out[i] = raw.charCodeAt(i) ? 1 : 0;
+  return out;
+})();
+const ZEROS = new Float32Array(NX * NY);
+
 // ---- geometry ---------------------------------------------------------------
 // One vertex per sample, indexed triangles, so the 155k-vertex full-resolution
 // grid does not become 900k loose vertices.
@@ -161,12 +173,13 @@ function buffer(data, target) {
   gl.bufferData(target, data, gl.STATIC_DRAW);
   return b;
 }
-function upload(Z) {
+function upload(Z, mark) {
   const { pos, norm } = surface(Z);
-  return { pos: buffer(pos, gl.ARRAY_BUFFER), norm: buffer(norm, gl.ARRAY_BUFFER) };
+  return { pos: buffer(pos, gl.ARRAY_BUFFER), norm: buffer(norm, gl.ARRAY_BUFFER),
+           mark: buffer(mark, gl.ARRAY_BUFFER) };
 }
-const MESH = { plain: upload(FIELDS.plain),
-               marked: FIELDS.marked ? upload(FIELDS.marked) : null };
+const MESH = { plain: upload(FIELDS.plain, ZEROS),
+               marked: FIELDS.marked ? upload(FIELDS.marked, MARK || ZEROS) : null };
 const bufIdx = buffer(idx, gl.ELEMENT_ARRAY_BUFFER);
 
 // A quad at the water plane, inset slightly so it never z-fights the shore.
@@ -180,6 +193,7 @@ const bufWater = buffer(wq, gl.ARRAY_BUFFER);
 const VERT = `
 attribute vec3 aPos;
 attribute vec3 aNormal;
+attribute float aMark;
 uniform mat4 uMVP;
 uniform float uDeep;
 uniform float uLand;
@@ -191,7 +205,9 @@ uniform float uMmPerFtLand;
 varying vec3 vN;
 varying float vRel;
 varying vec3 vWorld;
+varying float vMark;
 void main() {
+  vMark = aMark;
   // Exaggeration works about the water plane, not the bed, so the shoreline
   // stays put and only the relief grows -- and each side of that plane gets its
   // own scale, so the lake can be pushed without the hills following.
@@ -219,6 +235,7 @@ precision mediump float;
 varying vec3 vN;
 varying float vRel;
 varying vec3 vWorld;
+varying float vMark;
 uniform float uSpanUp;
 uniform float uSpanDown;
 void main() {
@@ -234,6 +251,8 @@ void main() {
     vec3 hi  = vec3(0.86, 0.86, 0.83);
     c = t < 0.5 ? mix(low, mid, t * 2.0) : mix(mid, hi, (t - 0.5) * 2.0);
   }
+  // The legend's own colour, so a roof on the model matches the swatch.
+  c = mix(c, vec3(0.85, 0.70, 0.37), step(0.5, vMark));
   // Terraces need the normal of the geometry actually on screen: a smooth
   // per-vertex normal would light a flat step as if it were still a slope and
   // the terracing would barely show. Screen-space derivatives give the true
@@ -352,7 +371,7 @@ canvas.addEventListener("touchend", () => { pinch = 0; });
 // default nobody remembers.
 let deep = 1, landK = 1, linked = true, stepFt = 0, stepLand = false;
 let showWater = true;
-let showMarks = false;
+let showMarks = true;
 // How far the deepest and highest points sit from the water plane once the
 // terracing has snapped them, so the height readout is the height of the object
 // that would come off the bed rather than of the smooth one.
@@ -414,11 +433,14 @@ if (MESH.marked) {
   el("markRow").style.display = "flex";
   el("legMark").style.display = "block";
   el("legTxt").textContent = D.markText;
-  el("btnMarks").onclick = () => {
-    showMarks = !showMarks;
+  const label = () => {
     el("btnMarks").classList.toggle("on", showMarks);
-    el("btnMarks").textContent = showMarks ? "Hide measurements" : "Show measurements";
+    el("btnMarks").textContent = (showMarks ? "Hide " : "Show ") + (D.markNoun || "markers");
   };
+  label();
+  el("btnMarks").onclick = () => { showMarks = !showMarks; label(); };
+} else {
+  showMarks = false;
 }
 
 el("sub").textContent = D.sub;
@@ -480,6 +502,7 @@ function draw(now) {
   const mesh = (showMarks && MESH.marked) ? MESH.marked : MESH.plain;
   attr(prog, "aPos", mesh.pos, 3);
   attr(prog, "aNormal", mesh.norm, 3);
+  attr(prog, "aMark", mesh.mark, 1);
   gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, bufIdx);
   gl.drawElements(gl.TRIANGLES, idx.length,
                   idxArr === Uint32Array ? gl.UNSIGNED_INT : gl.UNSIGNED_SHORT, 0);
@@ -490,8 +513,10 @@ function draw(now) {
     gl.useProgram(waterProg);
     gl.uniformMatrix4fv(uni(waterProg, "uMVP"), false, new Float32Array(mvp));
     gl.uniform1f(uni(waterProg, "uPlane"), D.plane);
-    const nLoc = gl.getAttribLocation(prog, "aNormal");
-    if (nLoc >= 0) gl.disableVertexAttribArray(nLoc);
+    for (const nm of ["aNormal", "aMark"]) {
+      const loc = gl.getAttribLocation(prog, nm);
+      if (loc >= 0) gl.disableVertexAttribArray(loc);
+    }
     attr(waterProg, "aPos", bufWater, 3);
     gl.drawArrays(gl.TRIANGLES, 0, 6);
     gl.disable(gl.BLEND);

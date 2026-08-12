@@ -262,6 +262,61 @@ def raise_markers(model: Model, lonlat, meta: dict, height_mm: float,
     return hit
 
 
+def raise_houses(model: Model, lonlat, meta: dict, foot_mm: float = 2.0,
+                 wall_mm: float = 0.9, ridge_mm: float = 0.7,
+                 step: int = 1) -> int:
+    """Stand a little gabled house on the surface at each lon/lat.
+
+    A disc says "something is here". A house says what. At 1:56,000 a real 12 m
+    camp is 0.2 mm across and would not survive slicing, let alone reading, so
+    this is a GLYPH -- deliberately oversized, all one size, all one orientation.
+    Nothing about its footprint is a measurement, and the notes say so.
+
+    The shape is a square block with a ridge running along it: full wall height
+    at the eaves, wall plus ridge along the centre line, linear between. That
+    profile is what makes it read as a building from across a room, where a flat
+    pad of the same size reads as a lump.
+
+    Added to the surface rather than cut into it, so it survives any layer
+    height, and stamped with `maximum` rather than `+=` so two houses 30 m apart
+    on a 25 m lattice do not stack into a tower.
+    """
+    ny, nx = model.z.shape
+    # At least three cells across, or there is no room for eave-ridge-eave and
+    # the glyph degenerates into the flat pad this exists to avoid.
+    half = max(1, int(round(foot_mm / 2.0 / model.cell_mm)))
+
+    # The glyphs are accumulated on their own layer and added to the ground once
+    # at the end, for two reasons. Two camps 30 m apart share cells on a 25 m
+    # lattice, and adding in place would stack their roofs into a tower. And the
+    # roof rides on each cell's OWN ground rather than on one base height: a
+    # flat-based block whose corner hangs over the shoreline cliff becomes a
+    # 26 mm pillar, which is what the first two attempts at this did.
+    glyph = np.zeros_like(model.z)
+    hit = 0
+    for lon, lat in lonlat:
+        col = ((lon - meta["lon0"]) / meta["dlon"] - model.col0) / step
+        row = ((lat - meta["lat0"]) / meta["dlat"] - model.row0) / step
+        j, i = int(round(col)), int(round(row))
+        if not (0 <= i < ny and 0 <= j < nx):
+            continue
+        hit += 1
+        i0, i1 = max(0, i - half), min(ny, i + half + 1)
+        j0, j1 = max(0, j - half), min(nx, j + half + 1)
+        yy, xx = np.mgrid[i0:i1, j0:j1]
+        # Ridge runs east-west, so the roof falls off with distance in rows.
+        across = np.abs(yy - i) / max(half, 1)
+        roof = wall_mm + ridge_mm * (1.0 - np.clip(across, 0.0, 1.0))
+        inside = (np.abs(xx - j) <= half) & (np.abs(yy - i) <= half)
+        patch = glyph[i0:i1, j0:j1]
+        np.maximum(patch, np.where(inside, roof, 0.0), out=patch)
+
+    # In place: Model is frozen, but the array it holds is the surface every
+    # other marker function also writes through.
+    model.z[...] += glyph
+    return hit
+
+
 def _points(path: Path, keep=None):
     """Lon/lat for every feature, using the centroid of anything that is not a
     point. Buildings here are 10-20 m across and the grid cell is 25 m, so a
@@ -303,18 +358,24 @@ def mark_soundings(model: Model, meta: dict, height_mm: float = 0.7,
     return raise_markers(model, _points(SOUNDINGS), meta, height_mm, radius_mm, step)
 
 
-def mark_structures(model: Model, meta: dict, step: int = 1) -> tuple[int, int]:
-    """Buildings and piers from OSM, as markers rather than footprints.
+def mark_structures(model: Model, meta: dict, step: int = 1,
+                    foot_mm: float = 2.0) -> tuple[int, int]:
+    """Every camp as a little house, and every pier as a low pad.
 
     They are what makes the object findable -- the launch, the camps, the pier
-    you actually leave from -- but at 1:56,000 a 15 m building is a third of a
-    millimetre. These are oversized on purpose and the notes say so.
+    you actually leave from. `address` is in here with `building` and `camp`
+    because a Maine E911 address is a camp somebody lives in whether or not a
+    volunteer ever traced its roof; the shoreline is closed spruce canopy and
+    the buildings under it are invisible to every aerial source tried.
+
+    Piers stay discs: a pier is a line, and a 2 mm gabled house standing on one
+    would claim a building on the water.
     """
-    built = raise_markers(model, _points(STRUCTURES, {"building", "camp"}), meta,
-                          1.2, 1.1, step)
+    houses = raise_houses(model, _points(STRUCTURES, {"building", "camp", "address"}),
+                          meta, foot_mm, 0.9, 0.7, step)
     piers = raise_markers(model, _points(STRUCTURES, {"pier"}), meta,
                           0.6, 0.7, step)
-    return built, piers
+    return houses, piers
 
 
 def shell_floor(z: np.ndarray, shell_mm: float) -> np.ndarray:
@@ -524,7 +585,10 @@ def main() -> None:
     ap.add_argument("--soundings", action="store_true",
                     help="raise a pin at each of the 260 real 1954 measurements")
     ap.add_argument("--structures", action="store_true",
-                    help="mark OSM buildings, camps and piers (oversized markers)")
+                    help="raise a house at every camp and a pad at every pier")
+    ap.add_argument("--house-mm", type=float, default=2.0,
+                    help="footprint of the house glyph; it is a symbol, not a scale "
+                         "footprint, so this is a legibility choice")
     ap.add_argument("--shell-mm", type=float, default=0.0,
                     help="hollow it out, leaving a shell this thick (needs supports)")
     ap.add_argument("--infill", type=float, default=0.15,
@@ -585,7 +649,8 @@ def main() -> None:
     pins = mark_soundings(model, meta, step=args.step) if args.soundings else 0
     built = piers = 0
     if args.structures:
-        built, piers = mark_structures(model, meta, step=args.step)
+        built, piers = mark_structures(model, meta, step=args.step,
+                                       foot_mm=args.house_mm)
 
     floor = shell_floor(model.z, args.shell_mm) if args.shell_mm > 0 else None
     tris = solid_triangles(model.z, model.cell_mm, floor)
@@ -621,7 +686,7 @@ def main() -> None:
     if args.soundings:
         print(f"  {pins} sounding pins")
     if args.structures:
-        print(f"  {built} building/camp markers, {piers} pier markers")
+        print(f"  {built} houses raised, {piers} pier markers")
     vol = mesh_volume_mm3(tris)
     print(f"  closed solid: {is_closed(tris)}, volume {vol / 1000:.0f} cm3")
     est = filament_estimate(tris, vol, infill=args.infill)
@@ -679,9 +744,15 @@ def main() -> None:
         "  which spans one cell."
     )
     marker_note = (
-        f"  {built} buildings and camps and {piers} piers are marked from OSM. The\n"
-        f"  markers are oversized -- a 15 m building is 0.3 mm at this scale -- so\n"
-        f"  treat them as positions, not footprints.\n\n"
+        f"  {built} houses and {piers} piers are raised on the land. The houses are\n"
+        f"  a glyph, not a footprint: every one is the same {args.house_mm:.1f} mm block\n"
+        f"  with a ridge, because a real 12 m camp is 0.2 mm at this scale and would\n"
+        f"  not survive slicing. Treat them as positions only -- the shape, size and\n"
+        f"  orientation carry no information.\n"
+        f"    Sources: OSM traced buildings and camps, plus Maine E911 addresses for\n"
+        f"  the camps nobody has traced. The shoreline here is closed spruce canopy,\n"
+        f"  so lidar and aerial imagery both fail to see roofs under it -- E911 is\n"
+        f"  the address an ambulance is sent to, which exists regardless.\n\n"
         if args.structures else ""
     )
     notes = args.out.with_suffix(".txt")
