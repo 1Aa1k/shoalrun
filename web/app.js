@@ -7,6 +7,7 @@ import { SweptGrid, coverageStats, sweptFromFixes } from "./swept.js";
 import { FLAG_STATUS, alertsFor, flagToHazard, makeFlag, reviewQueue } from "./flags.js";
 import { autoSync, isConfigured, whoAmI, joinLake, leaveLake, lakeCode, endpoint } from "./sync.js";
 import { initViews, isActive, showView } from "./views.js";
+import { installPwa } from "./basepath.js";
 
 // DATA is injected at build time so the app is one self-contained file with no
 // network dependency of any kind. There is no cell service on this lake.
@@ -977,6 +978,11 @@ refreshCounts();
 // The 3D view builds a 156k-triangle mesh and takes a WebGL context, so it is
 // stood up the first time somebody opens that tab and never on a device that
 // does not. See views.js.
+// Manifest and service worker, pointed at wherever this copy is served from.
+// See basepath.js -- a clean URL with no trailing slash resolves them to the
+// host root and silently loses offline support.
+installPwa();
+
 initViews({
   "3d": () => {
     try {

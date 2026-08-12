@@ -24,7 +24,7 @@ DIST = ROOT / "dist"
 
 # Dependency order matters: geo defines what hazard and render consume.
 MODULES = ["geo.js", "depth.js", "evidence.js", "hazard.js", "swept.js", "flags.js",
-           "sync.js", "render.js", "store.js", "views.js", "app.js"]
+           "sync.js", "render.js", "store.js", "views.js", "basepath.js", "app.js"]
 
 # The 3D viewer used to be its own page. Three HTML files meant three URLs to
 # hand somebody, three sets of chrome and three visual languages for one lake,

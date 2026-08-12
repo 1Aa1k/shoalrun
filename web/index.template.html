@@ -698,13 +698,5 @@ body.sim::after { content: "SIMULATION"; position: absolute; top: 45%; left: 0; 
 
 <script>window.SHOALRUN_DATA = /*__DATA__*/;</script>
 <script type="module">/*__APP__*/</script>
-<script>
-// Register only over a secure context. From file:// there is no service worker
-// and no geolocation -- the page still renders, but it is not the way to use
-// this on the water. Installed from HTTPS once, it runs offline forever.
-if ('serviceWorker' in navigator && location.protocol === 'https:') {
-  navigator.serviceWorker.register('./sw.js').catch(() => {});
-}
-</script>
 </body>
 </html>
