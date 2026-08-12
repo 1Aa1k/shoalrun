@@ -787,9 +787,15 @@ function updateHud() {
 
 function updateStats() {
   const m = Math.round(grid.gridM * opts.block);
+  // The hazard count says what it is missing. This view draws the same
+  // evidenced set the map does, but a rock needs a surveyed bottom to stand on
+  // and 1954 did not sound everywhere -- so the number here is legitimately
+  // smaller than the map's, and saying why beats two numbers that disagree.
+  const missing = rocks.offSurvey
+    ? ` (${rocks.offSurvey} more outside the 1954 survey)` : "";
   el("stats").textContent =
     `${(bottom.count / 3).toLocaleString()} triangles - ${m} m voxels, ` +
-    `${opts.terrace} ft steps - ${rocks.list.length} hazards - ` +
+    `${opts.terrace} ft steps - ${rocks.list.length} hazards${missing} - ` +
     `${(trees.count / 12).toLocaleString()} trees`;
 }
 

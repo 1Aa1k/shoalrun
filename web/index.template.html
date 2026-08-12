@@ -126,6 +126,10 @@ input[type=range]:disabled { opacity: .4; }
 input[type=text] { width: 100%; background: #0a0f15; color: var(--ink);
   border: 1px solid var(--line); border-radius: 8px; padding: 9px 10px;
   font: 14px/1.3 inherit; }
+/* Explicit, because the browser default is close enough to the ink colour on
+   the buff theme that an empty LAKE CODE reads as one already filled in -- and
+   that field is what decides whether anything leaves the phone. */
+input[type=text]::placeholder { color: var(--ink-faint); opacity: .75; }
 
 /* Sheets and panels slide up from the bottom edge of their view, clearing the
    tab bar rather than covering it -- the way out of a panel must never be the
@@ -266,8 +270,16 @@ input[type=text] { width: 100%; background: #0a0f15; color: var(--ink);
   color: var(--ink-dim); font-size: 15px; line-height: 1.5; }
 .nogl.show { display: flex; }
 
-.v3dtop { top: calc(10px + var(--pad-t)); left: 10px; right: 10px;
-  padding: 9px 12px; z-index: 5; }
+/* Header and HUD stack in one column rather than each guessing a `top` offset.
+   The header's height depends on how the caveat wraps, so a hardcoded offset
+   for the HUD is right at one width and clips at another -- which is exactly
+   what it did, hiding the depth reading behind the card. */
+.v3dchrome { position: absolute; top: calc(10px + var(--pad-t)); left: 10px; right: 10px;
+  z-index: 5; display: flex; flex-direction: column; align-items: flex-end; gap: 8px;
+  pointer-events: none; }
+.v3dchrome > * { pointer-events: auto; }
+
+.v3dtop { position: static; width: 100%; padding: 9px 12px; }
 .v3dtop h1 { margin: 0; font-size: 15px; font-weight: 700; letter-spacing: -.01em; }
 .v3dtop .sub { font-size: 11px; color: var(--ink-faint); margin-top: 3px; }
 .v3dtop .warn { font-size: 11px; color: #f2b0a6; margin-top: 5px;
@@ -275,8 +287,7 @@ input[type=text] { width: 100%; background: #0a0f15; color: var(--ink);
 .v3dtop .warn b { color: #ffd9d2; }
 
 /* Live numbers, right edge, same role the depth card plays on the map. */
-.hud { position: absolute; right: 10px; top: calc(96px + var(--pad-t)); z-index: 4;
-  padding: 8px 11px; text-align: right; min-width: 96px; }
+.hud { position: static; padding: 8px 11px; text-align: right; min-width: 96px; }
 .hud .n { font-size: 19px; font-weight: 700; line-height: 1.1;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-variant-numeric: tabular-nums; }
@@ -512,23 +523,25 @@ body.sim::after { content: "SIMULATION"; position: absolute; top: 45%; left: 0; 
     The map works without it.</p>
   </div>
 
-  <div class="card v3dtop">
-    <h1>Lake bottom</h1>
-    <div class="sub" id="stats"></div>
-    <div class="warn"><b>1954 survey, interpolated.</b> The survey boat ran 12
-      east&ndash;west lines. Everything between them &mdash; gaps up to 660 m &mdash;
-      is interpolation. This is basin shape, not rocks.</div>
-  </div>
+  <div class="v3dchrome">
+    <div class="card v3dtop">
+      <h1>Lake bottom</h1>
+      <div class="sub" id="stats"></div>
+      <div class="warn"><b>1954 survey, interpolated.</b> The survey boat ran 12
+        east&ndash;west lines. Everything between them &mdash; gaps up to 660 m
+        &mdash; is interpolation. This is basin shape, not rocks.</div>
+    </div>
 
-  <div class="card hud" id="hud">
-    <div class="n" id="hudDepth">--</div>
-    <div class="u">ft under boat</div>
-    <div class="n" id="hudReach">--</div>
-    <div class="u">to nearest sounding</div>
-    <div class="n" id="hudSpeed">0.0</div>
-    <div class="u">knots</div>
-    <div class="n" id="hudNear">--</div>
-    <div class="u">to nearest hazard</div>
+    <div class="card hud" id="hud">
+      <div class="n" id="hudDepth">--</div>
+      <div class="u">ft under boat</div>
+      <div class="n" id="hudReach">--</div>
+      <div class="u">to nearest sounding</div>
+      <div class="n" id="hudSpeed">0.0</div>
+      <div class="u">knots</div>
+      <div class="n" id="hudNear">--</div>
+      <div class="u">to nearest hazard</div>
+    </div>
   </div>
 
   <div class="pad" id="pad">

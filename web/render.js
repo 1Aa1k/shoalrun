@@ -8,6 +8,7 @@
 // piece of context that makes the hazard cloud legible at a glance.
 
 import { shadeCanvas, reachCanvas } from "./depth.js";
+import { drawnAt } from "./evidence.js";
 
 // Two themes, because a boat display has two jobs that want opposite things.
 //
@@ -84,30 +85,6 @@ const THEMES = {
 };
 
 const MAX_MARKER_PX = 18;
-
-/**
- * Whether a candidate gets drawn at the current detail level.
- *
- * Pulled out of the draw loop because it is the single most consequential
- * decision this renderer makes -- it is what somebody at the helm sees and does
- * not see -- and a rule that important should be assertable without a canvas.
- *
- * DRAWING ONLY. Every candidate stays in the alert index either way; the alarm
- * does not care what is on screen.
- *
- * @param {{tier: string}} rock
- * @param {"verified"|"all"} detail
- */
-export function drawnAt(rock, detail) {
-  if (detail === "all") return true;
-  return EVIDENCED.has(rock.tier);
-}
-
-// An allow-list, not a deny-list. Written the other way round -- "anything that
-// is not `unverified`" -- a tier added upstream would start appearing on the
-// default map without anyone deciding it should, which is the exact failure
-// this whole filter exists to undo.
-const EVIDENCED = new Set(["confirmed", "likely"]);
 
 const CLASS_KEY = {
   island: "island",

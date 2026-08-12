@@ -23,8 +23,8 @@ DATA = ROOT / "data"
 DIST = ROOT / "dist"
 
 # Dependency order matters: geo defines what hazard and render consume.
-MODULES = ["geo.js", "depth.js", "hazard.js", "swept.js", "flags.js", "sync.js",
-           "render.js", "store.js", "views.js", "app.js"]
+MODULES = ["geo.js", "depth.js", "evidence.js", "hazard.js", "swept.js", "flags.js",
+           "sync.js", "render.js", "store.js", "views.js", "app.js"]
 
 # The 3D viewer used to be its own page. Three HTML files meant three URLs to
 # hand somebody, three sets of chrome and three visual languages for one lake,
@@ -35,7 +35,8 @@ MODULES = ["geo.js", "depth.js", "hazard.js", "swept.js", "flags.js", "sync.js",
 # mesh, neither of which should happen on a phone that only ever opens the map --
 # and the scope also keeps its `el`, `draw` and `resize` from colliding with the
 # map's, which is why geo.js and depth.js can appear in both lists.
-VIEWER_MODULES = ["geo.js", "depth.js", "mat3d.js", "scene3d.js", "shaders3d.js", "viewer3d.js"]
+VIEWER_MODULES = ["geo.js", "depth.js", "evidence.js", "mat3d.js", "scene3d.js",
+                  "shaders3d.js", "viewer3d.js"]
 
 IMPORT_RE = re.compile(r"^\s*import\s+.*?;\s*$", re.M | re.S)
 EXPORT_RE = re.compile(r"^\s*export\s+(?=(const|let|var|function|class|async))", re.M)

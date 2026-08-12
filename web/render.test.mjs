@@ -1,7 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { MapView, drawnAt } from "./render.js";
+import { MapView } from "./render.js";
+import { drawnAt } from "./evidence.js";
 
 // The rule these tests pin down is the reason the app opens the way it does.
 // Aerial imagery on this lake was measured to carry no depth information, so

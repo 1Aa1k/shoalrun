@@ -7,6 +7,8 @@
 // the survey is in and converting it early would only make the numbers stop
 // matching the source.
 
+import { drawnAt, DEFAULT_DETAIL } from "./evidence.js";
+
 export const FT_PER_M = 3.28084;
 
 // --- waves -----------------------------------------------------------------
@@ -492,14 +494,27 @@ export function buildHazardRocks(grid, ROCK_GEO, proj, cx, cz) {
   const shoal = mesh();
   const stems = [];
   const list = [];
+  let evidenced = 0;   // marks the map would draw
+  let offSurvey = 0;   // of those, ones with no surveyed bottom to stand on
 
   let seed = 0;
   for (const f of ROCK_GEO.features) {
     const p = f.properties;
-    if (p.offshore === false) continue;
+    // The same evidence rule the map draws by, not the old distance-from-shore
+    // one. Filtering on `offshore` here put 1,673 rocks in this water while the
+    // map drew 1,359, and most of the difference was unverified candidates --
+    // so the tab that renders them as solid objects on the bottom, the most
+    // convincing view in the whole app, was the one showing the least
+    // evidenced set.
+    if (!drawnAt(p, DEFAULT_DETAIL)) continue;
+    evidenced++;
     const [wx, wy] = proj.fwd(p.lon, p.lat);
     const ft = grid.sampleXY(wx, wy);
-    if (ft === null) continue;
+    // No surveyed bottom here, so there is nothing to sit the rock on. Counted
+    // rather than silently dropped: this view showing fewer hazards than the
+    // map is a fact about the 1954 survey's coverage, and the header says so
+    // instead of leaving two numbers to contradict each other.
+    if (ft === null) { offSurvey++; continue; }
 
     seed++;
     const x = wx - cx;
@@ -556,6 +571,8 @@ export function buildHazardRocks(grid, ROCK_GEO, proj, cx, cz) {
     stems: new Float32Array(stems),
     stemCount: stems.length / 3,
     list,
+    evidenced,
+    offSurvey,
   };
 }
 
