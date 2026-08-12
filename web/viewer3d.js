@@ -752,12 +752,15 @@ function nearestHazard(x, z) {
 }
 
 function updateHud() {
+  // A class, not an inline display. On a short screen the HUD lays itself out
+  // as a row instead of a column, and an inline `display: block` set from here
+  // would win against that and put it back over the drive pad.
   const hud = el("hud");
   if (mode !== "boat") {
-    hud.style.display = "none";
+    hud.classList.remove("show");
     return;
   }
-  hud.style.display = "block";
+  hud.classList.add("show");
   const ft = depthAtWorld(boat.x, boat.z);
   el("hudDepth").textContent = ft == null ? "--" : String(ft);
 

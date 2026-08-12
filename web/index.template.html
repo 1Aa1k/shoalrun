@@ -48,6 +48,11 @@ html, body { margin: 0; height: 100%; overflow: hidden;
   background: var(--bg); color: var(--ink);
   font: 15px/1.45 ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   -webkit-font-smoothing: antialiased; }
+/* dvh where it exists, and it has to come after the rule above to win. On iOS
+   the URL bar collapses as you scroll and 100% keeps reporting the tall value,
+   which pushes the tab bar down under the browser chrome -- on the one device
+   this whole app is written for. */
+@supports (height: 100dvh) { html, body { height: 100dvh; } }
 
 .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-variant-numeric: tabular-nums; }
@@ -287,13 +292,35 @@ input[type=text]::placeholder { color: var(--ink-faint); opacity: .75; }
 .v3dtop .warn b { color: #ffd9d2; }
 
 /* Live numbers, right edge, same role the depth card plays on the map. */
-.hud { position: static; padding: 8px 11px; text-align: right; min-width: 96px; }
+/* Only in boat mode -- the other cameras are not standing anywhere, so there is
+   no depth under anything. Toggled by class rather than inline style so the
+   short-screen layout below can still win. */
+.hud { display: none; position: static; padding: 8px 11px; text-align: right;
+  min-width: 96px; }
+.hud.show { display: block; }
+.hud .cell + .cell { margin-top: 8px; }
 .hud .n { font-size: 19px; font-weight: 700; line-height: 1.1;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-variant-numeric: tabular-nums; }
 .hud .u { font-size: 9.5px; color: var(--ink-faint); letter-spacing: .06em;
-  text-transform: uppercase; margin: 1px 0 8px; }
-.hud .u:last-child { margin-bottom: 0; }
+  text-transform: uppercase; margin-top: 1px; }
+
+/* A phone in landscape has ~390 px of height, and the header, the HUD and the
+   drive pad were all reaching for the same right-hand column -- the HUD ended
+   up sitting on top of the pad, which is the only way a thumb steers.
+   Everything stays on screen; the HUD just lays out as a row. */
+@media (max-height: 520px) {
+  .hud.show { display: flex; gap: 16px; }
+  .hud .cell + .cell { margin-top: 0; }
+  .hud .n { font-size: 15px; }
+  .hud .u { font-size: 8px; }
+  /* The caveat gets smaller, never hidden. Turning a screen sideways is not
+     consent to stop being told the bottom is interpolated. */
+  .v3dtop { padding: 7px 10px; }
+  .v3dtop h1 { font-size: 13px; }
+  .v3dtop .warn { font-size: 10px; }
+  .v3dchrome { gap: 6px; }
+}
 
 /* Drive pad, mirrored off the map's helm stack so the two views put the thing
    your thumb reaches for in the same corner. */
@@ -401,12 +428,37 @@ body.chart .v3dtop .warn b { color: #4d0d06; }
 body.chart .legend .forNight { display: none; }
 body.chart .legend .forChart { display: flex; }
 
+/* --- boot placeholder ----------------------------------------------------- */
+/* This file is 2.6 MB, nearly all of it the lake, and it parses before a single
+   line of the app runs. On a phone on cellular that is several seconds of white
+   screen, which reads as a dead link -- especially to somebody who was just
+   sent one. The markup for this sits in the body so it paints during parsing;
+   app.js removes it once the map is up. */
+#boot { position: absolute; inset: 0; z-index: 50; display: flex;
+  flex-direction: column; align-items: center; justify-content: center;
+  gap: 10px; padding: 24px; text-align: center; background: var(--bg); }
+#boot .mark { font-size: 22px; font-weight: 700; letter-spacing: -.02em; }
+#boot .note { font-size: 13px; color: var(--ink-dim); max-width: 20em; line-height: 1.5; }
+#boot .bar { width: 120px; height: 3px; border-radius: 2px; overflow: hidden;
+  background: var(--line); }
+#boot .bar i { display: block; height: 100%; width: 40%; border-radius: 2px;
+  background: var(--accent); animation: bootslide 1.1s ease-in-out infinite alternate; }
+@keyframes bootslide { from { transform: translateX(-45%); } to { transform: translateX(200%); } }
+
 body.sim::after { content: "SIMULATION"; position: absolute; top: 45%; left: 0; right: 0;
   text-align: center; font-size: 42px; font-weight: 800; color: rgba(255,255,255,.07);
   pointer-events: none; letter-spacing: .12em; z-index: 2; }
 </style>
 </head>
 <body>
+
+<!-- Paints while the rest of the file is still parsing. Removed by app.js. -->
+<div id="boot">
+  <div class="mark">shoalrun</div>
+  <div class="bar"><i></i></div>
+  <div class="note">Loading the whole lake onto this phone. Once it is in,
+    nothing here needs a signal.</div>
+</div>
 
 <!-- ============================ MAP ==================================== -->
 <section class="view active" id="view-map">
@@ -533,14 +585,10 @@ body.sim::after { content: "SIMULATION"; position: absolute; top: 45%; left: 0; 
     </div>
 
     <div class="card hud" id="hud">
-      <div class="n" id="hudDepth">--</div>
-      <div class="u">ft under boat</div>
-      <div class="n" id="hudReach">--</div>
-      <div class="u">to nearest sounding</div>
-      <div class="n" id="hudSpeed">0.0</div>
-      <div class="u">knots</div>
-      <div class="n" id="hudNear">--</div>
-      <div class="u">to nearest hazard</div>
+      <div class="cell"><div class="n" id="hudDepth">--</div><div class="u">ft under boat</div></div>
+      <div class="cell"><div class="n" id="hudReach">--</div><div class="u">to nearest sounding</div></div>
+      <div class="cell"><div class="n" id="hudSpeed">0.0</div><div class="u">knots</div></div>
+      <div class="cell"><div class="n" id="hudNear">--</div><div class="u">to nearest hazard</div></div>
     </div>
   </div>
 

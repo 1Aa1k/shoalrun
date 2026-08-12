@@ -8,6 +8,7 @@ import { FLAG_STATUS, alertsFor, flagToHazard, makeFlag, reviewQueue } from "./f
 import { autoSync, isConfigured, whoAmI, joinLake, leaveLake, lakeCode, endpoint } from "./sync.js";
 import { initViews, isActive, showView } from "./views.js";
 import { installPwa } from "./basepath.js";
+import { gpsFailure } from "./gps.js";
 
 // DATA is injected at build time so the app is one self-contained file with no
 // network dependency of any kind. There is no cell service on this lake.
@@ -289,8 +290,17 @@ function showDepthUnder(x, y) {
   el("depthVal").textContent = ft == null ? "--" : String(ft);
 }
 
+// A hazard app that does not know where the boat is is not degraded, it is off,
+// and on a phone this is the most likely thing to go wrong on a first open. The
+// banner carries it at banner size; the status line carries the fix. See gps.js.
 function onGpsError(err) {
-  setStatus(`GPS: ${err.message}`, "warn");
+  const f = gpsFailure(err);
+  if (f.banner) {
+    const banner = el("alert");
+    banner.className = "alert caution";
+    banner.textContent = f.banner;
+  }
+  setStatus(f.status, f.level);
 }
 
 // Keep the screen awake while the GPS is running.
@@ -965,6 +975,13 @@ el("btnLeave").onclick = () => {
   refreshSync();
   setStatus("Left. Nothing leaves this phone.", "ok");
 };
+
+// The lake is on screen; the placeholder can go. Left in the markup rather than
+// created here so it paints before this 2.6 MB file has finished parsing --
+// which on a phone over cellular is the difference between a blank screen and a
+// page that is obviously working.
+const boot = el("boot");
+if (boot) boot.remove();
 
 el("meta").textContent = DATA_META.summary;
 el("tierConfirmed").textContent = TIERS.confirmed.toLocaleString();
