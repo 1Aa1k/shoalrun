@@ -18,10 +18,28 @@
 // 3d.html is now a redirect into index.html#3d rather than a page, and it stays
 // in the shell so a bookmark still resolves offline.
 const CACHE = 'shoalrun-v3';
-const SHELL = ['./', './index.html', './3d.html', './manifest.json'];
+
+// index.html is the app. Everything else is a nicety, and the two lists are
+// separate because `cache.addAll` is all-or-nothing: one entry that 404s or
+// redirects and the whole install rejects, the worker never activates, and the
+// app silently loses its offline guarantee -- on the one device where that is
+// the entire point.
+//
+// './' is the entry on GitHub Pages, where the app sits at a directory root. On
+// a host that rewrites a clean URL onto the file (sproultech.com/shoalrun) the
+// same request answers with a redirect instead, which addAll refuses. So it is
+// optional, added on its own, and a failure is ignored.
+const REQUIRED = ['./index.html'];
+const OPTIONAL = ['./', './3d.html', './manifest.json'];
 
 self.addEventListener('install', (e) => {
-  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));
+  e.waitUntil(
+    caches.open(CACHE).then(async (c) => {
+      await c.addAll(REQUIRED);
+      await Promise.all(OPTIONAL.map((u) => c.add(u).catch(() => {})));
+      return self.skipWaiting();
+    })
+  );
 });
 
 self.addEventListener('activate', (e) => {
