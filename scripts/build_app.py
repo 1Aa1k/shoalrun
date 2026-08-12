@@ -42,11 +42,29 @@ EXPORT_RE = re.compile(r"^\s*export\s+(?=(const|let|var|function|class|async))",
 EXPORT_LIST_RE = re.compile(r"^\s*export\s*\{[^}]*\}\s*;\s*$", re.M)
 
 
+# Concatenation cannot honour a renamed import. `import { show as showView }`
+# type-checks, lints, and passes every module-aware tool -- and then the import
+# line is deleted, `showView` is never defined anywhere, and the call throws the
+# first time a user presses the button that reaches it. That is not a failure a
+# phone on a lake can report, so it fails the build instead.
+ALIAS_IMPORT_RE = re.compile(r"import\s*\{[^}]*\bas\b[^}]*\}\s*from", re.S)
+
+
 def strip_module_syntax(src):
     src = IMPORT_RE.sub("", src)
     src = EXPORT_LIST_RE.sub("", src)
     src = EXPORT_RE.sub("", src)
     return src
+
+
+def check_no_aliased_imports(modules):
+    for m in modules:
+        text = (WEB / m).read_text()
+        if ALIAS_IMPORT_RE.search(text):
+            raise SystemExit(
+                f"{m}: renamed import (`as`) cannot survive bundling -- "
+                "rename the export instead"
+            )
 
 
 def round_coords(obj, nd=5):
@@ -158,6 +176,7 @@ def main():
     DIST.mkdir(exist_ok=True)
 
     def concat(modules):
+        check_no_aliased_imports(modules)
         return "\n".join(strip_module_syntax((WEB / m).read_text()) for m in modules)
 
     def bundle(template, modules, dest, lazy=None):

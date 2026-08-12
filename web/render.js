@@ -783,10 +783,22 @@ export class MapView {
     ctx.restore();
   }
 
-  hitTest(sx, sy, rocks, radiusPx = 22) {
+  /**
+   * Nearest mark to a tap, or null.
+   *
+   * Only marks that are actually drawn can be hit. Testing against the full set
+   * meant tapping apparently empty water and getting a detail sheet for an
+   * unverified candidate that is not on the screen -- and then being invited to
+   * confirm or dismiss a thing the map never showed. What is tappable has to be
+   * what is visible.
+   *
+   * @param {"verified"|"all"} detail the level the map is currently drawing at
+   */
+  hitTest(sx, sy, rocks, detail = "all", radiusPx = 22) {
     let best = null;
     let bestD = radiusPx;
     for (const r of rocks) {
+      if (!drawnAt(r, detail)) continue;
       const [x, y] = this.toScreen(r.x, r.y);
       const d = Math.hypot(x - sx, y - sy);
       if (d < bestD) {

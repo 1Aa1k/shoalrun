@@ -6,7 +6,7 @@ import { logFix, allTracks, allMarks, setMark, clearMark, exportAll, trackCount 
 import { SweptGrid, coverageStats, sweptFromFixes } from "./swept.js";
 import { FLAG_STATUS, alertsFor, flagToHazard, makeFlag, reviewQueue } from "./flags.js";
 import { autoSync, isConfigured, whoAmI, joinLake, leaveLake, lakeCode, endpoint } from "./sync.js";
-import { initViews, isActive, show as showView } from "./views.js";
+import { initViews, isActive, showView } from "./views.js";
 
 // DATA is injected at build time so the app is one self-contained file with no
 // network dependency of any kind. There is no cell service on this lake.
@@ -443,7 +443,7 @@ el("map").addEventListener("click", (e) => {
   el("panel").classList.remove("open");
   el("btnLayers").classList.remove("on");
   const r = el("map").getBoundingClientRect();
-  const hit = view.hitTest(e.clientX - r.left, e.clientY - r.top, state.rocks);
+  const hit = view.hitTest(e.clientX - r.left, e.clientY - r.top, state.rocks, state.detail);
   selected = hit;
   showSheet(hit);
 });
@@ -454,21 +454,42 @@ function showSheet(rock) {
   const m = state.marks.get(rock.id);
   el("sheetTitle").textContent = rock.cls === "shoal" ? "Submerged shoal" : "Exposed rock";
   const depth = state.grid ? state.grid.sampleXY(rock.x, rock.y) : null;
-  el("sheetBody").innerHTML =
-    `<div class="kv"><span>position</span><b>${rock.lat.toFixed(5)}, ${rock.lon.toFixed(5)}</b></div>` +
-    `<div class="kv"><span>footprint</span><b>${rock.area_m2} m&sup2;</b></div>` +
-    // Surrounding depth, not the rock's own depth -- the interpolated surface
-    // is 25 m cells off 1954 transects and knows nothing about this rock.
-    `<div class="kv"><span>surrounding depth</span><b>${
-      depth == null ? "outside survey" : `~${depth} ft (1954)`
-    }</b></div>` +
-    `<div class="kv"><span>detector confidence</span><b>${rock.confidence}</b></div>` +
-    `<div class="kv"><span>0.3 m aerial check</span><b>${
-      { rock_confirmed: "rock confirmed", shoal_confirmed: "shoal confirmed",
-        open_water: "NOT confirmed", unchecked: "not checked",
-        human_mapped: "mapped by a person", naip_multiyear: "NAIP multi-year" }[rock.verdict] || rock.verdict
-    }</b></div>` +
-    `<div class="kv"><span>your verdict</span><b>${m ? m.verdict : "none"}</b></div>`;
+
+  // Rows whose value is missing are dropped rather than printed. Most of these
+  // candidates carry no detector confidence -- they came from NAIP persistence
+  // or were mapped by hand -- and the sheet was rendering the string
+  // "undefined" at them, which reads as a broken app rather than as an absent
+  // field.
+  const rows = [];
+  const row = (label, value) => {
+    if (value == null || value === "") return;
+    rows.push(`<div class="kv"><span>${label}</span><b>${value}</b></div>`);
+  };
+
+  // The tier leads, because it is the only thing on this sheet that says how
+  // much the mark is worth, and it is what decides whether the map draws it.
+  row("evidence", {
+    confirmed: "confirmed above the waterline",
+    likely: "likely — returns infrared",
+    unverified: "unverified — meaning unknown",
+  }[rock.tier] || rock.tier);
+  row("position", `${rock.lat.toFixed(5)}, ${rock.lon.toFixed(5)}`);
+  row("footprint", rock.area_m2 == null ? null : `${rock.area_m2} m&sup2;`);
+  // Surrounding depth, not the rock's own depth -- the interpolated surface is
+  // 25 m cells off 1954 transects and knows nothing about this rock.
+  row("surrounding depth", depth == null ? "outside survey" : `~${depth} ft (1954)`);
+  row("detector confidence", rock.confidence);
+  row("0.3 m aerial check", {
+    rock_confirmed: "rock confirmed",
+    shoal_confirmed: "shoal confirmed",
+    open_water: "NOT confirmed",
+    unchecked: "not checked",
+    human_mapped: "mapped by a person",
+    naip_multiyear: "seen in several NAIP flights",
+  }[rock.verdict] || rock.verdict);
+  row("your verdict", m ? m.verdict : "none");
+
+  el("sheetBody").innerHTML = rows.join("");
   sheet.classList.add("open");
 }
 

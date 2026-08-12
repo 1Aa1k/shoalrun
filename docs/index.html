@@ -2633,10 +2633,22 @@ class MapView {
     ctx.restore();
   }
 
-  hitTest(sx, sy, rocks, radiusPx = 22) {
+  /**
+   * Nearest mark to a tap, or null.
+   *
+   * Only marks that are actually drawn can be hit. Testing against the full set
+   * meant tapping apparently empty water and getting a detail sheet for an
+   * unverified candidate that is not on the screen -- and then being invited to
+   * confirm or dismiss a thing the map never showed. What is tappable has to be
+   * what is visible.
+   *
+   * @param {"verified"|"all"} detail the level the map is currently drawing at
+   */
+  hitTest(sx, sy, rocks, detail = "all", radiusPx = 22) {
     let best = null;
     let bestD = radiusPx;
     for (const r of rocks) {
+      if (!drawnAt(r, detail)) continue;
       const [x, y] = this.toScreen(r.x, r.y);
       const d = Math.hypot(x - sx, y - sy);
       if (d < bestD) {
@@ -2834,22 +2846,27 @@ function initViews(firstShow = {}) {
   const tabs = document.getElementById("tabs");
 
   tabs.querySelectorAll("button").forEach((b) => {
-    b.onclick = () => show(b.dataset.view);
+    b.onclick = () => showView(b.dataset.view);
   });
 
   // The hash carries either a view name or a map position. A position implies
   // the map, which is what applyHash in app.js already assumes.
   const wanted = (location.hash || "").slice(1);
-  if (VIEWS.includes(wanted)) show(wanted);
-  else show("map");
+  if (VIEWS.includes(wanted)) showView(wanted);
+  else showView("map");
 
   addEventListener("hashchange", () => {
     const h = (location.hash || "").slice(1);
-    if (VIEWS.includes(h)) show(h);
-    else if (h) show("map");
+    if (VIEWS.includes(h)) showView(h);
+    else if (h) showView("map");
   });
 }
-function show(name) {
+
+// Named for what it does from the outside rather than for its module, because
+// the build concatenates these files with their import lines stripped -- an
+// `import { show as showView }` alias is a name that exists at type-check time
+// and not at runtime. Export the name callers should use.
+function showView(name) {
   if (!VIEWS.includes(name)) return;
   current = name;
 
@@ -3326,7 +3343,7 @@ el("map").addEventListener("click", (e) => {
   el("panel").classList.remove("open");
   el("btnLayers").classList.remove("on");
   const r = el("map").getBoundingClientRect();
-  const hit = view.hitTest(e.clientX - r.left, e.clientY - r.top, state.rocks);
+  const hit = view.hitTest(e.clientX - r.left, e.clientY - r.top, state.rocks, state.detail);
   selected = hit;
   showSheet(hit);
 });
@@ -3337,21 +3354,42 @@ function showSheet(rock) {
   const m = state.marks.get(rock.id);
   el("sheetTitle").textContent = rock.cls === "shoal" ? "Submerged shoal" : "Exposed rock";
   const depth = state.grid ? state.grid.sampleXY(rock.x, rock.y) : null;
-  el("sheetBody").innerHTML =
-    `<div class="kv"><span>position</span><b>${rock.lat.toFixed(5)}, ${rock.lon.toFixed(5)}</b></div>` +
-    `<div class="kv"><span>footprint</span><b>${rock.area_m2} m&sup2;</b></div>` +
-    // Surrounding depth, not the rock's own depth -- the interpolated surface
-    // is 25 m cells off 1954 transects and knows nothing about this rock.
-    `<div class="kv"><span>surrounding depth</span><b>${
-      depth == null ? "outside survey" : `~${depth} ft (1954)`
-    }</b></div>` +
-    `<div class="kv"><span>detector confidence</span><b>${rock.confidence}</b></div>` +
-    `<div class="kv"><span>0.3 m aerial check</span><b>${
-      { rock_confirmed: "rock confirmed", shoal_confirmed: "shoal confirmed",
-        open_water: "NOT confirmed", unchecked: "not checked",
-        human_mapped: "mapped by a person", naip_multiyear: "NAIP multi-year" }[rock.verdict] || rock.verdict
-    }</b></div>` +
-    `<div class="kv"><span>your verdict</span><b>${m ? m.verdict : "none"}</b></div>`;
+
+  // Rows whose value is missing are dropped rather than printed. Most of these
+  // candidates carry no detector confidence -- they came from NAIP persistence
+  // or were mapped by hand -- and the sheet was rendering the string
+  // "undefined" at them, which reads as a broken app rather than as an absent
+  // field.
+  const rows = [];
+  const row = (label, value) => {
+    if (value == null || value === "") return;
+    rows.push(`<div class="kv"><span>${label}</span><b>${value}</b></div>`);
+  };
+
+  // The tier leads, because it is the only thing on this sheet that says how
+  // much the mark is worth, and it is what decides whether the map draws it.
+  row("evidence", {
+    confirmed: "confirmed above the waterline",
+    likely: "likely — returns infrared",
+    unverified: "unverified — meaning unknown",
+  }[rock.tier] || rock.tier);
+  row("position", `${rock.lat.toFixed(5)}, ${rock.lon.toFixed(5)}`);
+  row("footprint", rock.area_m2 == null ? null : `${rock.area_m2} m&sup2;`);
+  // Surrounding depth, not the rock's own depth -- the interpolated surface is
+  // 25 m cells off 1954 transects and knows nothing about this rock.
+  row("surrounding depth", depth == null ? "outside survey" : `~${depth} ft (1954)`);
+  row("detector confidence", rock.confidence);
+  row("0.3 m aerial check", {
+    rock_confirmed: "rock confirmed",
+    shoal_confirmed: "shoal confirmed",
+    open_water: "NOT confirmed",
+    unchecked: "not checked",
+    human_mapped: "mapped by a person",
+    naip_multiyear: "seen in several NAIP flights",
+  }[rock.verdict] || rock.verdict);
+  row("your verdict", m ? m.verdict : "none");
+
+  el("sheetBody").innerHTML = rows.join("");
   sheet.classList.add("open");
 }
 

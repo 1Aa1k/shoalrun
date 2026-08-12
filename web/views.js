@@ -42,23 +42,27 @@ export function initViews(firstShow = {}) {
   const tabs = document.getElementById("tabs");
 
   tabs.querySelectorAll("button").forEach((b) => {
-    b.onclick = () => show(b.dataset.view);
+    b.onclick = () => showView(b.dataset.view);
   });
 
   // The hash carries either a view name or a map position. A position implies
   // the map, which is what applyHash in app.js already assumes.
   const wanted = (location.hash || "").slice(1);
-  if (VIEWS.includes(wanted)) show(wanted);
-  else show("map");
+  if (VIEWS.includes(wanted)) showView(wanted);
+  else showView("map");
 
   addEventListener("hashchange", () => {
     const h = (location.hash || "").slice(1);
-    if (VIEWS.includes(h)) show(h);
-    else if (h) show("map");
+    if (VIEWS.includes(h)) showView(h);
+    else if (h) showView("map");
   });
 }
 
-export function show(name) {
+// Named for what it does from the outside rather than for its module, because
+// the build concatenates these files with their import lines stripped -- an
+// `import { show as showView }` alias is a name that exists at type-check time
+// and not at runtime. Export the name callers should use.
+export function showView(name) {
   if (!VIEWS.includes(name)) return;
   current = name;
 
