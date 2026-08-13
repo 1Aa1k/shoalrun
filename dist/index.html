@@ -48,11 +48,44 @@ html, body { margin: 0; height: 100%; overflow: hidden;
   background: var(--bg); color: var(--ink);
   font: 15px/1.45 ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   -webkit-font-smoothing: antialiased; }
-/* dvh where it exists, and it has to come after the rule above to win. On iOS
-   the URL bar collapses as you scroll and 100% keeps reporting the tall value,
-   which pushes the tab bar down under the browser chrome -- on the one device
-   this whole app is written for. */
-@supports (height: 100dvh) { html, body { height: 100dvh; } }
+/* Load-bearing, and the reason the height fix below did nothing on its own:
+   without it, `position: absolute` on the tab bar and the views resolves
+   against the initial containing block -- the full viewport -- and every height
+   set on body is simply ignored. The bars kept sitting behind Safari's address
+   bar no matter what unit body was given. */
+body { position: relative; }
+/* svh, not dvh, and it has to come after the rule above to win.
+ *
+ * Safari on iOS puts its address bar at the BOTTOM of the screen, over the
+ * bottom of the page. There are three viewport units and only one of them is
+ * safe here:
+ *
+ *   lvh / 100%  the LARGE viewport, as if the toolbars were hidden. The tab
+ *               bar, the legend and the helm buttons all end up underneath
+ *               Safari's address bar.
+ *   dvh         follows the toolbars as they collapse and expand. Correct in
+ *               principle, wrong in practice: it lags the animation, and this
+ *               page never scrolls, so Safari keeps the bar expanded anyway --
+ *               which means dvh's tall state is a size the layout never gets
+ *               to use while still being a size it can be caught at.
+ *   svh         the SMALL viewport, toolbars shown. Always fits.
+ *
+ * The cost is a strip of background when the bar does hide. The alternative is
+ * a hazard app whose controls are behind the browser's, which is what actually
+ * happened on the phone this is for. `env(safe-area-inset-bottom)` does not
+ * help: it reports the home indicator, not the toolbar.
+ *
+ * `--vvh` is the browser's own measurement of the visible height, published by
+ * viewport.js as soon as the app runs, and it beats any unit because it is not
+ * an approximation of where the chrome ends. svh is what paints before that,
+ * and what stands in if the API is missing. Both live inside the @supports so
+ * that a browser with neither keeps the plain 100% above rather than falling
+ * through to auto.
+ */
+@supports (height: 100svh) {
+  html, body { height: 100svh; }
+  html, body { height: var(--vvh, 100svh); }
+}
 
 .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-variant-numeric: tabular-nums; }
@@ -339,6 +372,18 @@ input[type=text]::placeholder { color: var(--ink-faint); opacity: .75; }
   display: flex; gap: 6px; }
 .v3dmodes button { padding: 12px 14px; background: var(--panel);
   backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); }
+
+/* The camera buttons and the drive pad share the bottom edge, one on each side,
+   and on a 390 px phone they add up to more than the screen -- the pad's left
+   arrow landed on top of the gear button. Both shrink rather than either one
+   moving: the pad has to stay under the thumb that steers, and the mode buttons
+   have to stay where they are in every other view. */
+@media (max-width: 430px) {
+  .v3dmodes { gap: 5px; }
+  .v3dmodes button { padding: 12px 10px; font-size: 12.5px; }
+  .pad { grid-template-columns: repeat(3, 42px); grid-template-rows: repeat(2, 42px);
+         gap: 5px; }
+}
 
 .spawnRow { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
 .spawnRow .lab { font-size: 11px; color: var(--ink-faint); letter-spacing: .06em;
@@ -3109,6 +3154,59 @@ function gpsFailure(err) {
   };
 }
 
+// How tall the page actually is, according to the browser rather than to CSS.
+//
+// Safari on iOS puts its address bar at the bottom of the screen, over the
+// bottom of the page, and CSS viewport units only approximate where that leaves
+// off. `visualViewport.height` is not an approximation: it is the height of the
+// part of the page the user can actually see, excluding the browser's own
+// chrome, and it updates as that chrome moves.
+//
+// This matters more here than on an ordinary page because everything this app
+// puts at the bottom is a control -- the tab bar, the legend, the helm buttons,
+// the drive pad in boat mode. On a page you scroll, a bar over the last 50 px
+// is a nuisance. Here it is the difference between being able to steer and not.
+
+/**
+ * Whether a viewport resize should be applied to the layout.
+ *
+ * The on-screen keyboard shrinks the visual viewport too, and reflowing the
+ * whole app -- resizing a WebGL canvas, re-fitting the map -- because somebody
+ * tapped into the lake code field is both ugly and slow. The keyboard is
+ * temporary and nothing behind it needs to move.
+ *
+ * @param {string|undefined} activeTagName document.activeElement's tagName
+ */
+function shouldApplyResize(activeTagName) {
+  return !/^(INPUT|TEXTAREA|SELECT)$/.test(activeTagName || "");
+}
+
+/**
+ * Publish the visible height as `--vvh` on the root element, and keep it
+ * current. Returns the update function, or null where the API is missing --
+ * in which case the CSS fallback (100svh) is already in effect.
+ */
+function trackVisibleHeight(win = window, doc = document) {
+  const vv = win.visualViewport;
+  if (!vv) return null;
+
+  const apply = () => {
+    if (!shouldApplyResize(doc.activeElement && doc.activeElement.tagName)) return;
+    doc.documentElement.style.setProperty("--vvh", `${Math.round(vv.height)}px`);
+  };
+
+  vv.addEventListener("resize", apply);
+  // Safari moves the bar on scroll, and the page itself never scrolls, so this
+  // is the event that fires when the bar slides in and out.
+  vv.addEventListener("scroll", apply);
+  // A rotate changes it too, and does not always fire a visualViewport resize.
+  win.addEventListener("orientationchange", () => setTimeout(apply, 250));
+
+  apply();
+  return apply;
+}
+
+
 
 
 
@@ -4090,6 +4188,11 @@ el("btnLeave").onclick = () => {
 // created here so it paints before this 2.6 MB file has finished parsing --
 // which on a phone over cellular is the difference between a blank screen and a
 // page that is obviously working.
+// Safari's address bar sits at the bottom, over the bottom of the page, and
+// everything this app puts down there is a control. Ask the browser how tall
+// the visible area actually is rather than inferring it from a unit.
+trackVisibleHeight();
+
 const boot = el("boot");
 if (boot) boot.remove();
 

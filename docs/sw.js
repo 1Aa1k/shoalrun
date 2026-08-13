@@ -17,7 +17,9 @@
 //
 // 3d.html is now a redirect into index.html#3d rather than a page, and it stays
 // in the shell so a bookmark still resolves offline.
-const CACHE = 'shoalrun-v3';
+// v4: the bottom chrome sat behind Safari's address bar. Anyone who installed
+// v3 has the broken layout in a cache-first worker, and would keep opening it.
+const CACHE = 'shoalrun-v4';
 
 // index.html is the app. Everything else is a nicety, and the two lists are
 // separate because `cache.addAll` is all-or-nothing: one entry that 404s or

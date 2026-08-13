@@ -9,6 +9,7 @@ import { autoSync, isConfigured, whoAmI, joinLake, leaveLake, lakeCode, endpoint
 import { initViews, isActive, showView } from "./views.js";
 import { installPwa } from "./basepath.js";
 import { gpsFailure } from "./gps.js";
+import { trackVisibleHeight } from "./viewport.js";
 
 // DATA is injected at build time so the app is one self-contained file with no
 // network dependency of any kind. There is no cell service on this lake.
@@ -980,6 +981,11 @@ el("btnLeave").onclick = () => {
 // created here so it paints before this 2.6 MB file has finished parsing --
 // which on a phone over cellular is the difference between a blank screen and a
 // page that is obviously working.
+// Safari's address bar sits at the bottom, over the bottom of the page, and
+// everything this app puts down there is a control. Ask the browser how tall
+// the visible area actually is rather than inferring it from a unit.
+trackVisibleHeight();
+
 const boot = el("boot");
 if (boot) boot.remove();
 
