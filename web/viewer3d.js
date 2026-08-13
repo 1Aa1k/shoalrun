@@ -889,12 +889,25 @@ window.addEventListener("blur", () => keys.clear());
 
 for (const [id, key] of [["padFwd", "w"], ["padBack", "s"], ["padLeft", "a"], ["padRight", "d"]]) {
   const b = el(id);
-  const on = (e) => { e.preventDefault(); keys.add(key); };
-  const off = (e) => { e.preventDefault(); keys.delete(key); };
+  // Capture the pointer on press. A thumb held on the throttle drifts, and
+  // without capture the release lands on whatever is under the finger by then
+  // rather than on the button -- so the key never gets deleted and the boat
+  // drives on by itself. `pointerleave` alone does not cover it either: a
+  // finger that slides off and lifts outside fires neither leave nor up here.
+  const on = (e) => {
+    e.preventDefault();
+    keys.add(key);
+    try { b.setPointerCapture(e.pointerId); } catch { /* not captureable */ }
+  };
+  const off = (e) => {
+    e.preventDefault();
+    keys.delete(key);
+    try { b.releasePointerCapture(e.pointerId); } catch { /* already gone */ }
+  };
   b.addEventListener("pointerdown", on);
   b.addEventListener("pointerup", off);
   b.addEventListener("pointercancel", off);
-  b.addEventListener("pointerleave", off);
+  b.addEventListener("lostpointercapture", off);
 }
 
 // --- controls --------------------------------------------------------------
