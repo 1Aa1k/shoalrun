@@ -119,18 +119,37 @@ export class MapView {
     this.follow = true;
     this.courseUp = true;
     this.theme = "night";
-    this._resize();
-    window.addEventListener("resize", () => this._resize());
+    this.resize();
+    window.addEventListener("resize", () => this.resize());
+    // Rotating a phone fires `resize` before the new metrics have settled, and
+    // iOS in particular reports the old height for a beat. Measure again once
+    // it has stopped moving.
+    window.addEventListener("orientationchange", () => {
+      setTimeout(() => this.resize(), 120);
+      setTimeout(() => this.resize(), 400);
+    });
   }
 
-  _resize() {
-    const dpr = window.devicePixelRatio || 1;
+  /**
+   * Match the drawing buffer to the element.
+   *
+   * Returns false when the canvas has no size, WITHOUT touching the buffer.
+   * That case is not hypothetical: the map lives in a tab, `resize` fires on
+   * every window resize whether or not that tab is on screen, and a hidden
+   * element measures 0x0. Writing that through set the backing store to 0x0,
+   * so rotating the phone while on any other tab left the map permanently
+   * blank on return -- which is what "landscape doesn't work at all" was.
+   */
+  resize() {
     const r = this.canvas.getBoundingClientRect();
+    if (r.width < 1 || r.height < 1) return false;
+    const dpr = window.devicePixelRatio || 1;
     this.canvas.width = Math.round(r.width * dpr);
     this.canvas.height = Math.round(r.height * dpr);
     this.w = r.width;
     this.h = r.height;
     this.dpr = dpr;
+    return true;
   }
 
   // Projected metres -> screen px, honouring pan/zoom/rotation.

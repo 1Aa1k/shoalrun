@@ -360,7 +360,35 @@ input[type=text]::placeholder { color: var(--ink-faint); opacity: .75; }
    drive pad were all reaching for the same right-hand column -- the HUD ended
    up sitting on top of the pad, which is the only way a thumb steers.
    Everything stays on screen; the HUD just lays out as a row. */
+/* --- landscape ------------------------------------------------------------ */
+/* Turned sideways, height is the scarce axis and width is free. Everything that
+   stacks vertically in portrait lays out along the bottom edge instead: the
+   helm column was three 52 px buttons deep, which is 180 px of a 283 px-tall
+   map spent on chrome. Nothing is dropped, it just goes sideways. */
 @media (max-height: 520px) {
+  .helm { flex-direction: row; bottom: 10px; gap: 7px; }
+  .helm button { width: 52px; height: 44px; }
+
+  .depthnow { bottom: 10px; left: 10px; padding: 6px 10px; min-width: 76px; }
+  .depthnow .v { font-size: 20px; }
+  .depthnow .u { font-size: 9px; margin-top: 2px; }
+
+  /* Centred along the bottom rather than stacked above the depth card: the
+     depth reading is on the left and the helm row is on the right, and the gap
+     between them is the one place a big button fits without guessing how wide
+     either of its neighbours rendered. */
+  #btnFlag { bottom: 10px; left: 50%; transform: translateX(-50%);
+             padding: 11px 13px; font-size: 13px; }
+  #btnFlag:active { transform: translateX(-50%) translateY(1px); }
+
+  .alert { padding: calc(7px + var(--pad-t)) 16px 6px; font-size: 18px; }
+  .alert.clear { font-size: 12px; }
+  .caveat { top: calc(37px + var(--pad-t)); padding: 3px 12px; font-size: 10px; }
+
+  .legend { padding: 4px 10px; font-size: 10px; gap: 2px 11px; }
+  .legend .ramp { width: 56px; height: 6px; }
+  .status { padding: 3px 10px; font-size: 10px; -webkit-line-clamp: 1; }
+
   .hud.show { display: flex; gap: 16px; }
   .hud .cell + .cell { margin-top: 0; }
   .hud .n { font-size: 15px; }
@@ -2140,18 +2168,37 @@ class MapView {
     this.follow = true;
     this.courseUp = true;
     this.theme = "night";
-    this._resize();
-    window.addEventListener("resize", () => this._resize());
+    this.resize();
+    window.addEventListener("resize", () => this.resize());
+    // Rotating a phone fires `resize` before the new metrics have settled, and
+    // iOS in particular reports the old height for a beat. Measure again once
+    // it has stopped moving.
+    window.addEventListener("orientationchange", () => {
+      setTimeout(() => this.resize(), 120);
+      setTimeout(() => this.resize(), 400);
+    });
   }
 
-  _resize() {
-    const dpr = window.devicePixelRatio || 1;
+  /**
+   * Match the drawing buffer to the element.
+   *
+   * Returns false when the canvas has no size, WITHOUT touching the buffer.
+   * That case is not hypothetical: the map lives in a tab, `resize` fires on
+   * every window resize whether or not that tab is on screen, and a hidden
+   * element measures 0x0. Writing that through set the backing store to 0x0,
+   * so rotating the phone while on any other tab left the map permanently
+   * blank on return -- which is what "landscape doesn't work at all" was.
+   */
+  resize() {
     const r = this.canvas.getBoundingClientRect();
+    if (r.width < 1 || r.height < 1) return false;
+    const dpr = window.devicePixelRatio || 1;
     this.canvas.width = Math.round(r.width * dpr);
     this.canvas.height = Math.round(r.height * dpr);
     this.w = r.width;
     this.h = r.height;
     this.dpr = dpr;
+    return true;
   }
 
   // Projected metres -> screen px, honouring pan/zoom/rotation.
@@ -2985,12 +3032,19 @@ function isActive(name) {
   return current === name;
 }
 
+let onEveryShow = {};
+
 /**
  * @param {Record<string, () => void>} firstShow callbacks run once, the first
  *   time their view becomes visible, after it has been given a size.
+ * @param {Record<string, () => void>} everyShow callbacks run every time their
+ *   view becomes visible. A hidden view measures 0x0, so anything that had to
+ *   be sized while it was off screen -- a canvas after the phone was rotated --
+ *   gets its chance here.
  */
-function initViews(firstShow = {}) {
+function initViews(firstShow = {}, everyShow = {}) {
   onFirstShow = { ...firstShow };
+  onEveryShow = { ...everyShow };
   const tabs = document.getElementById("tabs");
 
   tabs.querySelectorAll("button").forEach((b) => {
@@ -3032,11 +3086,15 @@ function showView(name) {
   });
 
   const once = onFirstShow[name];
-  if (once) {
-    delete onFirstShow[name];
+  const always = onEveryShow[name];
+  if (once) delete onFirstShow[name];
+  if (once || always) {
     // A frame of slack so the section is laid out and the canvas has a size
     // before anything measures it.
-    requestAnimationFrame(() => once());
+    requestAnimationFrame(() => {
+      if (once) once();
+      if (always) always();
+    });
   }
 
   // Only rewrite the hash when it is a view name. A map position in the hash is
@@ -4231,18 +4289,29 @@ refreshCounts();
 // host root and silently loses offline support.
 installPwa();
 
-initViews({
-  "3d": () => {
-    try {
-      if (typeof window.__initViewer3d === "function") window.__initViewer3d();
-    } catch (err) {
-      // A device without WebGL throws out of setup by design, and it has
-      // already painted its own explanation over the 3D canvas. What must not
-      // happen is that failure taking the map down with it.
-      console.warn("3D view unavailable:", err);
-    }
+initViews(
+  {
+    "3d": () => {
+      try {
+        if (typeof window.__initViewer3d === "function") window.__initViewer3d();
+      } catch (err) {
+        // A device without WebGL throws out of setup by design, and it has
+        // already painted its own explanation over the 3D canvas. What must not
+        // happen is that failure taking the map down with it.
+        console.warn("3D view unavailable:", err);
+      }
+    },
   },
-});
+  {
+    // A hidden canvas measures 0x0, so a rotate that happens while another tab
+    // is open leaves this one sized for the old orientation. Re-measure on the
+    // way back in. The 3D view does the same for itself, off its draw loop.
+    map: () => {
+      view.resize();
+      view.draw(state);
+    },
+  },
+);
 // Chart is the default: this gets used outdoors, in daylight, most of the time.
 setTheme(new URLSearchParams(location.search).get("theme") === "night" ? "night" : "chart");
 loadMarks().then(() => {

@@ -33,12 +33,19 @@ export function isActive(name) {
   return current === name;
 }
 
+let onEveryShow = {};
+
 /**
  * @param {Record<string, () => void>} firstShow callbacks run once, the first
  *   time their view becomes visible, after it has been given a size.
+ * @param {Record<string, () => void>} everyShow callbacks run every time their
+ *   view becomes visible. A hidden view measures 0x0, so anything that had to
+ *   be sized while it was off screen -- a canvas after the phone was rotated --
+ *   gets its chance here.
  */
-export function initViews(firstShow = {}) {
+export function initViews(firstShow = {}, everyShow = {}) {
   onFirstShow = { ...firstShow };
+  onEveryShow = { ...everyShow };
   const tabs = document.getElementById("tabs");
 
   tabs.querySelectorAll("button").forEach((b) => {
@@ -80,11 +87,15 @@ export function showView(name) {
   });
 
   const once = onFirstShow[name];
-  if (once) {
-    delete onFirstShow[name];
+  const always = onEveryShow[name];
+  if (once) delete onFirstShow[name];
+  if (once || always) {
     // A frame of slack so the section is laid out and the canvas has a size
     // before anything measures it.
-    requestAnimationFrame(() => once());
+    requestAnimationFrame(() => {
+      if (once) once();
+      if (always) always();
+    });
   }
 
   // Only rewrite the hash when it is a view name. A map position in the hash is

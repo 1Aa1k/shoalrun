@@ -360,7 +360,35 @@ input[type=text]::placeholder { color: var(--ink-faint); opacity: .75; }
    drive pad were all reaching for the same right-hand column -- the HUD ended
    up sitting on top of the pad, which is the only way a thumb steers.
    Everything stays on screen; the HUD just lays out as a row. */
+/* --- landscape ------------------------------------------------------------ */
+/* Turned sideways, height is the scarce axis and width is free. Everything that
+   stacks vertically in portrait lays out along the bottom edge instead: the
+   helm column was three 52 px buttons deep, which is 180 px of a 283 px-tall
+   map spent on chrome. Nothing is dropped, it just goes sideways. */
 @media (max-height: 520px) {
+  .helm { flex-direction: row; bottom: 10px; gap: 7px; }
+  .helm button { width: 52px; height: 44px; }
+
+  .depthnow { bottom: 10px; left: 10px; padding: 6px 10px; min-width: 76px; }
+  .depthnow .v { font-size: 20px; }
+  .depthnow .u { font-size: 9px; margin-top: 2px; }
+
+  /* Centred along the bottom rather than stacked above the depth card: the
+     depth reading is on the left and the helm row is on the right, and the gap
+     between them is the one place a big button fits without guessing how wide
+     either of its neighbours rendered. */
+  #btnFlag { bottom: 10px; left: 50%; transform: translateX(-50%);
+             padding: 11px 13px; font-size: 13px; }
+  #btnFlag:active { transform: translateX(-50%) translateY(1px); }
+
+  .alert { padding: calc(7px + var(--pad-t)) 16px 6px; font-size: 18px; }
+  .alert.clear { font-size: 12px; }
+  .caveat { top: calc(37px + var(--pad-t)); padding: 3px 12px; font-size: 10px; }
+
+  .legend { padding: 4px 10px; font-size: 10px; gap: 2px 11px; }
+  .legend .ramp { width: 56px; height: 6px; }
+  .status { padding: 3px 10px; font-size: 10px; -webkit-line-clamp: 1; }
+
   .hud.show { display: flex; gap: 16px; }
   .hud .cell + .cell { margin-top: 0; }
   .hud .n { font-size: 15px; }

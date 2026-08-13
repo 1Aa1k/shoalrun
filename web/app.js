@@ -1006,18 +1006,29 @@ refreshCounts();
 // host root and silently loses offline support.
 installPwa();
 
-initViews({
-  "3d": () => {
-    try {
-      if (typeof window.__initViewer3d === "function") window.__initViewer3d();
-    } catch (err) {
-      // A device without WebGL throws out of setup by design, and it has
-      // already painted its own explanation over the 3D canvas. What must not
-      // happen is that failure taking the map down with it.
-      console.warn("3D view unavailable:", err);
-    }
+initViews(
+  {
+    "3d": () => {
+      try {
+        if (typeof window.__initViewer3d === "function") window.__initViewer3d();
+      } catch (err) {
+        // A device without WebGL throws out of setup by design, and it has
+        // already painted its own explanation over the 3D canvas. What must not
+        // happen is that failure taking the map down with it.
+        console.warn("3D view unavailable:", err);
+      }
+    },
   },
-});
+  {
+    // A hidden canvas measures 0x0, so a rotate that happens while another tab
+    // is open leaves this one sized for the old orientation. Re-measure on the
+    // way back in. The 3D view does the same for itself, off its draw loop.
+    map: () => {
+      view.resize();
+      view.draw(state);
+    },
+  },
+);
 // Chart is the default: this gets used outdoors, in daylight, most of the time.
 setTheme(new URLSearchParams(location.search).get("theme") === "night" ? "night" : "chart");
 loadMarks().then(() => {

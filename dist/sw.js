@@ -24,7 +24,8 @@
 //
 // v4: the bottom chrome sat behind Safari's address bar.
 // v5: holding a drive-pad arrow selected the glyph instead of steering.
-const CACHE = 'shoalrun-v5';
+// v6: rotating the phone left whichever canvas was hidden sized 0x0.
+const CACHE = 'shoalrun-v6';
 
 // index.html is the app. Everything else is a nicety, and the two lists are
 // separate because `cache.addAll` is all-or-nothing: one entry that 404s or
