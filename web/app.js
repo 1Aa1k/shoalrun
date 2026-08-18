@@ -1094,3 +1094,8 @@ frame();
 
 if (new URLSearchParams(location.search).get("sim") === "1") startSim();
 else startGps();
+
+// Last, after the boot overlay is gone and the lake is drawn, so the first ring
+// lands on something rather than on a loading bar. It decides for itself
+// whether to run: ?tour=1 always, a first visit otherwise, never twice.
+startTour();
