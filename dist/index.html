@@ -3335,25 +3335,28 @@ function trackVisibleHeight(win = window, doc = document) {
     'pointer-events:none;box-shadow:0 0 0 1px rgba(0,0,0,.55);transition:all .28s cubic-bezier(.4,0,.2,1);}',
     '#' + NS + ' .t-card{position:fixed;width:320px;max-width:calc(100vw - 32px);pointer-events:auto;',
     'background:#111;color:#fff;border:1px solid #333;border-radius:10px;padding:18px 18px 14px;',
-    'box-shadow:0 18px 50px rgba(0,0,0,.6);font:inherit;text-align:left;',
+    'box-shadow:0 18px 50px rgba(0,0,0,.6);font-family:inherit;text-align:left;',
     'transition:top .28s cubic-bezier(.4,0,.2,1),left .28s cubic-bezier(.4,0,.2,1);}',
-    '#' + NS + ' .t-card h3{margin:0 0 7px;font:600 15.5px/1.3 inherit;letter-spacing:-.01em;',
-    'color:#fff;text-transform:none;}',
-    '#' + NS + ' .t-card p{margin:0;color:#c9c9c9;font:400 13.5px/1.6 inherit;text-transform:none;}',
+    '#' + NS + ' .t-card h3{margin:0 0 7px;font-family:inherit;font-size:15.5px;font-weight:600;',
+    'line-height:1.3;letter-spacing:-.01em;color:#fff;text-transform:none;}',
+    '#' + NS + ' .t-card p{margin:0;color:#c9c9c9;font-family:inherit;font-size:13.5px;',
+    'font-weight:400;line-height:1.6;text-transform:none;}',
     '#' + NS + ' .t-foot{display:flex;align-items:center;gap:10px;margin-top:16px;border:0;padding:0;background:none;}',
-    '#' + NS + ' .t-count{font:600 11.5px/1 inherit;letter-spacing:.14em;color:#7d7d7d;',
+    '#' + NS + ' .t-count{font-family:inherit;font-size:11.5px;font-weight:600;line-height:1;',
+    'letter-spacing:.14em;color:#7d7d7d;',
     'font-variant-numeric:tabular-nums;text-transform:uppercase;margin-right:auto;}',
-    '#' + NS + ' button{appearance:none;font:600 12.5px/1 inherit;letter-spacing:normal;',
+    '#' + NS + ' button{appearance:none;font-family:inherit;font-size:12.5px;font-weight:600;',
+    'line-height:1;letter-spacing:normal;',
     'padding:9px 14px;border-radius:6px;cursor:pointer;border:1px solid #3a3a3a;',
     'background:#111;color:#c9c9c9;text-transform:none;box-shadow:none;height:auto;width:auto;}',
     '#' + NS + ' button:hover{color:#fff;border-color:#666;background:#1c1c1c;}',
     '#' + NS + ' button.t-go{background:#fff;color:#000;border-color:#fff;}',
     '#' + NS + ' button.t-go:hover{background:#e2e2e2;border-color:#e2e2e2;color:#000;}',
     '#' + NS + ' button.t-skip{position:absolute;top:8px;right:8px;width:26px;height:26px;padding:0;',
-    'border:0;background:none;color:#8a8a8a;font-size:17px;border-radius:5px;}',
+    'border:0;background:none;color:#8a8a8a;font-size:17px;font-weight:400;border-radius:5px;}',
     '#' + NS + ' button.t-skip:hover{color:#fff;background:#242424;border:0;}',
     '#' + NS + '-launch{position:fixed;right:16px;bottom:16px;z-index:2147482000;',
-    'font:600 12.5px/1 ui-sans-serif,system-ui,system-ui,sans-serif;letter-spacing:.08em;',
+    'font:600 12.5px/1 ui-sans-serif,system-ui,-apple-system,sans-serif;letter-spacing:.08em;',
     'text-transform:uppercase;padding:11px 16px;border-radius:999px;cursor:pointer;height:auto;',
     'background:#fff;color:#000;border:0;box-shadow:0 6px 22px rgba(0,0,0,.45);}',
     '#' + NS + '-launch:hover{background:#e2e2e2;color:#000;}',
@@ -3548,26 +3551,33 @@ function trackVisibleHeight(win = window, doc = document) {
     var step = state.steps[i];
     var ui = state.ui;
 
-    ui.h.textContent = step.title || '';
-    ui.p.textContent = step.body || '';
-    ui.count.textContent = (i + 1) + ' / ' + state.steps.length;
-    ui.back.style.visibility = i === 0 ? 'hidden' : 'visible';
-    ui.next.textContent = i === state.steps.length - 1 ? 'Done' : 'Next';
-
+    /* Resolve the target before writing any of the step's text. Painting first
+     * and skipping afterwards means a step whose control is absent is on screen
+     * for as long as the lookup takes, with the previous step's ring still
+     * drawn beside it, pointing at the wrong thing while it reads like the
+     * right one. */
     Promise.resolve(step.before ? step.before() : null)
-      .catch(function () { /* a tab that will not open is not worth stopping for */ })
+      .catch(function () { /* a panel that will not open is not worth stopping for */ })
       .then(function () { return step.target ? waitFor(step.target, step.wait) : null; })
       .then(function (node) {
         if (!state || state.i !== i) return;
         if (step.target && !node) {
-          /* Target is gone. Skip forward, or back out if it was the last one. */
+          /* The control is not in this build, or not in this state. Skip rather
+           * than ring empty space: apps change, and a tour that hard-fails on a
+           * renamed button is worse than one that is a step shorter. */
           return i + 1 < state.steps.length ? show(i + 1) : finish(true);
         }
         return (node ? scrollIntoView(node) : Promise.resolve()).then(function () {
           if (!state || state.i !== i) return;
+          ui.h.textContent = step.title || '';
+          ui.p.textContent = step.body || '';
+          ui.count.textContent = (i + 1) + ' / ' + state.steps.length;
+          ui.back.style.visibility = i === 0 ? 'hidden' : 'visible';
+          ui.next.textContent = i === state.steps.length - 1 ? 'Done' : 'Next';
           state.node = node;
           state.pad = step.pad == null ? 8 : step.pad;
           state.place = step.place || 'auto';
+          state.rect = null;
           paint(ui, node, state.pad, state.place);
         });
       });
@@ -3578,10 +3588,29 @@ function trackVisibleHeight(win = window, doc = document) {
     paint(state.ui, state.node, state.pad, state.place);
   }
 
+  /* Resize and scroll events do not cover it. A panel that reflows under its
+   * own animation, or a rail that expands when a selection lands, moves the
+   * target without firing either, and the ring is then drawn round empty space
+   * a few pixels away from the thing it is pointing at. Watching the rect is
+   * the only check that catches every cause, and comparing it first means the
+   * usual frame does nothing but four number comparisons. */
+  function track() {
+    if (!state) return;
+    state.raf = requestAnimationFrame(track);
+    if (!state.node) return;
+    var r = state.node.getBoundingClientRect();
+    var last = state.rect;
+    if (last && r.top === last.top && r.left === last.left &&
+        r.width === last.width && r.height === last.height) return;
+    state.rect = { top: r.top, left: r.left, width: r.width, height: r.height };
+    paint(state.ui, state.node, state.pad, state.place);
+  }
+
   function finish(completed) {
     if (!state) return;
     var s = state;
     state = null;
+    if (s.raf) cancelAnimationFrame(s.raf);
     window.removeEventListener('resize', reflow);
     window.removeEventListener('scroll', reflow, true);
     document.removeEventListener('keydown', s.keys, true);
@@ -3598,7 +3627,8 @@ function trackVisibleHeight(win = window, doc = document) {
     injectCss();
 
     var ui = build();
-    state = { steps: steps, i: -1, ui: ui, opts: opts || {}, node: null, pad: 8, place: 'auto' };
+    state = { steps: steps, i: -1, ui: ui, opts: opts || {}, node: null, pad: 8,
+              place: 'auto', rect: null, raf: 0 };
 
     ui.next.addEventListener('click', function () { show(state.i + 1); });
     ui.back.addEventListener('click', function () { show(state.i - 1); });
@@ -3618,6 +3648,7 @@ function trackVisibleHeight(win = window, doc = document) {
     window.addEventListener('scroll', reflow, true);
 
     show(0);
+    track();
   }
 
   function seen(id) {
