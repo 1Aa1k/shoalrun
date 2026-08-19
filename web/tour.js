@@ -85,6 +85,40 @@
 
   var state = null;
 
+  /*
+   * The visible viewport, which on a phone is not `window.innerHeight`.
+   *
+   * Safari on iOS puts its address bar at the BOTTOM of the screen, over the
+   * bottom of the page, and innerHeight reports the layout viewport underneath
+   * it. Anything positioned from the bottom with that number lands behind the
+   * browser's own chrome. shoalrun already shipped that bug once and its notes
+   * are explicit that `env(safe-area-inset-bottom)` does not rescue it: that
+   * reports the home indicator, not the toolbar.
+   *
+   * visualViewport is the browser's own measurement of what is actually on
+   * screen, so it is the only number that is right during a pinch-zoom, with a
+   * keyboard up, or under that address bar. innerHeight is the fallback for
+   * anything too old to have it.
+   */
+  function vv() {
+    return window.visualViewport || null;
+  }
+  function vpW() {
+    var v = vv();
+    return (v && v.width) || window.innerWidth;
+  }
+  function vpH() {
+    var v = vv();
+    return (v && v.height) || window.innerHeight;
+  }
+  /* How far the visible viewport's top sits below the layout viewport's top.
+   * A fixed element is placed against the layout viewport, so every coordinate
+   * handed to one has to be shifted by this. */
+  function vpTop() {
+    var v = vv();
+    return (v && v.offsetTop) || 0;
+  }
+
   function el(tag, cls) {
     var n = document.createElement(tag);
     if (cls) n.className = cls;
@@ -129,7 +163,7 @@
 
   function scrollIntoView(node) {
     var r = node.getBoundingClientRect();
-    var vh = window.innerHeight;
+    var vh = vpH();
     /* A target taller than most of the screen cannot be centred usefully: half
      * of it ends up off one edge, and on a phone the card then covers a good
      * part of the rest. Align its top instead, so what is on screen starts at
@@ -198,8 +232,8 @@
   function place(ui, rect, pref) {
     var cw = ui.card.offsetWidth || 320;
     var ch = ui.card.offsetHeight || 160;
-    var vw = window.innerWidth;
-    var vh = window.innerHeight;
+    var vw = vpW();
+    var vh = vpH();
     var gap = 14;
 
     var mobile = vw <= MOBILE;
@@ -358,6 +392,10 @@
     if (s.raf) cancelAnimationFrame(s.raf);
     window.removeEventListener('resize', reflow);
     window.removeEventListener('scroll', reflow, true);
+    if (vv() && vv().removeEventListener) {
+      vv().removeEventListener('resize', reflow);
+      vv().removeEventListener('scroll', reflow);
+    }
     document.removeEventListener('keydown', s.keys, true);
     if (s.ui.root.parentNode) s.ui.root.parentNode.removeChild(s.ui.root);
     if (s.opts.id) {
@@ -391,6 +429,12 @@
     /* Capture phase: the scrolling element is usually an inner pane, not the
      * window, and a bubbling listener never hears about those. */
     window.addEventListener('scroll', reflow, true);
+    /* The address bar collapsing or a keyboard opening changes what is visible
+     * without firing either of the above. */
+    if (vv() && vv().addEventListener) {
+      vv().addEventListener('resize', reflow);
+      vv().addEventListener('scroll', reflow);
+    }
 
     show(0);
     track();
@@ -432,6 +476,23 @@
     b.addEventListener('click', function () { start(steps, opts); });
     injectCss();
     document.body.appendChild(b);
+
+    /* `bottom: 16px` is measured against the layout viewport, and on iOS Safari
+     * the bottom of the layout viewport is behind the address bar. Lift the
+     * button by whatever part of the page the browser is currently sitting on
+     * top of. Zero on every desktop and on Android, so nothing else moves. */
+    var lift = function () {
+      var hidden = Math.max(0, window.innerHeight - vpH() - vpTop());
+      b.style.bottom = (16 + hidden) + 'px';
+    };
+    lift();
+    var v = vv();
+    if (v && v.addEventListener) {
+      v.addEventListener('resize', lift);
+      v.addEventListener('scroll', lift);
+    } else {
+      window.addEventListener('resize', lift);
+    }
   }
 
   root.Tour = { start: start, auto: auto, stop: function () { finish(false); }, seen: seen };
