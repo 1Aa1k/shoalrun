@@ -17,9 +17,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
 
 from make_stl import (  # noqa: E402
     build_surface,
+    crop_to_mask,
     crop_to_water,
     is_closed,
+    masked_solid_triangles,
     mesh_volume_mm3,
+    shore_mask,
     solid_triangles,
     write_binary_stl,
 )
@@ -98,6 +101,115 @@ class TestSolid:
         m = build_surface(basin(), 25.0, 90.0, 10.0, 3.0)
         tris = solid_triangles(m.z, m.cell_mm)
         assert not is_closed(np.delete(tris, 5, axis=0))
+
+
+class TestTrimToShore:
+    """The trimmed outline is where a silent hole is most likely to get in.
+
+    `solid_triangles` walks one rectangular perimeter and is hard to get wrong.
+    The masked version raises walls per cell against an arbitrary boundary, so
+    closure is a property of the algorithm rather than of the shape, and it is
+    worth proving on the shapes that would break it: a ring, an island, a
+    single cell, a diagonal staircase.
+    """
+
+    def test_a_trimmed_solid_is_still_closed_and_wound_outward(self):
+        d = basin()
+        m = build_surface(d, 25.0, 90.0, 10.0, 3.0)
+        mask = shore_mask(d, grid_m=25.0, shore_m=25.0)
+        tris = masked_solid_triangles(m.z, m.cell_mm, mask)
+        assert is_closed(tris)
+        assert mesh_volume_mm3(tris) > 0
+
+    def test_trimming_removes_material(self):
+        """The point of the trim. If the volume did not drop it did nothing."""
+        d = basin()
+        m = build_surface(d, 25.0, 90.0, 10.0, 3.0)
+        mask = shore_mask(d, grid_m=25.0, shore_m=0.0)
+        trimmed = mesh_volume_mm3(masked_solid_triangles(m.z, m.cell_mm, mask))
+        whole = mesh_volume_mm3(solid_triangles(m.z, m.cell_mm))
+        assert 0 < trimmed < whole
+
+    def test_a_full_mask_reproduces_the_rectangular_solid(self):
+        """Masking everything in must agree with the mesher it replaces, or the
+        two paths have drifted and only one of them is ever tested."""
+        m = build_surface(basin(), 25.0, 90.0, 10.0, 3.0)
+        full = np.ones(m.z.shape, bool)
+        a = mesh_volume_mm3(masked_solid_triangles(m.z, m.cell_mm, full))
+        b = mesh_volume_mm3(solid_triangles(m.z, m.cell_mm))
+        assert a == pytest.approx(b)
+
+    def test_a_ring_keeps_its_inner_wall(self):
+        """A shape with a hole in it is the case per-cell walls exist for: the
+        inner boundary needs walls too, and a perimeter walk would miss it."""
+        z = np.full((9, 9), 5.0)
+        mask = np.ones((9, 9), bool)
+        mask[3:6, 3:6] = False
+        tris = masked_solid_triangles(z, 2.0, mask)
+        assert is_closed(tris)
+        vol = mesh_volume_mm3(tris)
+        assert vol == pytest.approx((8 * 8 - 4 * 4) * 2.0 * 2.0 * 5.0)
+
+    def test_one_cell_is_a_box(self):
+        z = np.full((2, 2), 3.0)
+        mask = np.ones((2, 2), bool)
+        tris = masked_solid_triangles(z, 2.0, mask)
+        assert is_closed(tris)
+        assert mesh_volume_mm3(tris) == pytest.approx(2.0 * 2.0 * 3.0)
+
+    def test_a_diagonal_staircase_stays_closed(self):
+        """Every wall meets two others at a corner here, which is where an
+        off-by-one in the neighbour lookup shows up as an open edge."""
+        z = np.full((8, 8), 4.0)
+        yy, xx = np.mgrid[0:8, 0:8]
+        tris = masked_solid_triangles(z, 1.5, yy >= xx)
+        assert is_closed(tris)
+        assert mesh_volume_mm3(tris) > 0
+
+    def test_the_shell_floor_survives_the_trim(self):
+        m = build_surface(basin(), 25.0, 90.0, 10.0, 3.0)
+        mask = shore_mask(basin(), grid_m=25.0, shore_m=25.0)
+        floor = np.clip(m.z - 1.5, 0.0, None)
+        tris = masked_solid_triangles(m.z, m.cell_mm, mask, floor)
+        assert is_closed(tris)
+        assert mesh_volume_mm3(tris) > 0
+
+
+class TestShoreMask:
+    def test_the_band_grows_with_shore_m(self):
+        d = basin()
+        tight = shore_mask(d, grid_m=25.0, shore_m=0.0)
+        loose = shore_mask(d, grid_m=25.0, shore_m=50.0)
+        assert loose.sum() > tight.sum()
+        assert (loose | tight).sum() == loose.sum()      # the band only grows
+
+    def test_an_island_is_land_not_a_hole(self):
+        """An island is surrounded by water and would otherwise be punched
+        clean through the print."""
+        d = basin(ny=11, nx=11, deep=10.0)
+        d[5, 5] = NAN                                     # an island mid-lake
+        mask = shore_mask(d, grid_m=25.0, shore_m=0.0)
+        assert mask[5, 5]
+
+    def test_a_separate_pond_is_dropped(self):
+        """Two water bodies would slice as two objects, and the little one
+        prints detached, gets knocked over, and sticks to the nozzle."""
+        d = np.full((14, 14), NAN)
+        d[2:8, 2:8] = 5.0                                 # the lake
+        d[11:13, 11:13] = 2.0                             # a pond, not this lake
+        mask = shore_mask(d, grid_m=25.0, shore_m=0.0)
+        assert mask[3, 3]
+        assert not mask[12, 12]
+
+    def test_crop_to_mask_trims_every_field_together(self):
+        mask = np.zeros((10, 12), bool)
+        mask[3:7, 5:9] = True
+        other = np.arange(120.0).reshape(10, 12)
+        m2, o2, i0, j0 = crop_to_mask(mask, other)
+        assert (i0, j0) == (3, 5)
+        assert m2.shape == o2.shape == (4, 4)
+        assert m2.all()
+        assert o2[0, 0] == other[3, 5]
 
 
 class TestStlFile:

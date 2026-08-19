@@ -456,6 +456,124 @@ def solid_triangles(z: np.ndarray, cell_mm: float,
     return np.concatenate([top, walls, bottom])
 
 
+def shore_mask(depth_m: np.ndarray, grid_m: float, shore_m: float) -> np.ndarray:
+    """Which cells survive when the object is cut to the lake's own outline.
+
+    A rectangular slab spends most of its filament and most of its bed on land
+    that is only there because the grid is a rectangle. Cutting to the water
+    plus a band of shore gives the object the shape of the thing it is of,
+    which is also the shape a person recognises across a room.
+
+    Three passes, and each one is load-bearing:
+
+    * **Dilate** the water by `shore_m` so the shoreline is not the razor edge
+      of the print. A wall standing exactly on the waterline is the full
+      basin depth of unsupported vertical face and the cliff top comes out
+      ragged; a rim of land gives it something to stand on.
+    * **Largest component only.** The grid catches ponds and river mouths that
+      are not this lake. Left in, they slice as separate little objects that
+      print detached, get knocked over, and stick to the nozzle.
+    * **Fill holes.** An island in the middle is land, not a void -- without
+      this it becomes a hole punched clean through the print.
+    """
+    from scipy import ndimage
+
+    water = np.isfinite(depth_m)
+    if not water.any():
+        raise SystemExit("no water in the grid -- nothing to trim to")
+    cells = int(round(shore_m / grid_m))
+    keep = ndimage.binary_dilation(water, iterations=cells) if cells > 0 else water
+    labels, n = ndimage.label(keep)
+    if n > 1:
+        sizes = ndimage.sum(keep, labels, range(1, n + 1))
+        keep = labels == (int(np.argmax(sizes)) + 1)
+    return ndimage.binary_fill_holes(keep)
+
+
+def crop_to_mask(mask: np.ndarray, *fields: np.ndarray):
+    """Cut every field down to the mask's bounding box, mask first.
+
+    The horizontal scale is taken from the array's own width, so this has to
+    happen BEFORE the surface is built or `--width-mm` would size the rectangle
+    the trimmed object was cut out of rather than the object.
+    """
+    rows = np.flatnonzero(mask.any(axis=1))
+    cols = np.flatnonzero(mask.any(axis=0))
+    i0, i1 = int(rows[0]), int(rows[-1]) + 1
+    j0, j1 = int(cols[0]), int(cols[-1]) + 1
+    out = [mask[i0:i1, j0:j1]]
+    out += [None if f is None else f[i0:i1, j0:j1] for f in fields]
+    return (*out, i0, j0)
+
+
+def masked_solid_triangles(z: np.ndarray, cell_mm: float, mask: np.ndarray,
+                           z_bot: np.ndarray | None = None) -> np.ndarray:
+    """Close a height field into a solid over an arbitrary outline.
+
+    `solid_triangles` walks one rectangular perimeter. Here the perimeter is
+    whatever shape the mask is -- including its inner boundaries, if it has
+    any -- so the walls are built per cell instead: every kept quad that has a
+    dropped neighbour raises a wall on that one shared edge.
+
+    That is what makes the result manifold by construction rather than by
+    luck. A boundary edge belongs to exactly one kept quad, so exactly one wall
+    is ever raised on it, and the wall's top and bottom vertices ARE the
+    surface vertices, so there is nothing to weld and nothing to leave open.
+    """
+    ny, nx = z.shape
+    if z_bot is None:
+        z_bot = np.zeros_like(z)
+    xs = np.arange(nx) * cell_mm
+    ys = np.arange(ny) * cell_mm
+    X, Y = np.meshgrid(xs, ys)
+
+    # A quad survives only with all four corners in. Keeping half-covered quads
+    # would need the outline cut between lattice points, and a stair-stepped
+    # edge on a 25 m lattice is under half a millimetre of step at this scale.
+    quad = (mask[:-1, :-1] & mask[:-1, 1:] & mask[1:, 1:] & mask[1:, :-1])
+    if not quad.any():
+        raise SystemExit("trim removed everything -- is --shore-m too small?")
+    qi, qj = np.nonzero(quad)
+
+    def corner(di, dj, zz):
+        """The (di, dj) corner of every kept quad, as points."""
+        i, j = qi + di, qj + dj
+        return np.stack([X[i, j], Y[i, j], zz[i, j]], axis=1)
+
+    def quads(a, b, c, d):
+        return np.concatenate([np.stack([a, b, c], axis=1),
+                               np.stack([a, c, d], axis=1)])
+
+    # Counter-clockwise seen from above: A south-west, B south-east, C
+    # north-east, D north-west. Every winding below is stated against this.
+    A, B, C, D = (0, 0), (0, 1), (1, 1), (1, 0)
+    top = quads(*[corner(*k, z) for k in (A, B, C, D)])
+    # Reversed, so it faces down and out.
+    bottom = quads(*[corner(*k, z_bot) for k in (A, D, C, B)])
+
+    # Walk the boundary counter-clockwise with the interior on the left and the
+    # wall faces outward: south A->B, east B->C, north C->D, west D->A.
+    padded = np.zeros((quad.shape[0] + 2, quad.shape[1] + 2), bool)
+    padded[1:-1, 1:-1] = quad
+    sides = [
+        (padded[:-2, 1:-1][quad], A, B),   # neighbour to the south
+        (padded[1:-1, 2:][quad], B, C),    # east
+        (padded[2:, 1:-1][quad], C, D),    # north
+        (padded[1:-1, :-2][quad], D, A),   # west
+    ]
+    walls = []
+    for present, p, q in sides:
+        edge = ~present
+        if not edge.any():
+            continue
+        sel = np.nonzero(edge)[0]
+        pb, qb = corner(*p, z_bot)[sel], corner(*q, z_bot)[sel]
+        pt, qt = corner(*p, z)[sel], corner(*q, z)[sel]
+        walls.append(quads(pb, qb, qt, pt))
+
+    return np.concatenate([top, *walls, bottom])
+
+
 def mesh_volume_mm3(tris: np.ndarray) -> float:
     """Signed volume by the divergence theorem.
 
@@ -580,6 +698,10 @@ def main() -> None:
                     help="flat land, the way this printed before 3DEP was fetched")
     ap.add_argument("--margin-mm", type=float, default=4.0,
                     help="flat land border kept around the lake")
+    ap.add_argument("--trim", action="store_true",
+                    help="cut the outline to the lake's own shape instead of a slab")
+    ap.add_argument("--shore-m", type=float, default=150.0,
+                    help="metres of land kept around the water when --trim is on")
     ap.add_argument("--step", type=int, default=1,
                     help="sample every Nth grid cell; 2 quarters the file")
     ap.add_argument("--soundings", action="store_true",
@@ -622,15 +744,29 @@ def main() -> None:
     depth, i0, j0 = keep
     if land is not None:
         land = land[i0:i0 + depth.shape[0], j0:j0 + depth.shape[1]]
+
+    # The trim has to happen here: the horizontal scale is taken from the
+    # array's width two lines down, so cutting the outline afterwards would
+    # leave --width-mm describing the slab the lake was cut out of.
+    mask = None
+    if args.trim:
+        mask = shore_mask(depth, meta["grid_m"], args.shore_m)
+        mask, depth, land, ti, tj = crop_to_mask(mask, depth, land)
+        i0 += ti
+        j0 += tj
     # With the land in, one vertical scale has to serve 23 m of lake and 230 m
     # of hillside. Fixing the exaggeration would print a 138 mm spire; fixing the
     # total relief instead and solving for the exaggeration keeps the object a
     # printable size and still reports what it did, which is the part that
     # matters. An explicit --exag always wins.
     scale = args.width_mm / (depth.shape[1] * meta["grid_m"])
-    relief_m = float(np.nan_to_num(depth, nan=0.0).max())
+    # Only the relief the object KEEPS may set the exaggeration. A trimmed print
+    # solved against a hilltop 600 m inland is solving for a peak that gets cut
+    # off, and comes out a third of the height that was asked for.
+    seen = np.ones(depth.shape, bool) if mask is None else mask
+    relief_m = float(np.nan_to_num(depth, nan=0.0)[seen].max())
     if land is not None:
-        relief_m += float(land.max())
+        relief_m += float(land[seen].max())
     exag = args.exag
     if exag is None:
         exag = min(EXAG_CAP, max(1.0, args.target_mm / max(relief_m * scale, 1e-9)))
@@ -653,7 +789,16 @@ def main() -> None:
                                        foot_mm=args.house_mm)
 
     floor = shell_floor(model.z, args.shell_mm) if args.shell_mm > 0 else None
-    tris = solid_triangles(model.z, model.cell_mm, floor)
+    # The mask is subsampled exactly the way build_surface subsamples the grid,
+    # or the outline would drift off the surface it is cutting.
+    sub = None if mask is None else mask[::args.step, ::args.step]
+
+    def close_solid(zz, bot):
+        if sub is None:
+            return solid_triangles(zz, model.cell_mm, bot)
+        return masked_solid_triangles(zz, model.cell_mm, sub, bot)
+
+    tris = close_solid(model.z, floor)
     steps = []
     if args.step_ft > 0:
         steps.append(f"{args.step_ft:g} ft lake steps")
@@ -671,18 +816,26 @@ def main() -> None:
 
     ny, nx = model.z.shape
     depth_mm = model.max_depth_m * model.mm_per_m
-    tall_mm = float(model.z.max())          # the print's own height, land included
+    # Measured over the cells the object actually KEEPS. Reporting the whole
+    # field's maximum after a trim describes a hilltop that was cut off, and
+    # the number people check the print against is its height.
+    kept = model.z if sub is None else model.z[sub]
+    tall_mm = float(kept.max())             # the print's own height, land included
+    plane_mm = args.base_mm + depth_mm
+    relief_mm = max(0.0, tall_mm - plane_mm)
+    land_relief_m = (relief_mm / model.mm_per_m_land
+                     if model.mm_per_m_land > 0 else 0.0)
     size = args.out.stat().st_size / 1e6
     print(f"wrote {args.out}  ({size:.1f} MB, {len(tris):,} triangles)")
     print(f"  {nx} x {ny} samples at {model.cell_mm:.3f} mm")
     print(f"  {args.width_mm:.0f} x {ny * model.cell_mm:.0f} x "
-          f"{tall_mm:.1f} mm")
+          f"{tall_mm:.1f} mm" + ("  (trimmed to the shoreline)" if sub is not None else ""))
     print(f"  {scale_txt}")
     print(f"  deepest point {model.max_depth_m * FT_PER_M:.0f} ft "
           f"-> {depth_mm:.1f} mm below the water plane")
     if use_terrain:
-        print(f"  highest ground {model.land_relief_m:.0f} m "
-              f"-> {model.land_relief_m * model.mm_per_m_land:.1f} mm above it")
+        print(f"  highest ground {land_relief_m:.0f} m "
+              f"-> {relief_mm:.1f} mm above it")
     if args.soundings:
         print(f"  {pins} sounding pins")
     if args.structures:
@@ -691,8 +844,8 @@ def main() -> None:
     print(f"  closed solid: {is_closed(tris)}, volume {vol / 1000:.0f} cm3")
     est = filament_estimate(tris, vol, infill=args.infill)
     sup = {"grams": 0.0, "area_share": 0.0}
-    solid_g = filament_estimate(solid_triangles(model.z, model.cell_mm),
-                                mesh_volume_mm3(solid_triangles(model.z, model.cell_mm)),
+    whole = close_solid(model.z, None)
+    solid_g = filament_estimate(whole, mesh_volume_mm3(whole),
                                 infill=args.infill)["grams"]
     if args.shell_mm > 0:
         sup = support_estimate(floor, model.cell_mm)
@@ -712,6 +865,12 @@ def main() -> None:
         f"  a slope running into the water changes gradient at the shoreline for no\n"
         f"  reason but this setting.\n"
         if split else ""
+    )
+    trim_note = (
+        f"\n  The outline is the SHORELINE, not a map sheet: the object is cut to the\n"
+        f"  lake's own shape plus {args.shore_m:.0f} m of shore. Anything past that band is not\n"
+        f"  missing data, it is off the edge of the object on purpose.\n"
+        if sub is not None else ""
     )
     what = (
         "  The lake and the land around it, cut from one slab and sharing one\n"
@@ -763,7 +922,7 @@ def main() -> None:
 
 What this is
 {what}
-
+{trim_note}
 What it is not
   Depth is exaggerated {exag:.3g}x. At true scale the deepest point of this lake
   would be {model.max_depth_m * model.mm_per_m / exag:.2f} mm -- under three layer lines.
