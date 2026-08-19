@@ -3361,8 +3361,7 @@ function trackVisibleHeight(win = window, doc = document) {
     'background:#fff;color:#000;border:0;box-shadow:0 6px 22px rgba(0,0,0,.45);}',
     '#' + NS + '-launch:hover{background:#e2e2e2;color:#000;}',
     '@media (max-width:' + MOBILE + 'px){',
-    '#' + NS + ' .t-card{width:auto;left:12px!important;right:12px;bottom:12px;top:auto!important;',
-    'max-width:none;}',
+    '#' + NS + ' .t-card{width:auto;left:12px;right:12px;max-width:none;}',
     '#' + NS + '-launch{right:12px;bottom:12px;}}',
     '@media (prefers-reduced-motion:reduce){#' + NS + ' .t-ring,#' + NS + ' .t-card{transition:none;}}'
   ].join('');
@@ -3480,14 +3479,29 @@ function trackVisibleHeight(win = window, doc = document) {
     var vh = window.innerHeight;
     var gap = 14;
 
-    if (!rect || pref === 'center' || vw <= MOBILE) {
-      if (!rect || pref === 'center') {
-        ui.card.style.left = Math.round((vw - cw) / 2) + 'px';
-        ui.card.style.top = Math.round((vh - ch) / 2) + 'px';
-      }
-      /* Narrow screens pin the card to the bottom via CSS; only the wide case
-       * needs coordinates, and a centred step still wants them. */
-      if (vw <= MOBILE) return;
+    var mobile = vw <= MOBILE;
+
+    if (!rect || pref === 'center') {
+      /* On a phone the card spans the width via CSS, so only the vertical
+       * placement is ours to set; left must be cleared or a previous step's
+       * value fights the stylesheet. */
+      ui.card.style.left = mobile ? '' : Math.round((vw - cw) / 2) + 'px';
+      ui.card.style.top = Math.round((vh - ch) / 2) + 'px';
+      return;
+    }
+
+    if (mobile) {
+      /* The card is nearly the width of the screen, so it cannot sit beside
+       * the target: it goes above or below, and the choice is whichever half
+       * the target is NOT in. Pinning it to the bottom unconditionally, which
+       * is what the stylesheet used to do, covers every control in the lower
+       * half of the screen -- including the helm buttons the tour is pointing
+       * at on a boat. */
+      var below = rect.top + rect.height / 2 < vh / 2;
+      ui.card.style.left = '';
+      ui.card.style.top = below
+        ? Math.round(Math.min(rect.bottom + gap, vh - ch - 12)) + 'px'
+        : Math.round(Math.max(rect.top - ch - gap, 12)) + 'px';
       return;
     }
 
