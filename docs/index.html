@@ -199,6 +199,24 @@ input[type=text]::placeholder { color: var(--ink-faint); opacity: .75; }
 .drawer.open { transform: translateY(0); }
 .drawer .grip { width: 34px; height: 4px; border-radius: 2px; background: var(--line);
   margin: -4px auto 12px; }
+/* The drawer scrolls, so the header has to stick or the way out goes below the
+   fold the moment the panel is longer than the screen -- which on a phone is
+   all three of them. Negative margins bleed it back out to the drawer's own
+   padding edges so it covers what scrolls under it. */
+/* Three columns rather than an absolutely positioned X: an abspos child of a
+   sticky box does not reliably inherit the stuck offset, so the close button
+   drifted out of the bar and sat over the scrolling content beneath it. Laying
+   it out in flow also lets the 42 px tap target set the bar's height, which is
+   what has to cover that content. */
+.drawer .dhead { position: sticky; top: 0; z-index: 3;
+  display: grid; grid-template-columns: 42px 1fr 42px; align-items: center;
+  margin: -14px -16px 10px; padding: 10px 12px 8px; background: var(--panel-solid); }
+.drawer .dhead .grip { grid-column: 2; margin: 0 auto; }
+.drawer .dhead .x { grid-column: 3; width: 42px; height: 42px; min-width: 0; padding: 0;
+  border: 0; background: none; border-radius: 9px;
+  display: flex; align-items: center; justify-content: center;
+  color: var(--ink-dim); font-size: 24px; line-height: 1; box-shadow: none; }
+.drawer .dhead .x:active { background: var(--line-soft); color: var(--ink); }
 .drawer h4 { margin: 18px 0 8px; font-size: 11px; letter-spacing: .1em;
   text-transform: uppercase; color: var(--ink-faint); font-weight: 700; }
 .drawer h4:first-of-type { margin-top: 0; }
@@ -597,7 +615,10 @@ body.sim::after { content: "SIMULATION"; position: absolute; top: 45%; left: 0; 
 
   <!-- detail sheet ------------------------------------------------------- -->
   <div class="drawer sheet" id="sheet">
-    <div class="grip"></div>
+    <div class="dhead">
+      <div class="grip"></div>
+      <button class="x" data-done="btnClose" aria-label="Close">&times;</button>
+    </div>
     <h3 id="sheetTitle">Rock</h3>
     <div id="sheetBody"></div>
     <div class="row">
@@ -614,7 +635,10 @@ body.sim::after { content: "SIMULATION"; position: absolute; top: 45%; left: 0; 
        the map draws -- exporting a track, reviewing other people's reports,
        joining a lake -- lives on the Info tab instead of at the helm. -->
   <div class="drawer" id="panel">
-    <div class="grip"></div>
+    <div class="dhead">
+      <div class="grip"></div>
+      <button class="x" data-done="btnPanelClose" aria-label="Close">&times;</button>
+    </div>
 
     <h4>Marks shown</h4>
     <div class="toggles">
@@ -698,7 +722,10 @@ body.sim::after { content: "SIMULATION"; position: absolute; top: 45%; left: 0; 
   </div>
 
   <div class="drawer" id="sliders">
-    <div class="grip"></div>
+    <div class="dhead">
+      <div class="grip"></div>
+      <button class="x" data-done="btnGearClose" aria-label="Close">&times;</button>
+    </div>
     <h4>Where to start</h4>
     <div class="spawnRow" id="spawnRow">
       <button id="spawn_neoc">NEOC</button>
@@ -4368,6 +4395,7 @@ function refreshCounts() {
 let selected = null;
 
 el("map").addEventListener("click", (e) => {
+  if (suppressClick) { suppressClick = false; return; }
   el("panel").classList.remove("open");
   el("btnLayers").classList.remove("on");
   const r = el("map").getBoundingClientRect();
@@ -4440,6 +4468,14 @@ el("btnUnmark").onclick = async () => {
   showSheet(selected);
 };
 el("btnClose").onclick = () => el("sheet").classList.remove("open");
+
+// Every drawer already has a Done button, but it sits at the bottom of a panel
+// that is taller than a phone screen -- the way out was below the fold. The
+// sticky X delegates to that same button rather than duplicating its logic,
+// which for the layers panel also has to unlight the Layers control.
+document.querySelectorAll(".drawer .x").forEach((b) => {
+  b.onclick = () => el(b.dataset.done).click();
+});
 
 // --- depth controls --------------------------------------------------------
 
@@ -4727,6 +4763,15 @@ el("btnExport").onclick = async () => {
 let drag = null;
 const pointers = new Map();
 let pinchDist = 0;
+
+// A tap and a pan both end in a click and the browser does not tell them apart,
+// so without this every pan drops the detail sheet on whatever the finger
+// happened to stop over. Measured as accumulated path, not net displacement --
+// a finger that wobbles and returns has still panned the map, and a thumb on a
+// wet screen wobbles.
+const TAP_SLOP = 12;
+let suppressClick = false;
+
 const map = el("map");
 
 function zoomBy(factor) {
@@ -4735,9 +4780,12 @@ function zoomBy(factor) {
 
 map.addEventListener("pointerdown", (e) => {
   pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
-  if (pointers.size === 1) drag = { x: e.clientX, y: e.clientY, moved: 0 };
-  else if (pointers.size === 2) {
+  if (pointers.size === 1) {
+    drag = { x: e.clientX, y: e.clientY, moved: 0 };
+    suppressClick = false;
+  } else if (pointers.size === 2) {
     drag = null;
+    suppressClick = true;
     const [a, b] = [...pointers.values()];
     pinchDist = Math.hypot(a.x - b.x, a.y - b.y);
   }
@@ -4758,6 +4806,7 @@ map.addEventListener("pointermove", (e) => {
   const dx = e.clientX - drag.x;
   const dy = e.clientY - drag.y;
   drag.moved += Math.hypot(dx, dy);
+  if (drag.moved > TAP_SLOP) suppressClick = true;
   const c = Math.cos(-view.rotation);
   const s = Math.sin(-view.rotation);
   view.center.x -= (dx * c - -dy * s) / view.scale;

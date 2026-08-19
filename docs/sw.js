@@ -29,7 +29,9 @@
 //     without this bump, which is the mistake the note above describes: a
 //     phone with the app already on its home screen opened the pre-tour build
 //     from cache and there was nothing on screen to say why.
-const CACHE = 'shoalrun-v8';
+// v9: a pan on the map ended by opening the detail sheet, and the way out of a
+//     drawer was below the fold on a phone.
+const CACHE = 'shoalrun-v9';
 
 // index.html is the app. Everything else is a nicety, and the two lists are
 // separate because `cache.addAll` is all-or-nothing: one entry that 404s or
