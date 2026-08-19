@@ -28,6 +28,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from make_stl import (
     FT_PER_M,
+    crop_to_mask,
+    shore_mask,
     TERRAIN,
     EXAG_CAP,
     build_surface,
@@ -61,6 +63,10 @@ def main() -> None:
     ap.add_argument("--step", type=int, default=2)
     ap.add_argument("--soundings", action="store_true")
     ap.add_argument("--structures", action="store_true")
+    ap.add_argument("--trim", action="store_true",
+                    help="cut the outline to the lake's own shape")
+    ap.add_argument("--shore-m", type=float, default=150.0,
+                    help="metres of land kept around the water when --trim is on")
     ap.add_argument("--out", type=Path, default=OUT)
     args = ap.parse_args()
 
@@ -87,10 +93,20 @@ def main() -> None:
     if land is not None:
         land = land[i0:i0 + depth.shape[0], j0:j0 + depth.shape[1]]
 
+    # Same cut, same order as the STL: before the scale is taken off the
+    # array's width, or the page and the print disagree about how big it is.
+    mask = None
+    if args.trim:
+        mask = shore_mask(depth, meta["grid_m"], args.shore_m)
+        mask, depth, land, ti, tj = crop_to_mask(mask, depth, land)
+        i0 += ti
+        j0 += tj
+
     scale = args.width_mm / (depth.shape[1] * meta["grid_m"])
-    relief_m = float(np.nan_to_num(depth, nan=0.0).max())
+    seen = np.ones(depth.shape, bool) if mask is None else mask
+    relief_m = float(np.nan_to_num(depth, nan=0.0)[seen].max())
     if land is not None:
-        relief_m += float(land.max())
+        relief_m += float(land[seen].max())
     exag = args.exag
     if exag is None:
         exag = min(EXAG_CAP, max(1.0, args.target_mm / max(relief_m * scale, 1e-9)))
@@ -112,7 +128,9 @@ def main() -> None:
     marked_z = model.z.copy() if (pins or built or piers) else None
     model.z[...] = plain_z
 
-    tall = float(np.maximum(plain_z, marked_z if marked_z is not None else plain_z).max())
+    sub_mask = None if mask is None else mask[::args.step, ::args.step]
+    shown = np.maximum(plain_z, marked_z if marked_z is not None else plain_z)
+    tall = float(shown.max() if sub_mask is None else shown[sub_mask].max())
     plane = args.base_mm + model.max_depth_m * model.mm_per_m
 
     # uint16 over the model's own range: 43 mm in 65,535 steps is well under a
@@ -156,6 +174,8 @@ def main() -> None:
         "mk": (base64.b64encode(
             ((marked_z - plain_z) > 1e-6).astype("uint8").tobytes()).decode("ascii")
             if marked_z is not None else None),
+        "keep": (base64.b64encode(sub_mask.astype("uint8").tobytes()).decode("ascii")
+                 if sub_mask is not None else None),
         "markText": mark_text,
         "markNoun": mark_noun,
         "plane": round(plane, 4),
@@ -179,8 +199,10 @@ def main() -> None:
     print(f"  {args.width_mm:.0f} x {ny * model.cell_mm:.0f} x {tall:.1f} mm, "
           f"{exag:.3g}x vertical")
     if use_terrain:
+        # Off the KEPT cells, or a trimmed page reports a hilltop it cut off.
+        relief_mm = max(0.0, tall - plane)
         print(f"  waterline {water_ft:.0f} ft, highest ground "
-              f"{model.land_relief_m:.0f} m")
+              f"{relief_mm / model.mm_per_m_land if model.mm_per_m_land else 0:.0f} m")
     if pins or built or piers:
         print(f"  {pins} sounding pins, {built} building markers, {piers} piers")
 

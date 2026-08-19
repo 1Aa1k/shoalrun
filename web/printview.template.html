@@ -119,6 +119,15 @@ const MARK = (() => {
   for (let i = 0; i < raw.length; i++) out[i] = raw.charCodeAt(i) ? 1 : 0;
   return out;
 })();
+// Which samples the trimmed object keeps. Null when the model is the old
+// rectangular slab, in which case every quad is drawn and this costs nothing.
+const KEEP = (() => {
+  if (!D.keep) return null;
+  const raw = atob(D.keep);
+  const out = new Uint8Array(raw.length);
+  for (let i = 0; i < raw.length; i++) out[i] = raw.charCodeAt(i) ? 1 : 0;
+  return out;
+})();
 const ZEROS = new Float32Array(NX * NY);
 
 // ---- geometry ---------------------------------------------------------------
@@ -162,6 +171,9 @@ let p = 0;
 for (let i = 0; i < NY - 1; i++) {
   for (let j = 0; j < NX - 1; j++) {
     const a = i * NX + j, b = a + 1, c = a + NX, d = c + 1;
+    // All four corners or none: a half-covered quad would need the outline cut
+    // between samples, and the same rule cuts the STL.
+    if (KEEP && !(KEEP[a] && KEEP[b] && KEEP[c] && KEEP[d])) continue;
     idx[p++] = a; idx[p++] = c; idx[p++] = b;
     idx[p++] = b; idx[p++] = c; idx[p++] = d;
   }
@@ -180,13 +192,34 @@ function upload(Z, mark) {
 }
 const MESH = { plain: upload(FIELDS.plain, ZEROS),
                marked: FIELDS.marked ? upload(FIELDS.marked, MARK || ZEROS) : null };
-const bufIdx = buffer(idx, gl.ELEMENT_ARRAY_BUFFER);
+const IDXLEN = p;                       // the trim leaves the tail unused
+const bufIdx = buffer(idx.subarray(0, IDXLEN), gl.ELEMENT_ARRAY_BUFFER);
 
-// A quad at the water plane, inset slightly so it never z-fights the shore.
-const wq = new Float32Array([
-  -W / 2, 0, -H / 2, W / 2, 0, -H / 2, W / 2, 0, H / 2,
-  -W / 2, 0, -H / 2, W / 2, 0, H / 2, -W / 2, 0, H / 2,
-]);
+// The water plane. Untrimmed that is one quad over the whole grid; trimmed it
+// has to follow the same outline, or the object sits on a rectangular sheet of
+// water that stops being the lake and starts being the crop box the lake was
+// cut out of -- which is the thing the trim exists to get rid of.
+const wq = (() => {
+  if (!KEEP) {
+    return new Float32Array([
+      -W / 2, 0, -H / 2, W / 2, 0, -H / 2, W / 2, 0, H / 2,
+      -W / 2, 0, -H / 2, W / 2, 0, H / 2, -W / 2, 0, H / 2,
+    ]);
+  }
+  const xz = (i, j) => [j * D.cell - W / 2, 0, -(i * D.cell - H / 2)];
+  const out = [];
+  for (let i = 0; i < NY - 1; i++) {
+    for (let j = 0; j < NX - 1; j++) {
+      const a = i * NX + j;
+      if (!(KEEP[a] && KEEP[a + 1] && KEEP[a + NX] && KEEP[a + NX + 1])) continue;
+      const p00 = xz(i, j), p01 = xz(i, j + 1),
+            p10 = xz(i + 1, j), p11 = xz(i + 1, j + 1);
+      out.push(...p00, ...p10, ...p01, ...p01, ...p10, ...p11);
+    }
+  }
+  return new Float32Array(out);
+})();
+const WATERVERTS = wq.length / 3;
 const bufWater = buffer(wq, gl.ARRAY_BUFFER);
 
 // ---- shaders ----------------------------------------------------------------
@@ -504,7 +537,7 @@ function draw(now) {
   attr(prog, "aNormal", mesh.norm, 3);
   attr(prog, "aMark", mesh.mark, 1);
   gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, bufIdx);
-  gl.drawElements(gl.TRIANGLES, idx.length,
+  gl.drawElements(gl.TRIANGLES, IDXLEN,
                   idxArr === Uint32Array ? gl.UNSIGNED_INT : gl.UNSIGNED_SHORT, 0);
 
   if (showWater) {
@@ -518,7 +551,7 @@ function draw(now) {
       if (loc >= 0) gl.disableVertexAttribArray(loc);
     }
     attr(waterProg, "aPos", bufWater, 3);
-    gl.drawArrays(gl.TRIANGLES, 0, 6);
+    gl.drawArrays(gl.TRIANGLES, 0, WATERVERTS);
     gl.disable(gl.BLEND);
   }
 
