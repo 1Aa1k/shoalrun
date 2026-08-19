@@ -25,7 +25,11 @@
 // v4: the bottom chrome sat behind Safari's address bar.
 // v5: holding a drive-pad arrow selected the glyph instead of steering.
 // v6: rotating the phone left whichever canvas was hidden sized 0x0.
-const CACHE = 'shoalrun-v6';
+// v7: the guided tour, and the phone placement of its card. Shipped once
+//     without this bump, which is the mistake the note above describes: a
+//     phone with the app already on its home screen opened the pre-tour build
+//     from cache and there was nothing on screen to say why.
+const CACHE = 'shoalrun-v7';
 
 // index.html is the app. Everything else is a nicety, and the two lists are
 // separate because `cache.addAll` is all-or-nothing: one entry that 404s or
