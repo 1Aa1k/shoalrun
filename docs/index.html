@@ -642,8 +642,8 @@ body.sim::after { content: "SIMULATION"; position: absolute; top: 45%; left: 0; 
 
     <h4>Marks shown</h4>
     <div class="toggles">
-      <button id="btnDetailVerified" class="on">Verified only</button>
-      <button id="btnDetailAll">Every candidate</button>
+      <button id="btnDetailVerified">Verified only</button>
+      <button id="btnDetailAll" class="on">Every candidate</button>
     </div>
     <div class="foot" id="detailNote" style="margin-top:8px"></div>
 
@@ -4073,18 +4073,25 @@ const state = {
   //
   //   "verified" -- confirmed and likely only. 48 marks cross-checked at 0.3 m
   //                 plus 1,311 that return infrared, so a dry surface breaking
-  //                 the water. This is the default.
+  //                 the water.
   //   "all"      -- adds the 3,549 unverified. Imagery on this lake was measured
   //                 to carry no depth information, so these persisted across six
-  //                 flights and mean nothing more than that.
+  //                 flights and mean nothing more than that. This is the default.
   //
   // This used to be two separate toggles -- "guest mode" and "all rocks" -- on
   // opposite ends of the panel, and the app opened with 1,673 marks ringing the
   // whole shoreline in magenta. A map where every mark looks the same is a map
   // that teaches you to ignore all of them, including the 48 that are real.
   //
+  // That argument lost to the boat. Somebody who knows the lake would rather see
+  // a doubtful mark than miss a real one, and hiding three quarters of the set by
+  // default meant the map looked emptier than the water is. Showing everything is
+  // the cautious choice at the helm even though it is the noisier one on screen,
+  // so it is where a first run now starts -- and the choice is remembered, so
+  // anybody who wants the quiet map sets it once.
+  //
   // DRAWING ONLY. Every hazard stays in the alert index either way.
-  detail: "verified",
+  detail: "all",
   showCamps: true,
   structures: [],
   fix: null,
@@ -4668,6 +4675,33 @@ el("btnSwept").onclick = () => {
   view.draw(state);
 };
 
+// The first remembered setting in the app. localStorage rather than the
+// IndexedDB in store.js: that one holds evidence -- tracks and marks -- and a
+// display preference is not evidence. A private-mode browser throws on both
+// read and write here, so both are wrapped; losing a preference is not worth
+// taking the app down on a boat.
+const PREFS = "shoalrun:prefs";
+
+function readPrefs() {
+  try {
+    const raw = localStorage.getItem(PREFS);
+    const p = raw ? JSON.parse(raw) : null;
+    return p && typeof p === "object" ? p : {};
+  } catch (e) {
+    return {};
+  }
+}
+
+function writePref(key, value) {
+  try {
+    const p = readPrefs();
+    p[key] = value;
+    localStorage.setItem(PREFS, JSON.stringify(p));
+  } catch (e) {
+    /* private mode, or a full quota. The setting just does not stick. */
+  }
+}
+
 // How much of the candidate set to draw. The case that motivated all of this:
 // somebody else at the helm who does not know the lake.
 //
@@ -4680,6 +4714,7 @@ el("btnSwept").onclick = () => {
 // which is the one claim in the whole tool backed by direct evidence.
 function setDetail(level) {
   state.detail = level;
+  writePref("detail", level);
   el("btnDetailVerified").classList.toggle("on", level === "verified");
   el("btnDetailAll").classList.toggle("on", level === "all");
   if (level === "verified") {
@@ -5071,6 +5106,10 @@ initViews(
 );
 // Chart is the default: this gets used outdoors, in daylight, most of the time.
 setTheme(new URLSearchParams(location.search).get("theme") === "night" ? "night" : "chart");
+// Restore the remembered candidate set. Routed through setDetail rather than
+// assigned, so the lit button and the count under it can never disagree with
+// what is actually drawn.
+setDetail(readPrefs().detail === "verified" ? "verified" : "all");
 loadMarks().then(() => {
   // Rebuild the proven-water layer from every past trip. Until now these fixes
   // were logged and never read back, so each outing started from a blank lake.

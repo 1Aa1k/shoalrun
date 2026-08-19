@@ -33,7 +33,8 @@
 //     drawer was below the fold on a phone.
 // v10: the Tour button covered the Info tab. It can be dragged anywhere now,
 //     and remembers where it was put.
-const CACHE = 'shoalrun-v10';
+// v11: every candidate is the default draw, and the choice is remembered.
+const CACHE = 'shoalrun-v11';
 
 // index.html is the app. Everything else is a nicety, and the two lists are
 // separate because `cache.addAll` is all-or-nothing: one entry that 404s or
