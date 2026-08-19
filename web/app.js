@@ -452,6 +452,7 @@ function refreshCounts() {
 let selected = null;
 
 el("map").addEventListener("click", (e) => {
+  if (suppressClick) { suppressClick = false; return; }
   el("panel").classList.remove("open");
   el("btnLayers").classList.remove("on");
   const r = el("map").getBoundingClientRect();
@@ -524,6 +525,14 @@ el("btnUnmark").onclick = async () => {
   showSheet(selected);
 };
 el("btnClose").onclick = () => el("sheet").classList.remove("open");
+
+// Every drawer already has a Done button, but it sits at the bottom of a panel
+// that is taller than a phone screen -- the way out was below the fold. The
+// sticky X delegates to that same button rather than duplicating its logic,
+// which for the layers panel also has to unlight the Layers control.
+document.querySelectorAll(".drawer .x").forEach((b) => {
+  b.onclick = () => el(b.dataset.done).click();
+});
 
 // --- depth controls --------------------------------------------------------
 
@@ -811,6 +820,15 @@ el("btnExport").onclick = async () => {
 let drag = null;
 const pointers = new Map();
 let pinchDist = 0;
+
+// A tap and a pan both end in a click and the browser does not tell them apart,
+// so without this every pan drops the detail sheet on whatever the finger
+// happened to stop over. Measured as accumulated path, not net displacement --
+// a finger that wobbles and returns has still panned the map, and a thumb on a
+// wet screen wobbles.
+const TAP_SLOP = 12;
+let suppressClick = false;
+
 const map = el("map");
 
 function zoomBy(factor) {
@@ -819,9 +837,12 @@ function zoomBy(factor) {
 
 map.addEventListener("pointerdown", (e) => {
   pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
-  if (pointers.size === 1) drag = { x: e.clientX, y: e.clientY, moved: 0 };
-  else if (pointers.size === 2) {
+  if (pointers.size === 1) {
+    drag = { x: e.clientX, y: e.clientY, moved: 0 };
+    suppressClick = false;
+  } else if (pointers.size === 2) {
     drag = null;
+    suppressClick = true;
     const [a, b] = [...pointers.values()];
     pinchDist = Math.hypot(a.x - b.x, a.y - b.y);
   }
@@ -842,6 +863,7 @@ map.addEventListener("pointermove", (e) => {
   const dx = e.clientX - drag.x;
   const dy = e.clientY - drag.y;
   drag.moved += Math.hypot(dx, dy);
+  if (drag.moved > TAP_SLOP) suppressClick = true;
   const c = Math.cos(-view.rotation);
   const s = Math.sin(-view.rotation);
   view.center.x -= (dx * c - -dy * s) / view.scale;
