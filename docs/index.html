@@ -3413,8 +3413,14 @@ function trackVisibleHeight(win = window, doc = document) {
   function scrollIntoView(node) {
     var r = node.getBoundingClientRect();
     var vh = window.innerHeight;
-    if (r.top >= 0 && r.bottom <= vh) return Promise.resolve();
-    node.scrollIntoView({ block: 'center', inline: 'center', behavior: 'smooth' });
+    /* A target taller than most of the screen cannot be centred usefully: half
+     * of it ends up off one edge, and on a phone the card then covers a good
+     * part of the rest. Align its top instead, so what is on screen starts at
+     * the beginning of the thing rather than in the middle of it. */
+    var block = r.height > vh * 0.55 ? 'start' : 'center';
+    if (block === 'center' && r.top >= 0 && r.bottom <= vh) return Promise.resolve();
+    if (block === 'start' && r.top >= 0 && r.top < vh * 0.25) return Promise.resolve();
+    node.scrollIntoView({ block: block, inline: 'center', behavior: 'smooth' });
     /* No scrollend everywhere yet, so settle on a timer. */
     return new Promise(function (r2) { setTimeout(r2, 380); });
   }
@@ -3497,8 +3503,16 @@ function trackVisibleHeight(win = window, doc = document) {
        * is what the stylesheet used to do, covers every control in the lower
        * half of the screen -- including the helm buttons the tour is pointing
        * at on a boat. */
-      var below = rect.top + rect.height / 2 < vh / 2;
       ui.card.style.left = '';
+
+      /* A target too tall to clear either way cannot be fully uncovered. It is
+       * top-aligned by then, so the bottom is the end that hides least of it. */
+      if (rect.height > vh - ch - gap * 2 - 24) {
+        ui.card.style.top = Math.round(vh - ch - 12) + 'px';
+        return;
+      }
+
+      var below = rect.top + rect.height / 2 < vh / 2;
       ui.card.style.top = below
         ? Math.round(Math.min(rect.bottom + gap, vh - ch - 12)) + 'px'
         : Math.round(Math.max(rect.top - ch - gap, 12)) + 'px';
