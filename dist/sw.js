@@ -31,7 +31,9 @@
 //     from cache and there was nothing on screen to say why.
 // v9: a pan on the map ended by opening the detail sheet, and the way out of a
 //     drawer was below the fold on a phone.
-const CACHE = 'shoalrun-v9';
+// v10: the Tour button covered the Info tab. It can be dragged anywhere now,
+//     and remembers where it was put.
+const CACHE = 'shoalrun-v10';
 
 // index.html is the app. Everything else is a nicety, and the two lists are
 // separate because `cache.addAll` is all-or-nothing: one entry that 404s or

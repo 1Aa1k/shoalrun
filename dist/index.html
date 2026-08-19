@@ -3386,6 +3386,7 @@ function trackVisibleHeight(win = window, doc = document) {
     '#' + NS + '-launch{position:fixed;right:16px;bottom:16px;z-index:2147482000;',
     'font:600 14.5px/1 ui-sans-serif,system-ui,-apple-system,sans-serif;letter-spacing:.08em;',
     'text-transform:uppercase;padding:14px 22px;border-radius:999px;cursor:pointer;height:auto;',
+    'touch-action:none;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;',
     'background:#fff;color:#000;border:0;box-shadow:0 6px 22px rgba(0,0,0,.45);}',
     '#' + NS + '-launch:hover{background:#e2e2e2;color:#000;}',
     '@media (max-width:' + MOBILE + 'px){',
@@ -3778,25 +3779,98 @@ function trackVisibleHeight(win = window, doc = document) {
     else go();
   }
 
+  /* How much of the layout viewport the browser is currently sitting on top of.
+   * On iOS Safari the bottom of the layout viewport is behind the address bar,
+   * so anything anchored to `bottom` has to be lifted by this much. Zero on
+   * every desktop and on Android. */
+  function hiddenPx() {
+    return Math.max(0, window.innerHeight - vpH() - vpTop());
+  }
+
   function launcher(steps, opts) {
     if (document.getElementById(NS + '-launch')) return;
     var b = el('button');
     b.id = NS + '-launch';
     b.type = 'button';
     b.textContent = opts.launchLabel || 'Tour';
-    b.addEventListener('click', function () { start(steps, opts); });
     injectCss();
     document.body.appendChild(b);
 
-    /* `bottom: 16px` is measured against the layout viewport, and on iOS Safari
-     * the bottom of the layout viewport is behind the address bar. Lift the
-     * button by whatever part of the page the browser is currently sitting on
-     * top of. Zero on every desktop and on Android, so nothing else moves. */
+    /* There is no corner that is free on every screen -- bottom-right covered
+     * the Info tab on a phone -- so rather than guess a better one, let it be
+     * moved and remember where. Stored as a distance from the bottom-right
+     * corner rather than as x/y: the lift above still applies unchanged, and a
+     * rotation or a keyboard shrinking the viewport pulls the button back in
+     * with the corner instead of flinging it off the far edge. */
+    var POS = NS + ':pos:' + (opts.id || 'default');
+    var pos = null;
+    try { pos = JSON.parse(localStorage.getItem(POS) || 'null'); } catch (e) {}
+    if (!pos || typeof pos.r !== 'number' || typeof pos.b !== 'number') pos = null;
+
+    /* Clamping writes back into `pos` rather than into a local, so what gets
+     * persisted on drop is somewhere the button can actually be. */
     var lift = function () {
-      var hidden = Math.max(0, window.innerHeight - vpH() - vpTop());
-      b.style.bottom = (16 + hidden) + 'px';
+      var w = b.offsetWidth || 96;
+      var h = b.offsetHeight || 44;
+      var maxR = Math.max(8, vpW() - w - 8);
+      var maxB = Math.max(8, vpH() - h - 8);
+      if (pos) {
+        pos.r = Math.min(Math.max(pos.r, 8), maxR);
+        pos.b = Math.min(Math.max(pos.b, 8), maxB);
+      }
+      b.style.right = (pos ? pos.r : 16) + 'px';
+      b.style.bottom = ((pos ? pos.b : 16) + hiddenPx()) + 'px';
     };
     lift();
+
+    /* A press that travels is a move; a press that does not is a tap that opens
+     * the tour. Same problem as the map: the browser fires `click` either way
+     * and does not tell them apart. */
+    var DRAG_SLOP = 8;
+    var grab = null;
+    var moved = false;
+
+    b.addEventListener('pointerdown', function (e) {
+      if (e.button != null && e.button !== 0) return;
+      grab = {
+        id: e.pointerId,
+        x: e.clientX,
+        y: e.clientY,
+        r: pos ? pos.r : 16,
+        b: pos ? pos.b : 16,
+        far: 0
+      };
+      moved = false;
+      if (b.setPointerCapture) b.setPointerCapture(e.pointerId);
+    });
+
+    b.addEventListener('pointermove', function (e) {
+      if (!grab || e.pointerId !== grab.id) return;
+      var dx = e.clientX - grab.x;
+      var dy = e.clientY - grab.y;
+      grab.far = Math.max(grab.far, Math.hypot(dx, dy));
+      if (grab.far <= DRAG_SLOP) return;
+      e.preventDefault();
+      moved = true;
+      /* Right and bottom grow the other way from x and y. */
+      pos = { r: grab.r - dx, b: grab.b - dy };
+      lift();
+    });
+
+    var drop = function (e) {
+      if (!grab || e.pointerId !== grab.id) return;
+      grab = null;
+      if (!moved || !pos) return;
+      try { localStorage.setItem(POS, JSON.stringify({ r: Math.round(pos.r), b: Math.round(pos.b) })); } catch (e2) {}
+    };
+    b.addEventListener('pointerup', drop);
+    b.addEventListener('pointercancel', drop);
+
+    b.addEventListener('click', function (e) {
+      if (moved) { moved = false; e.preventDefault(); e.stopPropagation(); return; }
+      start(steps, opts);
+    });
+
     var v = vv();
     if (v && v.addEventListener) {
       v.addEventListener('resize', lift);
@@ -3804,6 +3878,7 @@ function trackVisibleHeight(win = window, doc = document) {
     } else {
       window.addEventListener('resize', lift);
     }
+    window.addEventListener('resize', lift);
   }
 
   root.Tour = { start: start, auto: auto, stop: function () { finish(false); }, seen: seen };
