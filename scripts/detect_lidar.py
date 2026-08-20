@@ -1,35 +1,41 @@
 #!/usr/bin/env python3
-"""Rocks that stood above the water when the lidar flew.
+"""Things that stood above the water when the lidar flew. Mostly not rock.
 
-Every optical route on this lake is closed. Satellite-derived bathymetry scored
-AUC 0.507 against the soundings, and the lake-stage exposure route died because
-all six NAIP flights are July-September on a regulated lake held near full pool.
-The common cause is that no photon comes back off the bottom through this water.
+DO NOT SHIP THIS AS A HAZARD LAYER. Measured against the 32 hand-mapped
+reference rocks it is WORSE THAN CHANCE, and it is kept only because the
+measurement is worth having and the next person will otherwise have the same
+idea. `docs/handoffs/2026-08-19-lidar-above-water-null.md` has the numbers.
 
-Lidar sidesteps the argument entirely. 1064 nm does not penetrate water either,
-which is the point: a return from inside the lake polygon is a return off
-something solid that was ABOVE the surface. No inference, no water column, no
-threshold on a colour.
+The idea was sound and the physics is real. Every optical route on this lake is
+closed because no photon comes back off the bottom through tannic water; 1064 nm
+does not penetrate water either, and that is the point. A return from inside the
+lake polygon is a return off something solid that was above the surface. No
+inference, no water column, no threshold on a colour.
 
-Two facts make this worth doing rather than merely sound:
+Two things still hold and are worth keeping:
 
-  1. The DSM keeps its voids. 3.24% of in-lake cells are NaN, so the product is
-     gridded returns and not an interpolated skin -- a fill would have smeared
-     any rock into its surroundings and quietly manufactured detections.
+  1. The DSM keeps its voids. 3.19% of in-lake cells are NaN, so the product is
+     gridded returns and not an interpolated skin.
   2. The flight caught a drawdown. In-lake returns sit at 145.668 m with a
-     3.2 cm sd; that is 477.9 ft, about 5 ft below the 483 ft full pool. So this
-     exposes the class NAIP structurally cannot: rock that is dry at low water
-     and a foot under the prop at full pond.
+     3.2 cm sd -- 477.9 ft, about 5 ft below the 483 ft full pool. The lidar saw
+     this lake lower than any of the six NAIP flights ever did.
 
-What this does NOT give you: anything below the waterline at flight time. A rock
-6 ft down on the day is as invisible here as it is to NAIP. This measures one
-horizontal slice of the hazard field, taken at a known stage, and the honest use
-of it is as ground truth -- real positives with real footprints -- for detectors
-that must work where no lidar exists.
+What killed it is what killed the camps sweep on the same shoreline: canopy.
+Spruce leaning off the bank returns lidar from inside the lake polygon, metres
+above the water, and no shore buffer that still keeps rock can exclude it --
+the reference rocks sit a median 1.6 m from the shoreline. Scored in height
+bands, every band from 0.15 m to 99 m loses to a shore-matched null, and every
+band fires on the 137 known-empty `open_water` marks two to three times more
+often than that null does. There is no band where this works.
+
+The lift looks strongly positive (+25%) against a UNIFORM null, which is the
+control the older scripts use. That control is not honest here: rocks hug the
+shoreline and so does everything else that returns lidar near the waterline.
 
     .venv/bin/python scripts/fetch_terrain.py --collection 3dep-lidar-dsm \
         --res-m 2 --pad-m 0 --out data/dsm_2m.npz
     .venv/bin/python scripts/detect_lidar.py
+    .venv/bin/python scripts/score_lidar.py     # the number that matters
 """
 
 from __future__ import annotations
@@ -51,9 +57,26 @@ OUT = DATA / "rocks_lidar.geojson"
 
 # Distance from the mapped shoreline that the mask ignores. The OSM shoreline and
 # the 2017 lidar were drawn from different sources at different lake stages, so
-# a cell right at the line is as likely to be beach as water. 10 m is wider than
-# the disagreement measured between them.
-SHORE_BUFFER_M = 10.0
+# a cell right at the line is as likely to be beach as water.
+#
+# This was 10 m and that was a serious error, caught by scoring: the reference
+# rocks on this lake sit a median 1.6 m from the shoreline, so a 10 m buffer
+# excluded almost the entire population the detector exists to find, then scored
+# 31% recall on what was left. 4 m is enough to keep the mapped line's own
+# disagreement out without deleting the answer.
+SHORE_BUFFER_M = 4.0
+
+# Side of the block the local water surface is measured over, and the minimum
+# number of water cells a block needs before its own median is trusted.
+#
+# One elevation for the whole lake is wrong in principle -- flight lines are
+# flown at different times and wind pushes the surface up at one end. Measured
+# here it is nearly right in practice: local planes vary 12 cm from p1 to p99
+# and only 2 blocks of 3,626 clear the detection threshold on plane alone. It is
+# corrected anyway because 12 cm against a 15 cm threshold leaves no margin, and
+# because "measured, small" is a different claim from "assumed zero".
+PLANE_BLOCK_M = 100.0
+PLANE_MIN_CELLS = 200
 
 # A return this far above the water plane is not water. The plane's own sd is
 # 3.2 cm, so 0.15 m is roughly 5 sd -- high enough that surface noise cannot
@@ -98,6 +121,41 @@ def water_plane(elev: np.ndarray, mask: np.ndarray) -> float:
     return float(np.median(v[v < first + 0.5]))
 
 
+def local_plane(elev: np.ndarray, mask: np.ndarray, global_m: float,
+                cell_m: float, block_m: float = PLANE_BLOCK_M,
+                min_cells: int = PLANE_MIN_CELLS) -> np.ndarray:
+    """The water surface as a smooth field rather than one number.
+
+    Blocks with too little water to measure -- a bay full of island, the middle
+    of a shoal -- are filled from their neighbours by nearest value rather than
+    dropped to the global plane, because dropping them reintroduces exactly the
+    step this is here to remove, and puts it at the edge of every island.
+    """
+    B = max(1, int(round(block_m / cell_m)))
+    water = mask & np.isfinite(elev) & (np.abs(elev - global_m) < 0.5)
+    by, bx = elev.shape[0] // B, elev.shape[1] // B
+
+    # Sums and counts per block via reshape, so this is two reductions rather
+    # than a Python loop over ~7,500 blocks.
+    trim = (slice(0, by * B), slice(0, bx * B))
+    w = water[trim].reshape(by, B, bx, B)
+    e = np.where(water[trim], elev[trim], 0.0).reshape(by, B, bx, B)
+    cnt = w.sum(axis=(1, 3))
+    # Mean, not median: a median needs the values kept, and at this block count
+    # the difference is under a millimetre on a surface whose sd is 3 cm.
+    coarse = np.where(cnt >= min_cells, e.sum(axis=(1, 3)) / np.maximum(cnt, 1), np.nan)
+
+    good = np.isfinite(coarse)
+    if not good.any():
+        return np.full(elev.shape, global_m, dtype=np.float32)
+    idx = ndimage.distance_transform_edt(~good, return_distances=False,
+                                         return_indices=True)
+    filled = coarse[tuple(idx)]
+
+    full = ndimage.zoom(filled, (elev.shape[0] / by, elev.shape[1] / bx), order=1)
+    return full[: elev.shape[0], : elev.shape[1]].astype(np.float32)
+
+
 def components(height: np.ndarray, min_cells: int):
     """Label 8-connected blobs standing above the water plane.
 
@@ -136,7 +194,15 @@ def main() -> None:
     print(f"lake surface at flight time: {plane:.3f} m = {plane * 3.28084:.1f} ft")
     print(f"in-lake cells {inner.sum():,}, voids {np.isnan(elev[inner]).mean() * 100:.2f}%")
 
-    height = np.where(inner & np.isfinite(elev), elev - plane, -1.0)
+    surface = local_plane(elev, inner, plane, cell_m)
+    dev = (surface[inner] - plane) * 100
+    print(f"local surface deviates {np.percentile(dev, 1):+.1f} to "
+          f"{np.percentile(dev, 99):+.1f} cm from the global plane")
+
+    # float32 throughout: elev is float32 and `plane` being a Python float would
+    # promote the whole 19 M cell grid to float64 for no gain.
+    height = np.where(inner & np.isfinite(elev), elev - surface,
+                      np.float32(-1.0)).astype(np.float32)
     above = np.where(height >= args.min_height_m, height, 0.0)
 
     cell_area = cell_m * cell_m
@@ -171,6 +237,7 @@ def main() -> None:
                 "class": "island" if area > ISLAND_AREA_M2 else "rock",
                 "source": "3dep-lidar-dsm-2m",
                 "stage_ft": round(plane * 3.28084, 1),
+                "shore_buffer_m": args.shore_buffer_m,
                 "verdict": "above_water_at_flight",
             },
         })
