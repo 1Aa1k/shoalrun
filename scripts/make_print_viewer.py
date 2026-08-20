@@ -29,6 +29,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from make_stl import (
     FT_PER_M,
     crop_to_mask,
+    rim_band,
     shore_mask,
     TERRAIN,
     EXAG_CAP,
@@ -67,6 +68,8 @@ def main() -> None:
                     help="cut the outline to the lake's own shape")
     ap.add_argument("--shore-m", type=float, default=150.0,
                     help="metres of land kept around the water when --trim is on")
+    ap.add_argument("--rim-mm", type=float, default=0.0,
+                    help="flat rim at the waterline around the trimmed outline, in mm")
     ap.add_argument("--out", type=Path, default=OUT)
     args = ap.parse_args()
 
@@ -95,15 +98,20 @@ def main() -> None:
 
     # Same cut, same order as the STL: before the scale is taken off the
     # array's width, or the page and the print disagree about how big it is.
-    mask = None
+    mask = rim = None
     if args.trim:
         mask = shore_mask(depth, meta["grid_m"], args.shore_m)
-        mask, depth, land, ti, tj = crop_to_mask(mask, depth, land)
+        rim = rim_band(mask, args.rim_mm, args.width_mm) if args.rim_mm > 0 else None
+        if rim is not None:
+            mask = mask | rim
+        mask, depth, land, rim, ti, tj = crop_to_mask(mask, depth, land, rim)
         i0 += ti
         j0 += tj
 
     scale = args.width_mm / (depth.shape[1] * meta["grid_m"])
     seen = np.ones(depth.shape, bool) if mask is None else mask
+    if rim is not None:
+        seen = seen & ~rim          # the rim is flattened; its hills are not relief
     relief_m = float(np.nan_to_num(depth, nan=0.0)[seen].max())
     if land is not None:
         relief_m += float(land[seen].max())
@@ -120,6 +128,10 @@ def main() -> None:
     # asks what the dots are, and the answer -- these are the only real
     # measurements, everything else is interpolation -- is the whole point of
     # having drawn them.
+    sub_rim = None if rim is None else rim[::args.step, ::args.step]
+    if sub_rim is not None:
+        model.z[sub_rim] = args.base_mm + model.max_depth_m * model.mm_per_m
+
     plain_z = model.z.copy()
     pins = mark_soundings(model, meta, step=args.step) if args.soundings else 0
     built = piers = 0

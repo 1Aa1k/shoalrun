@@ -490,6 +490,32 @@ def shore_mask(depth_m: np.ndarray, grid_m: float, shore_m: float) -> np.ndarray
     return ndimage.binary_fill_holes(keep)
 
 
+def rim_band(mask: np.ndarray, rim_mm: float, width_mm: float) -> np.ndarray:
+    """The ring of cells that becomes a flat lip around the trimmed outline.
+
+    Terrain cut to a shoreline ends wherever the ground happened to be, which
+    reads as an object someone tore rather than one someone made. A flat band
+    at the water plane gives it a deliberate edge, and gives the print a
+    continuous foot to stand on instead of whatever the last hill left.
+
+    The width is solved rather than guessed: the rim widens the array, and the
+    horizontal scale is taken from the array's width, so `r` cells of rim on a
+    `w` cell lake comes out at `r * width_mm / (w + 2r)` mm of print. Setting
+    that equal to the asked-for width and solving for `r` is exact, where
+    dilating by an estimate and measuring afterwards is not.
+    """
+    from scipy import ndimage
+
+    if rim_mm * 2 >= width_mm:
+        raise SystemExit(f"--rim-mm {rim_mm:g} leaves no room inside a "
+                         f"{width_mm:g} mm print")
+    w_in = int(np.flatnonzero(mask.any(axis=0)).size)
+    r = int(round(rim_mm * w_in / (width_mm - 2 * rim_mm)))
+    if r < 1:
+        return np.zeros_like(mask)
+    return ndimage.binary_dilation(mask, iterations=r) & ~mask
+
+
 def crop_to_mask(mask: np.ndarray, *fields: np.ndarray):
     """Cut every field down to the mask's bounding box, mask first.
 
@@ -702,6 +728,8 @@ def main() -> None:
                     help="cut the outline to the lake's own shape instead of a slab")
     ap.add_argument("--shore-m", type=float, default=150.0,
                     help="metres of land kept around the water when --trim is on")
+    ap.add_argument("--rim-mm", type=float, default=0.0,
+                    help="flat rim at the waterline around the trimmed outline, in mm")
     ap.add_argument("--step", type=int, default=1,
                     help="sample every Nth grid cell; 2 quarters the file")
     ap.add_argument("--soundings", action="store_true",
@@ -748,10 +776,13 @@ def main() -> None:
     # The trim has to happen here: the horizontal scale is taken from the
     # array's width two lines down, so cutting the outline afterwards would
     # leave --width-mm describing the slab the lake was cut out of.
-    mask = None
+    mask = rim = None
     if args.trim:
         mask = shore_mask(depth, meta["grid_m"], args.shore_m)
-        mask, depth, land, ti, tj = crop_to_mask(mask, depth, land)
+        rim = rim_band(mask, args.rim_mm, args.width_mm) if args.rim_mm > 0 else None
+        if rim is not None:
+            mask = mask | rim
+        mask, depth, land, rim, ti, tj = crop_to_mask(mask, depth, land, rim)
         i0 += ti
         j0 += tj
     # With the land in, one vertical scale has to serve 23 m of lake and 230 m
@@ -763,7 +794,12 @@ def main() -> None:
     # Only the relief the object KEEPS may set the exaggeration. A trimmed print
     # solved against a hilltop 600 m inland is solving for a peak that gets cut
     # off, and comes out a third of the height that was asked for.
+    # The rim is flattened to the water plane later, so the hills that happen
+    # to stand in it must not set the exaggeration -- the same mistake as
+    # solving against a hilltop the trim cuts off, one step further in.
     seen = np.ones(depth.shape, bool) if mask is None else mask
+    if rim is not None:
+        seen = seen & ~rim
     relief_m = float(np.nan_to_num(depth, nan=0.0)[seen].max())
     if land is not None:
         relief_m += float(land[seen].max())
@@ -781,6 +817,13 @@ def main() -> None:
     model = build_surface(depth, meta["grid_m"], args.width_mm, exag,
                           args.base_mm, args.step, origin + i0, origin + j0, land,
                           land_exag, args.step_ft, args.land_step_ft)
+
+    # Flattened before the markers go on: a pin is clamped to the water plane,
+    # and the rim IS the water plane, so doing this afterwards would shave the
+    # pins nearest the shore off at the ankle.
+    sub_rim = None if rim is None else rim[::args.step, ::args.step]
+    if sub_rim is not None:
+        model.z[sub_rim] = args.base_mm + model.max_depth_m * model.mm_per_m
 
     pins = mark_soundings(model, meta, step=args.step) if args.soundings else 0
     built = piers = 0
