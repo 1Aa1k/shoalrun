@@ -295,6 +295,24 @@ class TestCampPylons:
         assert (m.z - before).max() == pytest.approx(3.5)
 
 
+class TestLandFraction:
+    def test_the_hills_come_out_a_third_of_the_basin(self):
+        """The ask is about the object, not the ground: fix the printed ratio
+        and let the exaggeration fall out of it."""
+        d = basin(ny=21, nx=21, deep=20.0)
+        land = np.zeros_like(d)
+        land[0, :] = 60.0                      # a ridge on the far shore
+        deep_m, land_m = 20.0, 60.0
+        exag, frac = 55.0, 1 / 3
+        land_exag = frac * deep_m * exag / land_m
+        m = build_surface(d, 25.0, 90.0, exag, 3.0, land_m=land,
+                          land_exag=land_exag)
+        plane = 3.0 + m.max_depth_m * m.mm_per_m
+        printed_depth = plane - m.z.min()
+        printed_land = m.z.max() - plane
+        assert printed_land / printed_depth == pytest.approx(frac, rel=1e-3)
+
+
 class TestShoreMask:
     def test_the_band_grows_with_shore_m(self):
         d = basin()

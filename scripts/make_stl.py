@@ -851,6 +851,9 @@ def main() -> None:
                     help="vertical exaggeration; default solves for --target-mm")
     ap.add_argument("--land-exag", type=float, default=None,
                     help="separate exaggeration for the land; defaults to --exag")
+    ap.add_argument("--land-fraction", type=float, default=None,
+                    help="make the printed hills this fraction of the printed "
+                         "basin depth, e.g. 0.333; solves --land-exag for you")
     ap.add_argument("--step-ft", type=float, default=0.0,
                     help="terrace the LAKE into whole steps of feet, e.g. 10")
     ap.add_argument("--land-step-ft", type=float, default=0.0,
@@ -955,12 +958,27 @@ def main() -> None:
     seen = np.ones(depth.shape, bool) if mask is None else mask
     if rim is not None:
         seen = seen & ~rim
-    relief_m = float(np.nan_to_num(depth, nan=0.0)[seen].max())
-    if land is not None:
-        relief_m += float(land[seen].max())
+    # Measured on the samples the SURFACE is built from. build_surface takes
+    # every --step'th cell, so a summit that falls between samples is not in
+    # the object, and solving a height or a ratio against it aims at ground
+    # that never gets printed.
+    st = args.step
+    seen_s = seen[::st, ::st]
+    deep_m = float(np.nan_to_num(depth[::st, ::st], nan=0.0)[seen_s].max())
+    land_m = float(land[::st, ::st][seen_s].max()) if land is not None else 0.0
+    relief_m = deep_m + land_m
     exag = args.exag
     if exag is None:
         exag = min(EXAG_CAP, max(1.0, args.target_mm / max(relief_m * scale, 1e-9)))
+
+    # Asking for the hills to stand a third of the basin's depth is a
+    # statement about the OBJECT, not about the ground: it fixes the printed
+    # ratio and lets the exaggeration fall out of it. Solved rather than dialled
+    # in by hand, so it survives a change of width, crust, or lake.
+    if args.land_fraction is not None and args.land_exag is None:
+        if land is None or land_m <= 0:
+            raise SystemExit("--land-fraction needs terrain; drop --no-terrain")
+        args.land_exag = args.land_fraction * deep_m * exag / land_m
 
     land_exag = args.land_exag
     if land_exag is None and args.exag is None and land is not None:
