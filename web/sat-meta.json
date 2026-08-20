@@ -1,0 +1,12 @@
+{
+  "crs": "EPSG:4326",
+  "west": -68.8560028,
+  "south": 45.7200318,
+  "east": -68.71848539999999,
+  "north": 45.7928972,
+  "width": 5340,
+  "height": 4056,
+  "res_m": 2.0,
+  "year": "2023",
+  "source": "USDA NAIP via Microsoft Planetary Computer"
+}

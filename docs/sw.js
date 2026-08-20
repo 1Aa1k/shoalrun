@@ -34,7 +34,9 @@
 // v10: the Tour button covered the Info tab. It can be dragged anywhere now,
 //     and remembers where it was put.
 // v11: every candidate is the default draw, and the choice is remembered.
-const CACHE = 'shoalrun-v11';
+// v12: the aerial photograph overlay and its opacity slider. sat.jpg joins the
+//      shell so the imagery is on the phone before the lake is.
+const CACHE = 'shoalrun-v12';
 
 // index.html is the app. Everything else is a nicety, and the two lists are
 // separate because `cache.addAll` is all-or-nothing: one entry that 404s or
@@ -46,8 +48,14 @@ const CACHE = 'shoalrun-v11';
 // a host that rewrites a clean URL onto the file (sproultech.com/shoalrun) the
 // same request answers with a redirect instead, which addAll refuses. So it is
 // optional, added on its own, and a failure is ignored.
+//
+// sat.jpg is the aerial overlay: several megabytes, and the only file in the
+// shell that is not text. It is optional by design -- a build where the imagery
+// was never made must still install and still open the chart. Precaching it
+// here is what makes the slider work 10 km up the lake, since the app fetches
+// the photograph on first use rather than at boot.
 const REQUIRED = ['./index.html'];
-const OPTIONAL = ['./', './3d.html', './manifest.json'];
+const OPTIONAL = ['./', './3d.html', './manifest.json', './sat.jpg'];
 
 self.addEventListener('install', (e) => {
   e.waitUntil(

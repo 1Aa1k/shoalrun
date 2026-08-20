@@ -323,6 +323,17 @@ export class MapView {
       ctx.restore();
     }
 
+    // The photograph goes over the chart's fills and depth shading but under
+    // every line and marker. That ordering is the whole point: at full opacity
+    // you are looking at the water itself with the contours and the candidate
+    // marks still drawn on top of it, which is the comparison being asked for.
+    // Deliberately NOT clipped to the lake -- the rocks that matter are at the
+    // shoreline, and clipping to the water polygon would cut off the half of
+    // each one that is dry.
+    if (state.satImg && state.sat && state.satOpacity > 0) {
+      this._drawSat(state.satImg, state.sat, state.satOpacity);
+    }
+
     // Soft inner glow along the shore, then the crisp line on top. The glow is
     // what stops a dark shoreline on dark land from disappearing in sunlight.
     // A paper chart has no such thing, so the chart theme skips it.
@@ -437,6 +448,44 @@ export class MapView {
     }
     ctx.textAlign = "start";
     ctx.textBaseline = "alphabetic";
+  }
+
+  /**
+   * The aerial photograph, placed by its own corner coordinates.
+   *
+   * Drawn through the world->screen matrix rather than into a screen-space
+   * rectangle, because the map rotates: at any heading other than north the
+   * image is a rotated quadrilateral on screen, and a four-argument drawImage
+   * would only ever produce an upright box.
+   */
+  _drawSat(img, box, alpha) {
+    const ctx = this.ctx;
+    const c = Math.cos(this.rotation);
+    const s = Math.sin(this.rotation);
+    const k = this.scale;
+    const d = this.dpr;
+
+    ctx.save();
+    ctx.globalAlpha = Math.max(0, Math.min(1, alpha));
+    ctx.setTransform(
+      d * k * c,
+      d * -k * s,
+      d * -k * s,
+      d * -k * c,
+      d * (this.w / 2 - k * c * this.center.x + k * s * this.center.y),
+      d * (this.h / 2 + k * s * this.center.x + k * c * this.center.y),
+    );
+    /* Row 0 of the image is the NORTH edge, and north is +y in world metres
+     * while the matrix above already flips y for the screen. Scaling by a
+     * negative y factor puts the top row at the top of the image's world box
+     * instead of the bottom. */
+    ctx.translate(box.x0, box.y1);
+    ctx.scale((box.x1 - box.x0) / img.width, (box.y0 - box.y1) / img.height);
+    /* Smoothing on: this is a photograph being scaled, and nearest-neighbour
+     * on a photograph looks like a fault rather than like detail. */
+    ctx.imageSmoothingEnabled = true;
+    ctx.drawImage(img, 0, 0);
+    ctx.restore();
   }
 
   // The depth surface as an image. It is an axis-aligned grid in world space,

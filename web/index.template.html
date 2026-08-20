@@ -647,6 +647,14 @@ body.sim::after { content: "SIMULATION"; position: absolute; top: 45%; left: 0; 
     </div>
     <div class="foot" id="detailNote" style="margin-top:8px"></div>
 
+    <!-- Sits with the marks rather than with the water layers on purpose: the
+         magenta candidates came off aerial imagery, so the photograph is how
+         somebody checks one. It is a comparison tool, not the chart. -->
+    <div class="slider" id="satRow">
+      <div class="lab"><span>Aerial photo</span><b id="valSat">off</b></div>
+      <input type="range" id="sldSat" min="0" max="100" step="5" value="0">
+    </div>
+
     <h4>Water</h4>
     <div class="toggles">
       <button id="btnDepth" class="on">Depth shading</button>

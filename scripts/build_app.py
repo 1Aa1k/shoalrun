@@ -104,6 +104,10 @@ def main():
     soundings = json.loads((DATA / "soundings.geojson").read_text())
     sp = DATA / "structures.geojson"
     structures = json.loads(sp.read_text()) if sp.exists() else {"features": []}
+    # Georeferencing for the aerial overlay -- a dozen numbers, so it rides
+    # inline with everything else. The photograph itself does not; see below.
+    smp = WEB / "sat-meta.json"
+    sat_meta = json.loads(smp.read_text()) if smp.exists() else None
 
     # Rocks ship as centroids only: the app alerts on proximity to a point, and
     # the full outlines would multiply the payload for no navigational gain.
@@ -160,6 +164,7 @@ def main():
         "depth": depth,
         "soundings": spot,
         "structures": round_coords(structures),
+        "sat": sat_meta,
         "meta": {
             "summary": (
                 f"{LAKE_NAME}: {sum(counts.values())} candidates "
@@ -240,6 +245,16 @@ def main():
         if src.exists():
             (DIST / extra).write_text(src.read_text())
 
+    # The aerial photograph ships beside the app rather than inside it. It is
+    # several megabytes at a resolution where a boulder is more than one pixel,
+    # and index.html is what the first paint blocks on -- inlining it would
+    # trade the thing that matters for the thing that is nice to have. The
+    # service worker precaches it, so it is on the phone before the lake.
+    sat = DATA / "sat.jpg"
+    if sat.exists():
+        (DIST / "sat.jpg").write_bytes(sat.read_bytes())
+        print(f"  + sat.jpg ({sat.stat().st_size / 1e6:.1f} MB aerial overlay)")
+
     # docs/ is the GitHub Pages copy. It was written by hand once and then went
     # eight days stale behind dist/, which means a Pages link and a dist link
     # were two different apps -- and the Pages one is the link somebody is more
@@ -251,6 +266,12 @@ def main():
             src = DIST / name
             if src.exists():
                 (docs / name).write_text(src.read_text())
+        # Binary, so write_bytes -- write_text on a JPEG raises on the first
+        # byte that is not valid UTF-8, and the ones that are would be corrupted
+        # silently. Kept out of the loop above for exactly that reason.
+        sat_dist = DIST / "sat.jpg"
+        if sat_dist.exists():
+            (docs / "sat.jpg").write_bytes(sat_dist.read_bytes())
 
     print(f"wrote {out}  ({out.stat().st_size / 1024:.0f} KB, fully offline)")
     print("  map + 3D bottom + info, one page, three tabs")

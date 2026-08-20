@@ -13,7 +13,7 @@ import { trackVisibleHeight } from "./viewport.js";
 
 // DATA is injected at build time so the app is one self-contained file with no
 // network dependency of any kind. There is no cell service on this lake.
-const { lake: LAKE_GEO, rocks: ROCK_GEO, depth: DEPTH_RAW, soundings: SOUNDING_RAW, structures: STRUCT_GEO, meta: DATA_META } = window.SHOALRUN_DATA;
+const { lake: LAKE_GEO, rocks: ROCK_GEO, depth: DEPTH_RAW, soundings: SOUNDING_RAW, structures: STRUCT_GEO, sat: SAT_META, meta: DATA_META } = window.SHOALRUN_DATA;
 
 // Contour intervals the slider steps through. Discrete rather than continuous
 // because a 7 ft contour interval is not a thing anyone wants -- the useful
@@ -74,6 +74,12 @@ const state = {
   //
   // DRAWING ONLY. Every hazard stays in the alert index either way.
   detail: "all",
+  // Opacity of the aerial photograph laid over the chart, 0..1. Off by default:
+  // it is a comparison tool, not the map, and it costs a several-megabyte
+  // decode the moment it is turned up.
+  satOpacity: 0,
+  sat: null,
+  satImg: null,
   showCamps: true,
   structures: [],
   fix: null,
@@ -710,6 +716,49 @@ function setDetail(level) {
 el("btnDetailVerified").onclick = () => setDetail("verified");
 el("btnDetailAll").onclick = () => setDetail("all");
 
+// The photograph is loaded on first use, not at boot. It is megabytes, and a
+// user who never touches the slider should never pay for it -- especially on a
+// phone that just came out of a pocket with one bar. Once it is in the service
+// worker's cache the second call is instant and offline.
+let satPending = false;
+function loadSat() {
+  if (state.satImg || satPending || !SAT_META) return;
+  satPending = true;
+  const img = new Image();
+  img.decoding = "async";
+  img.onload = () => {
+    const m = SAT_META;
+    // The app's projection is affine in lon/lat, so the image's lon/lat box is
+    // still an axis-aligned rectangle in world metres and two corners define it.
+    const [x0, y0] = proj.fwd(m.west, m.south);
+    const [x1, y1] = proj.fwd(m.east, m.north);
+    state.sat = { x0, y0, x1, y1 };
+    state.satImg = img;
+    view.draw(state);
+  };
+  img.onerror = () => {
+    // Never built, or never cached and there is no signal. The slider stays
+    // where the user put it and simply draws nothing; there is no state to
+    // unwind and nothing useful to say at the helm.
+    satPending = false;
+  };
+  img.src = "./sat.jpg";
+}
+
+// Opacity, not a toggle: the point of the photograph is to be compared against
+// the chart, and a half-dissolved overlay says more about whether a magenta
+// mark is a rock than either layer says on its own.
+function setSat(pct) {
+  pct = Math.max(0, Math.min(100, pct | 0));
+  state.satOpacity = pct / 100;
+  el("valSat").textContent = pct ? pct + "%" : "off";
+  if (pct > 0) loadSat();
+  writePref("sat", pct);
+  view.draw(state);
+}
+
+el("sldSat").addEventListener("input", (e) => setSat(+e.target.value));
+
 // One tap: "something here". No typing, no category, no menu -- a guest at the
 // helm has an interaction budget of exactly one press, and a report that is too
 // much work to file is a report that never gets filed.
@@ -1092,6 +1141,17 @@ setTheme(new URLSearchParams(location.search).get("theme") === "night" ? "night"
 // assigned, so the lit button and the count under it can never disagree with
 // what is actually drawn.
 setDetail(readPrefs().detail === "verified" ? "verified" : "all");
+// Same reasoning for the aerial slider: set the input first, then route through
+// setSat, so the knob, the readout and the drawn opacity cannot disagree. With
+// no imagery in the payload the row goes away entirely -- a control at the helm
+// that does nothing is worse than one that is not there.
+if (SAT_META) {
+  const satPct = Math.max(0, Math.min(100, +readPrefs().sat || 0));
+  el("sldSat").value = satPct;
+  setSat(satPct);
+} else {
+  el("satRow").style.display = "none";
+}
 loadMarks().then(() => {
   // Rebuild the proven-water layer from every past trip. Until now these fixes
   // were logged and never read back, so each outing started from a blank lake.
