@@ -355,6 +355,50 @@ def raise_nubs(model: Model, lonlat, meta: dict, foot_mm: float = 4.0,
     return hit
 
 
+def raise_pylons(model: Model, lonlat, meta: dict, dia_mm: float = 3.0,
+                 height_mm: float = 3.5, taper: float = 0.55,
+                 step: int = 1) -> int:
+    """Stand a post at each lon/lat: flat top, near-vertical sides.
+
+    A dome is the shape of a drip. It reads as a blob or a printing fault
+    precisely because nothing man-made is dome-shaped at this size -- the eye
+    files it under mistake. A post does not: a flat top and a hard edge are
+    machine marks, so the object says somebody put it there on purpose.
+
+    Built as a frustum rather than a cylinder. A dead-vertical 3 mm column on
+    a 0.36 mm lattice is a staircase of eight cells, and the taper both hides
+    that and gives each layer a little more to sit on than the one below.
+
+    Height is measured from each post's OWN ground, not from a common plane:
+    a shoreline camp and a hillside camp are both a camp, and a fixed top
+    height would sink one and float the other.
+    """
+    ny, nx = model.z.shape
+    r_base = max(1, int(round(dia_mm / 2.0 / model.cell_mm)))
+    r_top = max(0.0, r_base * float(np.clip(taper, 0.0, 1.0)))
+    glyph = np.zeros_like(model.z)
+    hit = 0
+    for lon, lat in lonlat:
+        col = ((lon - meta["lon0"]) / meta["dlon"] - model.col0) / step
+        row = ((lat - meta["lat0"]) / meta["dlat"] - model.row0) / step
+        j, i = int(round(col)), int(round(row))
+        if not (0 <= i < ny and 0 <= j < nx):
+            continue
+        hit += 1
+        i0, i1 = max(0, i - r_base), min(ny, i + r_base + 1)
+        j0, j1 = max(0, j - r_base), min(nx, j + r_base + 1)
+        yy, xx = np.mgrid[i0:i1, j0:j1]
+        d = np.hypot(yy - i, xx - j)
+        # Full height across the flat top, then straight down the taper to
+        # nothing at the base radius.
+        span = max(r_base - r_top, 1e-9)
+        post = height_mm * np.clip((r_base - d) / span, 0.0, 1.0)
+        patch = glyph[i0:i1, j0:j1]
+        np.maximum(patch, post, out=patch)
+    model.z[...] += glyph
+    return hit
+
+
 def _points(path: Path, keep=None):
     """Lon/lat for every feature, using the centroid of anything that is not a
     point. Buildings here are 10-20 m across and the grid cell is 25 m, so a
@@ -398,7 +442,9 @@ def mark_soundings(model: Model, meta: dict, height_mm: float = 0.7,
 
 def mark_structures(model: Model, meta: dict, step: int = 1,
                     foot_mm: float = 2.0, nub_mm: float = 0.0,
-                    nub_h_mm: float = 2.0) -> tuple[int, int]:
+                    nub_h_mm: float = 2.0, pylon_mm: float = 0.0,
+                    pylon_h_mm: float = 3.5,
+                    pylon_taper: float = 0.55) -> tuple[int, int]:
     """Every camp as a little house, and every pier as a low pad.
 
     They are what makes the object findable -- the launch, the camps, the pier
@@ -411,7 +457,10 @@ def mark_structures(model: Model, meta: dict, step: int = 1,
     would claim a building on the water.
     """
     camps = _points(STRUCTURES, {"building", "camp", "address"})
-    if nub_mm > 0:
+    if pylon_mm > 0:
+        houses = raise_pylons(model, camps, meta, pylon_mm, pylon_h_mm,
+                              pylon_taper, step)
+    elif nub_mm > 0:
         houses = raise_nubs(model, camps, meta, nub_mm, nub_h_mm, step)
     else:
         houses = raise_houses(model, camps, meta, foot_mm, 0.9, 0.7, step)
@@ -830,6 +879,12 @@ def main() -> None:
                     help="draw camps as domes this wide instead of house glyphs")
     ap.add_argument("--camp-nub-h-mm", type=float, default=2.0,
                     help="how tall the camp domes stand")
+    ap.add_argument("--camp-pylon-mm", type=float, default=0.0,
+                    help="draw camps as posts this wide: flat top, hard edge")
+    ap.add_argument("--camp-pylon-h-mm", type=float, default=3.5,
+                    help="how tall the camp posts stand above their own ground")
+    ap.add_argument("--camp-pylon-taper", type=float, default=0.55,
+                    help="flat-top fraction of the post; lower is more tapered")
     ap.add_argument("--step", type=int, default=1,
                     help="sample every Nth grid cell; 2 quarters the file")
     ap.add_argument("--soundings", action="store_true",
@@ -931,7 +986,10 @@ def main() -> None:
         built, piers = mark_structures(model, meta, step=args.step,
                                        foot_mm=args.house_mm,
                                        nub_mm=args.camp_nub_mm,
-                                       nub_h_mm=args.camp_nub_h_mm)
+                                       nub_h_mm=args.camp_nub_h_mm,
+                                       pylon_mm=args.camp_pylon_mm,
+                                       pylon_h_mm=args.camp_pylon_h_mm,
+                                       pylon_taper=args.camp_pylon_taper)
 
     floor = shell_floor(model.z, args.shell_mm) if args.shell_mm > 0 else None
     # The mask is subsampled exactly the way build_surface subsamples the grid,

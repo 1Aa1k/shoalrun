@@ -23,6 +23,7 @@ from make_stl import (  # noqa: E402
     masked_solid_triangles,
     mesh_volume_mm3,
     raise_nubs,
+    raise_pylons,
     shore_mask,
     solid_triangles,
     write_binary_stl,
@@ -244,6 +245,54 @@ class TestCampNubs:
         before = m.z[10, 10]
         raise_nubs(m, [(10.0, 10.0), (10.2, 10.2)], meta, 4.0, 2.0)
         assert m.z[10, 10] == pytest.approx(before + 2.0)
+
+
+class TestCampPylons:
+    """A dome reads as a drip. The properties that stop a post reading the
+    same way are a flat top and a hard edge, so those are what get tested."""
+
+    def _model(self):
+        """A lattice fine enough that a post is several cells across, which is
+        the only regime where "flat top" means anything."""
+        m = build_surface(basin(ny=61, nx=61), 25.0, 30.0, 10.0, 3.0)
+        return m, {"lon0": 0.0, "lat0": 0.0, "dlon": 1.0, "dlat": 1.0}
+
+    def test_the_top_is_flat(self):
+        m, meta = self._model()
+        before = m.z.copy()
+        raise_pylons(m, [(30.0, 30.0)], meta, dia_mm=8.0, height_mm=3.5,
+                     taper=0.55)
+        lifted = m.z - before
+        # The centre and its immediate neighbours are all at full height --
+        # a dome falls away from the first cell out.
+        assert lifted[30, 30] == pytest.approx(3.5)
+        assert lifted[30, 29] == pytest.approx(3.5)
+        assert lifted[29, 30] == pytest.approx(3.5)
+
+    def test_it_stands_on_its_own_ground_not_a_common_plane(self):
+        """A shoreline camp and a hillside camp are both a camp."""
+        m, meta = self._model()
+        before = m.z.copy()
+        raise_pylons(m, [(15.0, 15.0), (30.0, 30.0)], meta, dia_mm=6.0,
+                     height_mm=3.5, taper=0.55)
+        assert before[15, 15] != pytest.approx(before[30, 30])  # different ground
+        assert (m.z - before)[15, 15] == pytest.approx(3.5)
+        assert (m.z - before)[30, 30] == pytest.approx(3.5)
+
+    def test_nothing_is_raised_outside_the_base(self):
+        m, meta = self._model()
+        before = m.z.copy()
+        raise_pylons(m, [(30.0, 30.0)], meta, dia_mm=6.0, height_mm=3.5)
+        lifted = m.z - before
+        yy, xx = np.mgrid[0:61, 0:61]
+        assert lifted[np.hypot(yy - 30, xx - 30) > 6].max() == pytest.approx(0.0)
+
+    def test_two_posts_on_one_cell_do_not_stack(self):
+        m, meta = self._model()
+        before = m.z.copy()
+        raise_pylons(m, [(30.0, 30.0), (30.2, 30.2)], meta, dia_mm=6.0,
+                     height_mm=3.5)
+        assert (m.z - before).max() == pytest.approx(3.5)
 
 
 class TestShoreMask:

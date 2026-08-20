@@ -74,6 +74,10 @@ def main() -> None:
                     help="draw camps as domes this wide instead of house glyphs")
     ap.add_argument("--camp-nub-h-mm", type=float, default=2.0,
                     help="how tall the camp domes stand")
+    ap.add_argument("--camp-pylon-mm", type=float, default=0.0,
+                    help="draw camps as posts this wide: flat top, hard edge")
+    ap.add_argument("--camp-pylon-h-mm", type=float, default=3.5)
+    ap.add_argument("--camp-pylon-taper", type=float, default=0.55)
     ap.add_argument("--out", type=Path, default=OUT)
     args = ap.parse_args()
 
@@ -142,7 +146,10 @@ def main() -> None:
     if args.structures:
         built, piers = mark_structures(model, meta, step=args.step,
                                        nub_mm=args.camp_nub_mm,
-                                       nub_h_mm=args.camp_nub_h_mm)
+                                       nub_h_mm=args.camp_nub_h_mm,
+                                       pylon_mm=args.camp_pylon_mm,
+                                       pylon_h_mm=args.camp_pylon_h_mm,
+                                       pylon_taper=args.camp_pylon_taper)
     marked_z = model.z.copy() if (pins or built or piers) else None
     model.z[...] = plain_z
 
