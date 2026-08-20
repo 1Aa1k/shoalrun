@@ -23,3 +23,6 @@ dist/print/
 data/hag_2m.npz
 # Microsoft's whole-state footprint zip, 188 MB, streamed and clipped once.
 data/cache/
+# Lidar first-return surface, 52 MB, regenerable:
+#   fetch_terrain.py --collection 3dep-lidar-dsm --res-m 2 --pad-m 0 --out data/dsm_2m.npz
+data/dsm_2m.npz

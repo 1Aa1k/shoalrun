@@ -42,6 +42,10 @@ const THEMES = {
       `rgba(${140 + t * 60}, ${190 + t * 40}, ${225 + t * 25}, ${(0.16 + t * 0.26) * (major ? 1.6 : 1)})`,
     label: "rgba(190, 214, 232, 0.9)",
     labelKnockout: true,
+    // Backing for chrome drawn ON the map rather than into it. The knockout
+    // trick below cannot be used for these: it removes pixels, and a scale bar
+    // has to stay readable over the shoreline as well as over open water.
+    plate: "rgba(11, 17, 23, 0.62)",
     sounding: null,          // night theme does not print soundings
     exposed: "#9fb1bf",
     island: "#63788a",
@@ -72,6 +76,7 @@ const THEMES = {
     contour: (t, major) => `rgba(56, 104, 140, ${major ? 0.75 : 0.42})`,
     label: "#2b5f80",
     labelKnockout: false,
+    plate: "rgba(246, 251, 254, 0.78)",
     sounding: "#33556b",
     // Magenta is the chart convention for danger, and holding to it means the
     // classes read by shape rather than by inventing a second colour language.
@@ -107,6 +112,61 @@ const CLASS_COLOR = {
 // Depth lines are labelled only past this zoom. Below it the labels collide
 // with each other and with the hazard markers, and the markers win.
 const LABEL_MIN_SCALE = 0.18;
+
+// What the bar aims to be, in screen px. It is a target and not a rule: the
+// distance is what gets to be round, and the length follows from it.
+const SCALE_BAR_TARGET_PX = 96;
+
+// 1-2-5 within each decade. A scale bar has to be measurable by eye, and the
+// eye divides a bar into halves, fifths and tenths -- not into sevenths. This
+// is why the bar's LENGTH moves as you zoom and its number does not: pinning
+// the pixel length instead would print "137 m" and be unreadable.
+//
+// Picking the nearest of these to the target bounds the drawn length on its
+// own, because consecutive steps differ by at most 2.5x: measured across the
+// app's whole zoom range the bar runs 55 to 137 px. An explicit min/max clamp
+// was written here first and never once fired -- it read like a safeguard while
+// testing nothing, which is worse than not having one.
+const NICE_STEPS = [1, 2, 5];
+
+/**
+ * The roundest distance whose bar comes closest to `targetPx` at this zoom.
+ *
+ * Returned separately from the drawing so it can be tested without a canvas.
+ *
+ * @param {number} scale px per metre
+ * @returns {{metres: number, px: number, label: string}|null} null when the
+ *   scale is not a usable number, which happens on the frames before the canvas
+ *   has been measured.
+ */
+export function scaleBarSpan(scale, targetPx = SCALE_BAR_TARGET_PX) {
+  if (!(scale > 0) || !isFinite(scale)) return null;
+  const wanted = targetPx / scale;
+
+  const decade = Math.floor(Math.log10(wanted));
+  const candidates = [];
+  for (let d = decade - 1; d <= decade + 1; d++) {
+    for (const s of NICE_STEPS) candidates.push(s * Math.pow(10, d));
+  }
+
+  // Sub-metre bars would label as "0.5 m", which nobody steers by, and the 1954
+  // survey's own positions are not good to a metre anyway. Zoomed in past the
+  // point where even 1 m is too wide, the bar overruns its target rather than
+  // vanishing -- a scale bar that disappears at high zoom is the one case where
+  // the user is most likely to misjudge a gap.
+  const pool = candidates.filter((m) => m >= 1);
+  if (!pool.length) return { metres: 1, px: scale, label: "1 m" };
+
+  let best = pool[0];
+  for (const m of pool) {
+    if (Math.abs(m * scale - targetPx) < Math.abs(best * scale - targetPx)) best = m;
+  }
+  return {
+    metres: best,
+    px: best * scale,
+    label: best >= 1000 ? `${best / 1000} km` : `${best} m`,
+  };
+}
 
 export class MapView {
   constructor(canvas, proj) {
@@ -149,7 +209,31 @@ export class MapView {
     this.w = r.width;
     this.h = r.height;
     this.dpr = dpr;
+    this.chromeTop = this._measureChromeTop(r);
     return true;
+  }
+
+  /**
+   * Where the banners stacked over the top of the map stop, in canvas px.
+   *
+   * Measured rather than hardcoded. The alert bar grows when it goes to
+   * `danger`, the caveat sits below it, both change height in the landscape
+   * media query, and both are pushed down by the notch inset `--pad-t`. Every
+   * one of those is a number this module would otherwise have to keep in sync
+   * with the stylesheet, and the first one to drift puts the scale bar under a
+   * banner where it cannot be read.
+   */
+  _measureChromeTop(canvasRect) {
+    let bottom = canvasRect.top;
+    const host = this.canvas.parentElement;
+    if (!host || !host.querySelectorAll) return 0;
+    for (const el of host.querySelectorAll(".alert, .caveat")) {
+      const b = el.getBoundingClientRect();
+      // A hidden banner measures zero-height at the top of the page; taking its
+      // bottom would drag the bar up under the one that IS showing.
+      if (b.height > 0) bottom = Math.max(bottom, b.bottom);
+    }
+    return Math.max(0, bottom - canvasRect.top);
   }
 
   // Projected metres -> screen px, honouring pan/zoom/rotation.
@@ -268,6 +352,68 @@ export class MapView {
     if (state.corridor) this._drawCorridor(state.corridor);
     this._drawRocks(state);
     if (state.fix) this._drawBoat(state);
+    // Last, so nothing can be drawn over the one thing on screen that says how
+    // big everything else is.
+    this._drawScaleBar();
+  }
+
+  /**
+   * A bar of known length, under the top banners.
+   *
+   * Under the banners rather than in a corner because every corner of this map
+   * is already spoken for: the depth card and the flag button hold the bottom
+   * left, the helm holds the bottom right, and in landscape the flag button
+   * moves to the bottom centre. The strip below the caveat is the one place
+   * free in both orientations.
+   *
+   * Rotation is ignored on purpose. The view rotates course-up, but the zoom is
+   * uniform, so a horizontal bar measures the same distance whichever way north
+   * is pointing.
+   */
+  _drawScaleBar() {
+    const span = scaleBarSpan(this.scale);
+    if (!span) return;
+
+    const ctx = this.ctx;
+    const T = this.t;
+    const x = 10;
+    const y = (this.chromeTop || 0) + 14;
+    const tick = 4;
+
+    ctx.save();
+    ctx.font = "600 11px ui-monospace, SFMono-Regular, Menlo, monospace";
+    ctx.textBaseline = "alphabetic";
+    const label = span.label;
+    const textW = ctx.measureText(label).width;
+    const plateW = Math.max(span.px, textW) + 12;
+
+    if (T.plate) {
+      ctx.fillStyle = T.plate;
+      ctx.beginPath();
+      // roundRect only landed in Safari 16.4, and the phones this runs on are
+      // whatever somebody already owns. A square plate everywhere beats a
+      // TypeError that takes the whole frame -- and the map -- down.
+      if (ctx.roundRect) ctx.roundRect(x - 6, y - 13, plateW, 30, 5);
+      else ctx.rect(x - 6, y - 13, plateW, 30);
+      ctx.fill();
+    }
+
+    ctx.fillStyle = T.label;
+    ctx.fillText(label, x, y - 3);
+
+    // Bar with a tick down at each end -- the chart convention, and it makes
+    // the endpoints unambiguous where a plain line's antialiased tip does not.
+    ctx.strokeStyle = T.label;
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(x, y + 3);
+    ctx.lineTo(x, y + 3 + tick);
+    ctx.moveTo(x, y + 3 + tick);
+    ctx.lineTo(x + span.px, y + 3 + tick);
+    ctx.moveTo(x + span.px, y + 3);
+    ctx.lineTo(x + span.px, y + 3 + tick);
+    ctx.stroke();
+    ctx.restore();
   }
 
   // NOAA prints soundings as bare numbers on the water. They are decluttered by
