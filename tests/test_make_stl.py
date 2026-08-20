@@ -22,6 +22,7 @@ from make_stl import (  # noqa: E402
     is_closed,
     masked_solid_triangles,
     mesh_volume_mm3,
+    raise_nubs,
     shore_mask,
     solid_triangles,
     write_binary_stl,
@@ -173,6 +174,76 @@ class TestTrimToShore:
         tris = masked_solid_triangles(m.z, m.cell_mm, mask, floor)
         assert is_closed(tris)
         assert mesh_volume_mm3(tris) > 0
+
+
+class TestBrokenWalls:
+    """The wall displacement is the one change that can open the solid.
+
+    A boundary vertex belongs to two wall edges. If the two disagree about
+    where it moved -- by a rounding difference, by keying the noise to anything
+    but the sample index -- the mesh opens along every seam, and a slicer will
+    still print it, wrong.
+    """
+
+    def test_a_broken_wall_is_still_closed(self):
+        m = build_surface(basin(), 25.0, 90.0, 10.0, 3.0)
+        mask = shore_mask(basin(), grid_m=25.0, shore_m=25.0)
+        tris = masked_solid_triangles(m.z, m.cell_mm, mask,
+                                      wall_levels=9, wall_rock_mm=1.2)
+        assert is_closed(tris)
+        assert mesh_volume_mm3(tris) > 0
+
+    def test_the_wall_actually_moved(self):
+        """Guards the case where the noise cancels and this is decoration."""
+        m = build_surface(basin(), 25.0, 90.0, 10.0, 3.0)
+        mask = shore_mask(basin(), grid_m=25.0, shore_m=25.0)
+        smooth = masked_solid_triangles(m.z, m.cell_mm, mask)
+        rough = masked_solid_triangles(m.z, m.cell_mm, mask,
+                                       wall_levels=9, wall_rock_mm=1.2)
+        assert len(rough) > len(smooth)
+        assert mesh_volume_mm3(rough) != pytest.approx(mesh_volume_mm3(smooth))
+
+    def test_the_top_and_bottom_rings_do_not_move(self):
+        """They are shared with the surface and the floor. Displace them and
+        the wall tears away from the object it is supposed to close."""
+        z = np.full((7, 7), 6.0)
+        mask = np.ones((7, 7), bool)
+        tris = masked_solid_triangles(z, 2.0, mask, wall_levels=6, wall_rock_mm=2.0)
+        pts = tris.reshape(-1, 3)
+        span = 6 * 2.0
+        at_bed = pts[np.abs(pts[:, 2]) < 1e-9]
+        at_top = pts[np.abs(pts[:, 2] - 6.0) < 1e-9]
+        for ring in (at_bed, at_top):
+            assert ring[:, 0].min() >= -1e-9 and ring[:, 0].max() <= span + 1e-9
+            assert ring[:, 1].min() >= -1e-9 and ring[:, 1].max() <= span + 1e-9
+
+    def test_rock_is_off_by_default(self):
+        m = build_surface(basin(), 25.0, 90.0, 10.0, 3.0)
+        mask = shore_mask(basin(), grid_m=25.0, shore_m=25.0)
+        a = masked_solid_triangles(m.z, m.cell_mm, mask)
+        b = masked_solid_triangles(m.z, m.cell_mm, mask, wall_levels=9)
+        assert len(a) == len(b)
+
+
+class TestCampNubs:
+    def test_a_nub_stands_proud_enough_to_find(self):
+        """The house glyph is 1.6 mm and disappears on the printed object. A
+        nub exists to be found by a fingertip, so its height is the test."""
+        m = build_surface(basin(ny=21, nx=21), 25.0, 120.0, 10.0, 3.0)
+        meta = {"lon0": 0.0, "lat0": 0.0, "dlon": 1.0, "dlat": 1.0}
+        before = m.z[10, 10]
+        n = raise_nubs(m, [(10.0, 10.0)], meta, foot_mm=4.0, height_mm=2.0)
+        assert n == 1
+        assert m.z[10, 10] == pytest.approx(before + 2.0)
+
+    def test_two_nubs_on_one_cell_do_not_stack(self):
+        """Camps 30 m apart share a cell on a 25 m lattice. Adding in place
+        would build a tower where the ground has two addresses."""
+        m = build_surface(basin(ny=21, nx=21), 25.0, 120.0, 10.0, 3.0)
+        meta = {"lon0": 0.0, "lat0": 0.0, "dlon": 1.0, "dlat": 1.0}
+        before = m.z[10, 10]
+        raise_nubs(m, [(10.0, 10.0), (10.2, 10.2)], meta, 4.0, 2.0)
+        assert m.z[10, 10] == pytest.approx(before + 2.0)
 
 
 class TestShoreMask:

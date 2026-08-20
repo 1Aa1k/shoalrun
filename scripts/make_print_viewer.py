@@ -70,6 +70,10 @@ def main() -> None:
                     help="metres of land kept around the water when --trim is on")
     ap.add_argument("--rim-mm", type=float, default=0.0,
                     help="flat rim at the waterline around the trimmed outline, in mm")
+    ap.add_argument("--camp-nub-mm", type=float, default=0.0,
+                    help="draw camps as domes this wide instead of house glyphs")
+    ap.add_argument("--camp-nub-h-mm", type=float, default=2.0,
+                    help="how tall the camp domes stand")
     ap.add_argument("--out", type=Path, default=OUT)
     args = ap.parse_args()
 
@@ -136,7 +140,9 @@ def main() -> None:
     pins = mark_soundings(model, meta, step=args.step) if args.soundings else 0
     built = piers = 0
     if args.structures:
-        built, piers = mark_structures(model, meta, step=args.step)
+        built, piers = mark_structures(model, meta, step=args.step,
+                                       nub_mm=args.camp_nub_mm,
+                                       nub_h_mm=args.camp_nub_h_mm)
     marked_z = model.z.copy() if (pins or built or piers) else None
     model.z[...] = plain_z
 

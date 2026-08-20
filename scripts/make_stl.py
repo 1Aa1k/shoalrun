@@ -317,6 +317,44 @@ def raise_houses(model: Model, lonlat, meta: dict, foot_mm: float = 2.0,
     return hit
 
 
+def raise_nubs(model: Model, lonlat, meta: dict, foot_mm: float = 4.0,
+               height_mm: float = 2.0, step: int = 1) -> int:
+    """Stand a dome at each lon/lat, sized to be found by a fingertip.
+
+    The gabled house glyph is 2 mm across and 1.6 mm tall, which is legible in
+    a render and vanishes on the printed object -- it reads as surface texture
+    and a finger runs straight over it. A camp you cannot find is not a marker.
+
+    A dome instead of a block for two reasons. It has no flat overhang, so it
+    needs no support at any size; and a finger reads a curve as one thing,
+    where a 4 mm cube on a terraced hillside feels like more terrain.
+
+    Same accumulate-then-add discipline as the houses: two camps 30 m apart
+    share cells on a 25 m lattice, and adding in place would stack them into a
+    tower.
+    """
+    ny, nx = model.z.shape
+    rad = max(1, int(round(foot_mm / 2.0 / model.cell_mm)))
+    glyph = np.zeros_like(model.z)
+    hit = 0
+    for lon, lat in lonlat:
+        col = ((lon - meta["lon0"]) / meta["dlon"] - model.col0) / step
+        row = ((lat - meta["lat0"]) / meta["dlat"] - model.row0) / step
+        j, i = int(round(col)), int(round(row))
+        if not (0 <= i < ny and 0 <= j < nx):
+            continue
+        hit += 1
+        i0, i1 = max(0, i - rad), min(ny, i + rad + 1)
+        j0, j1 = max(0, j - rad), min(nx, j + rad + 1)
+        yy, xx = np.mgrid[i0:i1, j0:j1]
+        d = np.hypot(yy - i, xx - j) / rad
+        dome = height_mm * np.sqrt(np.clip(1.0 - d * d, 0.0, None))
+        patch = glyph[i0:i1, j0:j1]
+        np.maximum(patch, dome, out=patch)
+    model.z[...] += glyph
+    return hit
+
+
 def _points(path: Path, keep=None):
     """Lon/lat for every feature, using the centroid of anything that is not a
     point. Buildings here are 10-20 m across and the grid cell is 25 m, so a
@@ -359,7 +397,8 @@ def mark_soundings(model: Model, meta: dict, height_mm: float = 0.7,
 
 
 def mark_structures(model: Model, meta: dict, step: int = 1,
-                    foot_mm: float = 2.0) -> tuple[int, int]:
+                    foot_mm: float = 2.0, nub_mm: float = 0.0,
+                    nub_h_mm: float = 2.0) -> tuple[int, int]:
     """Every camp as a little house, and every pier as a low pad.
 
     They are what makes the object findable -- the launch, the camps, the pier
@@ -371,8 +410,11 @@ def mark_structures(model: Model, meta: dict, step: int = 1,
     Piers stay discs: a pier is a line, and a 2 mm gabled house standing on one
     would claim a building on the water.
     """
-    houses = raise_houses(model, _points(STRUCTURES, {"building", "camp", "address"}),
-                          meta, foot_mm, 0.9, 0.7, step)
+    camps = _points(STRUCTURES, {"building", "camp", "address"})
+    if nub_mm > 0:
+        houses = raise_nubs(model, camps, meta, nub_mm, nub_h_mm, step)
+    else:
+        houses = raise_houses(model, camps, meta, foot_mm, 0.9, 0.7, step)
     piers = raise_markers(model, _points(STRUCTURES, {"pier"}), meta,
                           0.6, 0.7, step)
     return houses, piers
@@ -532,8 +574,26 @@ def crop_to_mask(mask: np.ndarray, *fields: np.ndarray):
     return (*out, i0, j0)
 
 
+def _rock_noise(i: np.ndarray, j: np.ndarray, k: float, seed: float = 0.0):
+    """Deterministic value noise in [-1, 1], two octaves, keyed to the lattice.
+
+    Keyed to the SAMPLE INDEX and nothing else, which is the property the mesh
+    depends on: a boundary vertex belongs to two wall edges, and both must
+    displace it to the same place or the solid opens along every seam.
+
+    Two octaves because one reads as sandpaper. The coarse term is the lump of
+    a clod, the fine term is the grain on it.
+    """
+    def h(a, b, c):
+        v = np.sin(a * 12.9898 + b * 78.233 + c * 37.719 + seed) * 43758.5453
+        return np.modf(v)[0] * 2.0 - 1.0
+    return 0.68 * h(i * 0.22, j * 0.22, k * 0.9) + 0.32 * h(i * 1.0, j * 1.0, k * 2.3)
+
+
 def masked_solid_triangles(z: np.ndarray, cell_mm: float, mask: np.ndarray,
-                           z_bot: np.ndarray | None = None) -> np.ndarray:
+                           z_bot: np.ndarray | None = None,
+                           wall_levels: int = 1,
+                           wall_rock_mm: float = 0.0) -> np.ndarray:
     """Close a height field into a solid over an arbitrary outline.
 
     `solid_triangles` walks one rectangular perimeter. Here the perimeter is
@@ -587,6 +647,32 @@ def masked_solid_triangles(z: np.ndarray, cell_mm: float, mask: np.ndarray,
         (padded[2:, 1:-1][quad], C, D),    # north
         (padded[1:-1, :-2][quad], D, A),   # west
     ]
+    # A smooth vertical face reads as a machined block, which is the wrong
+    # story for a piece of ground. Splitting the wall into rings and pushing
+    # each ring in or out gives it the broken edge of something lifted out of
+    # the earth. The displacement dies to nothing at the top and bottom rings:
+    # those two share their vertices with the surface and the base, and moving
+    # them would tear the solid away from its own top and floor.
+    rock = wall_rock_mm > 0
+    levels = max(1, wall_levels) if rock else 1
+    cx, cy = float(X[mask].mean()), float(Y[mask].mean())
+
+    def ring(pt_lo, pt_hi, idx_i, idx_j, t):
+        """One horizontal ring of wall vertices, t from 0 at the bed to 1 up."""
+        out = pt_lo + (pt_hi - pt_lo) * t
+        if not rock or t <= 0.0 or t >= 1.0:
+            return out
+        dx, dy = out[:, 0] - cx, out[:, 1] - cy
+        n = np.hypot(dx, dy)
+        n[n == 0] = 1.0
+        # Sine profile: zero at both ends, fattest in the middle of the wall.
+        amp = wall_rock_mm * np.sin(np.pi * t) ** 0.6
+        d = amp * _rock_noise(idx_i, idx_j, t)
+        out = out.copy()
+        out[:, 0] += dx / n * d
+        out[:, 1] += dy / n * d
+        return out
+
     walls = []
     for present, p, q in sides:
         edge = ~present
@@ -595,7 +681,13 @@ def masked_solid_triangles(z: np.ndarray, cell_mm: float, mask: np.ndarray,
         sel = np.nonzero(edge)[0]
         pb, qb = corner(*p, z_bot)[sel], corner(*q, z_bot)[sel]
         pt, qt = corner(*p, z)[sel], corner(*q, z)[sel]
-        walls.append(quads(pb, qb, qt, pt))
+        pi_, pj_ = (qi + p[0])[sel], (qj + p[1])[sel]
+        qi_, qj_ = (qi + q[0])[sel], (qj + q[1])[sel]
+        for k in range(levels):
+            t0, t1 = k / levels, (k + 1) / levels
+            P0, P1 = ring(pb, pt, pi_, pj_, t0), ring(pb, pt, pi_, pj_, t1)
+            Q0, Q1 = ring(qb, qt, qi_, qj_, t0), ring(qb, qt, qi_, qj_, t1)
+            walls.append(quads(P0, Q0, Q1, P1))
 
     return np.concatenate([top, *walls, bottom])
 
@@ -730,6 +822,14 @@ def main() -> None:
                     help="metres of land kept around the water when --trim is on")
     ap.add_argument("--rim-mm", type=float, default=0.0,
                     help="flat rim at the waterline around the trimmed outline, in mm")
+    ap.add_argument("--wall-rock-mm", type=float, default=0.0,
+                    help="break the side walls up by this many mm, torn-earth style")
+    ap.add_argument("--wall-levels", type=int, default=8,
+                    help="horizontal rings the broken wall is built from")
+    ap.add_argument("--camp-nub-mm", type=float, default=0.0,
+                    help="draw camps as domes this wide instead of house glyphs")
+    ap.add_argument("--camp-nub-h-mm", type=float, default=2.0,
+                    help="how tall the camp domes stand")
     ap.add_argument("--step", type=int, default=1,
                     help="sample every Nth grid cell; 2 quarters the file")
     ap.add_argument("--soundings", action="store_true",
@@ -829,7 +929,9 @@ def main() -> None:
     built = piers = 0
     if args.structures:
         built, piers = mark_structures(model, meta, step=args.step,
-                                       foot_mm=args.house_mm)
+                                       foot_mm=args.house_mm,
+                                       nub_mm=args.camp_nub_mm,
+                                       nub_h_mm=args.camp_nub_h_mm)
 
     floor = shell_floor(model.z, args.shell_mm) if args.shell_mm > 0 else None
     # The mask is subsampled exactly the way build_surface subsamples the grid,
@@ -839,7 +941,9 @@ def main() -> None:
     def close_solid(zz, bot):
         if sub is None:
             return solid_triangles(zz, model.cell_mm, bot)
-        return masked_solid_triangles(zz, model.cell_mm, sub, bot)
+        return masked_solid_triangles(zz, model.cell_mm, sub, bot,
+                                      wall_levels=args.wall_levels,
+                                      wall_rock_mm=args.wall_rock_mm)
 
     tris = close_solid(model.z, floor)
     steps = []
