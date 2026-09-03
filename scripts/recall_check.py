@@ -96,6 +96,10 @@ def load_detections(fwd):
         ("naip-1m", "rocks_naip.geojson"),
         ("naip-0.3m", "rocks_naip_03.geojson"),
         ("naip-bright-1m", "rocks_bright.geojson"),
+        # Lidar returns from inside the lake polygon. Not an optical layer
+        # at all, so its misses and the optical layers' misses have no
+        # reason to be the same ones.
+        ("lidar-dsm-2m", "rocks_lidar.geojson"),
     ):
         path = DATA / fn
         if not path.exists():
