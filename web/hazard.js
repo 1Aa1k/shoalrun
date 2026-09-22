@@ -112,9 +112,13 @@ export function scan(pos, headingRad, speedMs, index, dismissed, lookaheadS = LO
   // since the banner reports the top hit that would read "clear" while the boat
   // is about to hit something. Verification is a tiebreaker between hazards of
   // comparable urgency, never a reason to look past a closer one.
+  // Drifting, every ttc is Infinity and `a.ttc - b.ttc` is NaN, which is
+  // falsy -- so severity decided, and a shoal 55 m off outranked a rock 10 m
+  // off and downgraded danger to caution. With no time to rank on, distance
+  // is the only thing that matters.
   hits.sort(
     (a, b) =>
-      a.ttc - b.ttc ||
+      (moving ? a.ttc - b.ttc : a.range - b.range) ||
       b.severity - a.severity ||
       Number(b.confirmed) - Number(a.confirmed) ||
       a.range - b.range

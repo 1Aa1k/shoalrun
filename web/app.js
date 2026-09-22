@@ -305,7 +305,11 @@ function onFix(pos) {
       view.scale = HELM_SCALE;
     }
     if (view.courseUp && headingRad != null && speed > 1.5) {
-      view.rotation = headingRad - Math.PI / 2;
+      // toScreen rotates by +rotation and then flips y for the screen, so the
+      // course must be rotated TO north (pi/2 - h), not north to the course.
+      // The other sign is course-DOWN on an east-west leg -- a rock dead ahead
+      // drew under the boat. Only ever seen once follow engaged on real GPS.
+      view.rotation = Math.PI / 2 - headingRad;
     }
   }
 }
@@ -409,15 +413,22 @@ function evaluate() {
 
   let level = alertLevel(result.worst, lead);
   const now = Date.now();
+  let held = false;
   if (level !== "clear") lastDangerAt = now;
-  else if (now - lastDangerAt < CLEAR_HOLD_MS) level = state.alert === "clear" ? "clear" : "caution";
+  else if (now - lastDangerAt < CLEAR_HOLD_MS && state.alert !== "clear") {
+    level = "caution";
+    held = true;
+  }
 
   if (level !== state.alert) {
     state.alert = level;
     if (level === "danger") buzz([200, 80, 200]);
     else if (level === "caution") buzz([120]);
   }
-  renderAlert(result);
+  // During the hold there is no hit to describe, but a yellow banner reading
+  // "clear ahead" is a contradiction the eye resolves as "clear". Say what the
+  // hold actually means instead.
+  renderAlert(held ? { ...result, worst: null, held: true } : result);
 }
 
 function buzz(pattern) {
@@ -460,7 +471,8 @@ function renderAlert(result) {
   banner.className = `alert ${state.alert}`;
   const w = result.worst;
   if (!w) {
-    banner.textContent = result.moving ? "clear ahead" : "clear";
+    if (result.held) banner.textContent = "hazard just passed";
+    else banner.textContent = result.moving ? "clear ahead" : "clear";
     return;
   }
   const label = w.rock.cls === "shoal" ? "SHOAL" : "ROCK";
@@ -1320,7 +1332,10 @@ loadMarks().then(() => {
       .sort((a, b) => a.t - b.t)
       .map((f) => {
         const [x, y] = proj.fwd(f.lon, f.lat);
-        return { x, y, accuracy: f.accuracy, speed: f.speed, t: f.t };
+        // Rows are stored as spd/acc (store.js logFix); reading the long
+        // names left accuracy undefined and every saved leg was rejected, so
+        // driven water never survived a reload.
+        return { x, y, accuracy: f.acc ?? f.accuracy, speed: f.spd ?? f.speed, t: f.t };
       });
     renderTrips(fixes);
     if (!pts.length) return;

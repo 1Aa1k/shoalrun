@@ -226,3 +226,13 @@ test("clock bearing follows the heading, not the map", () => {
   assert.equal(clockBearing(NORTH, me, { x: 100, y: 0 }), "3 o'clock");
   assert.equal(clockBearing(null, me, { x: 100, y: 0 }), null);
 });
+
+// Drifting, every ttc is Infinity and Infinity - Infinity is NaN, which sorts
+// as "equal" and lets severity decide. A shoal 55 m off must not outrank a
+// rock 10 m off when the boat has no course: closest wins, and it is danger.
+test("drifting ranks by distance, not severity", () => {
+  const idx = indexOf(rock("far", 55, 0, "shoal"), rock("near", 10, 0, "rock"));
+  const r = scan({ x: 0, y: 0 }, NaN, 0, idx, new Set());
+  assert.equal(r.worst.rock.id, "near");
+  assert.equal(alertLevel(r.worst), "danger");
+});
