@@ -1,5 +1,5 @@
 import { makeProjection, GridIndex } from "./geo.js";
-import { scan, alertLevel, CORRIDOR_HALF_W } from "./hazard.js";
+import { scan, alertLevel, clockBearing, leadSeconds, CORRIDOR_HALF_W } from "./hazard.js";
 import { MapView } from "./render.js";
 import { DepthGrid, contoursAt, contoursAtLevels, rampCss, CHART_BAND_EDGES } from "./depth.js";
 import { logFix, allTracks, allMarks, setMark, clearMark, exportAll, trackCount } from "./store.js";
@@ -7,9 +7,10 @@ import { SweptGrid, coverageStats, sweptFromFixes } from "./swept.js";
 import { FLAG_STATUS, alertsFor, flagToHazard, makeFlag, reviewQueue } from "./flags.js";
 import { autoSync, isConfigured, whoAmI, joinLake, leaveLake, lakeCode, endpoint } from "./sync.js";
 import { initViews, isActive, showView } from "./views.js";
-import { installPwa } from "./basepath.js";
-import { gpsFailure } from "./gps.js";
+import { installPwa, installHint } from "./basepath.js";
+import { gpsFailure, staleBanner } from "./gps.js";
 import { trackVisibleHeight } from "./viewport.js";
+import { summarizeTrips, describeTrip } from "./trips.js";
 
 // DATA is injected at build time so the app is one self-contained file with no
 // network dependency of any kind. There is no cell service on this lake.
@@ -90,6 +91,8 @@ const state = {
   flags: [],
   showSwept: true,
   sound: true,
+  // Seconds of warning, by boat. See LEAD_PRESETS in hazard.js.
+  lead: "normal",
   trip: `trip-${Date.now()}`,
   logged: 0,
 };
@@ -187,7 +190,17 @@ view.scale = Math.min(
   view.h / ((bounds[3] - bounds[1]) * proj.mPerDegLat)
 ) * 0.92;
 view.rotation = 0;
-view.follow = false;
+// Following from the first fix. This was false, and the Follow button under it
+// was drawn lit: the map opened on the whole lake, the first fix arrived, and
+// nothing moved -- course-up never engaged and the boat could drive off the
+// edge of the screen with the button still saying it was being followed. The
+// hash handler below still turns it off for a shared spot.
+view.follow = true;
+
+// Zoom to helm scale on the first real fix, once. The boot view is the whole
+// lake so it paints something; that scale is useless for driving.
+const HELM_SCALE = 0.35;
+let zoomedToHelm = false;
 
 // #lat,lon,zoom opens the map somewhere specific. Written for handing someone a
 // spot -- "the camps on Evergreen Way" is a URL rather than four sentences of
@@ -287,6 +300,10 @@ function onFix(pos) {
 
   if (view.follow) {
     view.center = { x, y };
+    if (!zoomedToHelm) {
+      zoomedToHelm = true;
+      view.scale = HELM_SCALE;
+    }
     if (view.courseUp && headingRad != null && speed > 1.5) {
       view.rotation = headingRad - Math.PI / 2;
     }
@@ -377,7 +394,8 @@ let lastDangerAt = 0;
 
 function evaluate() {
   if (!state.fix) return;
-  const result = scan(state.fix, state.heading, state.speed, index, dismissedSet());
+  const lead = leadSeconds(state.lead);
+  const result = scan(state.fix, state.heading, state.speed, index, dismissedSet(), lead);
 
   state.corridor = result.moving
     ? {
@@ -389,7 +407,7 @@ function evaluate() {
       }
     : null;
 
-  let level = alertLevel(result.worst);
+  let level = alertLevel(result.worst, lead);
   const now = Date.now();
   if (level !== "clear") lastDangerAt = now;
   else if (now - lastDangerAt < CLEAR_HOLD_MS) level = state.alert === "clear" ? "clear" : "caution";
@@ -408,9 +426,25 @@ function buzz(pattern) {
 }
 
 let audioCtx = null;
+
+// iOS refuses to start audio outside a user gesture. The old code created the
+// context inside beep(), at alert time, with no finger on the screen -- so on
+// an iPhone the context came up suspended and the danger tone never sounded,
+// while the Alarm button sat there lit. The first touch anywhere unlocks it.
+function unlockAudio() {
+  try {
+    audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx.state === "suspended") audioCtx.resume();
+  } catch (_) {}
+}
+if (typeof document !== "undefined") {
+  document.addEventListener("pointerdown", unlockAudio, { once: true, passive: true });
+}
+
 function beep() {
   try {
     audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx.state === "suspended") audioCtx.resume();
     const o = audioCtx.createOscillator();
     const g = audioCtx.createGain();
     o.frequency.value = 880;
@@ -431,9 +465,47 @@ function renderAlert(result) {
   }
   const label = w.rock.cls === "shoal" ? "SHOAL" : "ROCK";
   const dist = Math.round(w.range);
-  const ttc = Number.isFinite(w.ttc) ? `  ${Math.round(w.ttc)}s` : "";
-  banner.textContent =
-    state.alert === "clear" ? `nearest ${label.toLowerCase()} ${dist} m` : `${label} ${dist} m${ttc}`;
+  if (state.alert === "clear") {
+    banner.textContent = `nearest ${label.toLowerCase()} ${dist} m`;
+    return;
+  }
+  // Loud states carry one big number and one clock position. Metres are what
+  // the eye lands on from arm's length; the clock says which way to look
+  // without reading the map; seconds are the small print.
+  const clock = clockBearing(state.heading, state.fix, w.rock);
+  // "sec", not "s": the banner is uppercased and "4 S" reads as a typo.
+  const ttc = Number.isFinite(w.ttc) ? `${Math.round(w.ttc)} sec` : "";
+  const where = [label, clock, ttc].filter(Boolean).join(" \u00b7 ");
+  banner.replaceChildren();
+  const n = document.createElement("b");
+  n.className = "n";
+  n.textContent = `${dist} m`;
+  const sub = document.createElement("span");
+  sub.className = "where";
+  sub.textContent = where;
+  banner.append(n, sub);
+}
+
+// The stream dying is not reported as an error, so the fix's age is watched
+// from the frame loop and the banner says NO FIX the moment it goes quiet.
+// This takes over the banner even in the clear state on purpose: a stale
+// "clear ahead" is the lie this app must never tell. See gps.js.
+let staleShown = null;
+function watchFix(now) {
+  if (sim.on || !state.fix) return;
+  const text = staleBanner(state.fix.t, now);
+  if (text === staleShown) return;
+  staleShown = text;
+  const banner = el("alert");
+  if (text) {
+    banner.className = "alert caution";
+    banner.textContent = text;
+    state.alert = "stale";
+  } else {
+    // Fixes are back. The next evaluate() repaints with the real state.
+    state.alert = "clear";
+    evaluate();
+  }
 }
 
 // --- UI --------------------------------------------------------------------
@@ -716,6 +788,22 @@ function setDetail(level) {
 el("btnDetailVerified").onclick = () => setDetail("verified");
 el("btnDetailAll").onclick = () => setDetail("all");
 
+// How many seconds of warning. Named by boat rather than by number because the
+// person choosing knows what they drive, not what a lookahead is. The seconds
+// are printed under the buttons so the choice is never a mystery.
+function setLead(preset) {
+  state.lead = preset in { slow: 1, normal: 1, fast: 1 } ? preset : "normal";
+  writePref("lead", state.lead);
+  for (const k of ["slow", "normal", "fast"]) {
+    el(`btnLead_${k}`).classList.toggle("on", k === state.lead);
+  }
+  el("leadNote").textContent = `${leadSeconds(state.lead)} s of warning at your speed.`;
+  evaluate();
+}
+for (const k of ["slow", "normal", "fast"]) {
+  el(`btnLead_${k}`).onclick = () => setLead(k);
+}
+
 // The photograph is loaded on first use, not at boot. It is megabytes, and a
 // user who never touches the slider should never pay for it -- especially on a
 // phone that just came out of a pocket with one bar. Once it is in the service
@@ -978,7 +1066,7 @@ map.addEventListener("wheel", (e) => {
 
 // lastStep starts at -Infinity so the first fix lands on the very first frame
 // instead of after a full second of blank map.
-const sim = { on: false, t: 0, px: 0, py: 0, hdg: 0.6, lastStep: -Infinity };
+const sim = { on: false, t: 0, px: 0, py: 0, hdg: 0.6, lastStep: -Infinity, aim: false };
 
 function startSim() {
   document.body.classList.add("sim");
@@ -1000,7 +1088,19 @@ function stepSim(now) {
   if (now - sim.lastStep < 1000) return;
   sim.lastStep = now;
   sim.t += 1;
-  sim.hdg += Math.sin(sim.t / 18) * 0.05;
+  if (sim.aim) {
+    // ?aim=1: steer straight at the nearest hazard so the loud banner can be
+    // exercised on demand instead of waiting for the wander to cross one.
+    const near = index.query(sim.px, sim.py, 1500).filter((r) => !dismissedSet().has(r.id));
+    let best = null;
+    for (const r of near) {
+      const d = Math.hypot(r.x - sim.px, r.y - sim.py);
+      if (d > 30 && (!best || d < best.d)) best = { r, d };
+    }
+    if (best) sim.hdg = Math.atan2(best.r.y - sim.py, best.r.x - sim.px);
+  } else {
+    sim.hdg += Math.sin(sim.t / 18) * 0.05;
+  }
   const spd = 8; // ~16 kn
   sim.px += Math.cos(sim.hdg) * spd;
   sim.py += Math.sin(sim.hdg) * spd;
@@ -1036,8 +1136,40 @@ window.addEventListener("unhandledrejection", (e) => {
 // battery on a phone that is already holding a wake lock.
 function frame(now) {
   if (sim.on) stepSim(now || performance.now());
+  watchFix(Date.now());
   if (isActive("map")) view.draw(state);
   requestAnimationFrame(frame);
+}
+
+// --- trip log --------------------------------------------------------------
+// Every outing is already on the phone as fixes. Listing them as trips is what
+// makes the log worth opening after the boat is on the trailer.
+function renderTrips(fixes) {
+  const box = el("tripList");
+  if (!box) return;
+  const marks = [...state.marks.values()];
+  const trips = summarizeTrips(fixes, marks).slice(0, 30);
+  box.replaceChildren();
+  if (!trips.length) {
+    const d = document.createElement("div");
+    d.className = "foot";
+    d.textContent = "No trips yet. Drive the lake with this open and they appear here.";
+    box.append(d);
+    return;
+  }
+  for (const t of trips) {
+    const row = document.createElement("div");
+    row.className = "trip";
+    const b = document.createElement("b");
+    b.textContent = new Date(t.start).toLocaleDateString(undefined, {
+      month: "short", day: "numeric", year: "numeric",
+    });
+    const d = document.createElement("div");
+    d.className = "who";
+    d.textContent = describeTrip(t);
+    row.append(b, d);
+    box.append(row);
+  }
 }
 
 // --- sharing ---------------------------------------------------------------
@@ -1133,6 +1265,11 @@ initViews(
       view.resize();
       view.draw(state);
     },
+    // The list is built once at boot; today's run is still being logged, so
+    // refresh it on the way in rather than leave the newest trip a reload away.
+    info: () => {
+      allTracks().then(renderTrips).catch(() => {});
+    },
   },
 );
 // Chart is the default: this gets used outdoors, in daylight, most of the time.
@@ -1141,6 +1278,28 @@ setTheme(new URLSearchParams(location.search).get("theme") === "night" ? "night"
 // assigned, so the lit button and the count under it can never disagree with
 // what is actually drawn.
 setDetail(readPrefs().detail === "verified" ? "verified" : "all");
+setLead(readPrefs().lead || "normal");
+
+// One line, once, only in a browser tab on a phone. Dismissing it is remembered;
+// installing it makes it moot. Lives on the Info tab, never on the helm.
+{
+  const hint = installHint({
+    ua: navigator.userAgent,
+    standalone: navigator.standalone,
+    displayModeStandalone: typeof matchMedia === "function" && matchMedia("(display-mode: standalone)").matches,
+    dismissed: readPrefs().installHintSeen === true,
+  });
+  const box = el("installHint");
+  if (hint && box) {
+    box.style.display = "";
+    el("installHintText").textContent = hint;
+    el("btnInstallHintDone").onclick = () => {
+      writePref("installHintSeen", true);
+      box.style.display = "none";
+    };
+    setStatus("Works offline once added to your Home Screen. The Info tab says how.", "ok");
+  }
+}
 // Same reasoning for the aerial slider: set the input first, then route through
 // setSat, so the knob, the readout and the drawn opacity cannot disagree. With
 // no imagery in the payload the row goes away entirely -- a control at the helm
@@ -1163,6 +1322,7 @@ loadMarks().then(() => {
         const [x, y] = proj.fwd(f.lon, f.lat);
         return { x, y, accuracy: f.accuracy, speed: f.speed, t: f.t };
       });
+    renderTrips(fixes);
     if (!pts.length) return;
     state.swept = sweptFromFixes(pts);
     const st = coverageStats(state.swept, LAKE_AREA_M2);
@@ -1213,8 +1373,15 @@ loadMarks().then(() => {
 });
 frame();
 
-if (new URLSearchParams(location.search).get("sim") === "1") startSim();
-else startGps();
+{
+  const q = new URLSearchParams(location.search);
+  if (q.get("sim") === "1") {
+    sim.aim = q.get("aim") === "1";
+    startSim();
+  } else {
+    startGps();
+  }
+}
 
 // Last, after the boot overlay is gone and the lake is drawn, so the first ring
 // lands on something rather than on a loading bar. It decides for itself

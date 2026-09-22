@@ -28,7 +28,7 @@ DIST = ROOT / "dist"
 # hoists the function declaration but not the assignment to window.Tour.
 MODULES = ["geo.js", "depth.js", "evidence.js", "hazard.js", "swept.js", "flags.js",
            "sync.js", "render.js", "store.js", "views.js", "basepath.js", "gps.js",
-           "viewport.js", "tour.js", "tour-steps.js", "app.js"]
+           "viewport.js", "trips.js", "tour.js", "tour-steps.js", "app.js"]
 
 # The 3D viewer used to be its own page. Three HTML files meant three URLs to
 # hand somebody, three sets of chrome and three visual languages for one lake,

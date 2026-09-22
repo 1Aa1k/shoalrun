@@ -88,3 +88,21 @@ test("nothing is registered outside a secure context", async () => {
   // either way.
   assert.equal(s.link.href, "/shoalrun/manifest.json");
 });
+
+import { installHint } from "./basepath.js";
+
+const IOS = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 Version/17.0 Mobile/15E148 Safari/604.1";
+const ANDROID = "Mozilla/5.0 (Linux; Android 14; Pixel 8) Chrome/120.0 Mobile Safari/537.36";
+const DESKTOP = "Mozilla/5.0 (X11; Linux x86_64) Chrome/120.0";
+
+test("an iPhone in a browser tab is told how to install, once", () => {
+  assert.match(installHint({ ua: IOS, standalone: false }), /Add to Home Screen/);
+  assert.equal(installHint({ ua: IOS, standalone: true }), null);
+  assert.equal(installHint({ ua: IOS, standalone: false, dismissed: true }), null);
+});
+
+test("Android uses the display-mode signal; desktop is never nagged", () => {
+  assert.match(installHint({ ua: ANDROID, displayModeStandalone: false }), /Add to Home screen/);
+  assert.equal(installHint({ ua: ANDROID, displayModeStandalone: true }), null);
+  assert.equal(installHint({ ua: DESKTOP }), null);
+});

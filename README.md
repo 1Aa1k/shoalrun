@@ -185,7 +185,9 @@ the home screen. There is no cell service on that lake; anything that fetches at
 runtime works in the driveway and fails on the water.
 
 Append `?sim=1` to drive a synthetic boat through the eastern arm and watch the
-alerting without leaving the dock. `?theme=night` opens in the dark palette.
+alerting without leaving the dock; add `&aim=1` to steer it straight at the
+nearest hazard so the loud banner fires within seconds. `?theme=night` opens in
+the dark palette.
 
 ### One page, three tabs
 
@@ -280,6 +282,17 @@ Look-ahead corridor, not a proximity ring: position projected forward by speed Ã
 and says nothing at 30 kn. Below ~3 kn it falls back to a plain radius, because
 GPS course is meaningless while drifting. Ranked by time-to-contact. Alerts hold
 for 4 s before clearing so a hazard at the edge of tolerance cannot strobe.
+
+The 20 s is the "Runabout" preset. Layers â†’ Your boat picks 15 s (pontoon) or
+30 s (fast boat); the danger/caution tiers scale with it, the range floors do
+not. Draft is deliberately not a setting: the depth surface is interpolated from
+a 1954 survey, and letting it suppress an alert would be a safety bug.
+
+A loud banner shows one big number (metres to the hazard), then what it is,
+where it is as a clock position off the bow, and seconds to contact. If the GPS
+stream stops for 8 s the banner switches to NO FIX with the age, so a stale
+"clear ahead" can never sit on screen. The Info tab lists past trips (distance,
+duration, top speed, reports) from the local track log.
 
 ## Attribution
 

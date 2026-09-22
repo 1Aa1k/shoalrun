@@ -183,3 +183,46 @@ test("same class ranks by evidence", () => {
 test("a missing tier is treated as unverified, not as trusted", () => {
   assert.equal(severityOf("shoal", undefined), severityOf("shoal", "unverified"));
 });
+
+// --- lead presets and clock bearing ---------------------------------------
+
+import { clockBearing, leadSeconds, LEAD_PRESETS } from "./hazard.js";
+
+test("a longer lead projects the corridor further at the same speed", () => {
+  const idx = indexOf(rock("far", 500, 0));
+  const normal = scan({ x: 0, y: 0 }, EAST, 18, idx, new Set(), LEAD_PRESETS.normal);
+  const fast = scan({ x: 0, y: 0 }, EAST, 18, idx, new Set(), LEAD_PRESETS.fast);
+  assert.equal(normal.worst, null, "360 m corridor must not reach a rock at 500 m");
+  assert.equal(fast.worst.rock.id, "far", "540 m corridor must");
+});
+
+test("alert tiers move out with the lead, range floors do not", () => {
+  const hit = { ttc: 8, range: 300 };
+  assert.equal(alertLevel(hit, LEAD_PRESETS.normal), "caution");
+  assert.equal(alertLevel(hit, LEAD_PRESETS.fast), "danger");
+  assert.equal(alertLevel({ ttc: 100, range: 35 }, LEAD_PRESETS.slow), "danger");
+});
+
+test("the default lead is unchanged from what it always was", () => {
+  assert.equal(leadSeconds("normal"), 20);
+  assert.equal(leadSeconds("nonsense"), 20);
+  assert.equal(alertLevel({ ttc: 6, range: 500 }), "danger");
+  assert.equal(alertLevel({ ttc: 15, range: 500 }), "caution");
+  assert.equal(alertLevel({ ttc: 16, range: 500 }), "clear");
+});
+
+test("clock bearing: dead ahead is 12, starboard beam is 3, port bow is 11", () => {
+  const me = { x: 0, y: 0 };
+  assert.equal(clockBearing(EAST, me, { x: 100, y: 0 }), "12 o'clock");
+  assert.equal(clockBearing(EAST, me, { x: 0, y: -100 }), "3 o'clock");
+  assert.equal(clockBearing(EAST, me, { x: 0, y: 100 }), "9 o'clock");
+  assert.equal(clockBearing(EAST, me, { x: 100, y: 27 }), "11 o'clock");
+  assert.equal(clockBearing(EAST, me, { x: -100, y: 0 }), "6 o'clock");
+});
+
+test("clock bearing follows the heading, not the map", () => {
+  const me = { x: 0, y: 0 };
+  assert.equal(clockBearing(NORTH, me, { x: 0, y: 100 }), "12 o'clock");
+  assert.equal(clockBearing(NORTH, me, { x: 100, y: 0 }), "3 o'clock");
+  assert.equal(clockBearing(null, me, { x: 100, y: 0 }), null);
+});

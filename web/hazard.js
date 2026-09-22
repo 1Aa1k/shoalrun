@@ -8,6 +8,15 @@ import { distToSegment } from "./geo.js";
 // speed we stop projecting entirely, because course over ground from GPS is
 // meaningless when drifting and would swing the corridor wildly.
 export const LOOKAHEAD_S = 20;
+
+// How many seconds of warning the helm gets. Seconds rather than metres because
+// the distance already scales with speed; what differs from boat to boat is how
+// long it takes to react and come off plane. A pontoon at 5 kn is off the throttle
+// and stopped inside 15 s; a bass boat at 40 kn needs the extra ten.
+export const LEAD_PRESETS = { slow: 15, normal: LOOKAHEAD_S, fast: 30 };
+export function leadSeconds(preset) {
+  return LEAD_PRESETS[preset] ?? LOOKAHEAD_S;
+}
 export const MIN_SPEED_MS = 1.5; // ~3 kn; below this, moored/drifting
 export const MIN_CORRIDOR_M = 60; // never look less than this far ahead
 export const MAX_CORRIDOR_M = 600; // cap the projection at ~35 kn * 20 s
@@ -58,13 +67,14 @@ export function isConfirmed(rock) {
  * @param {number} speedMs              speed over ground, m/s
  * @param {GridIndex} index             spatial index of rock candidates
  * @param {Set<string>} dismissed       ids the user marked "not there"
+ * @param {number} [lookaheadS]         seconds of travel to project, see LEAD_PRESETS
  * @returns {{list:Array, worst:object|null}}
  */
-export function scan(pos, headingRad, speedMs, index, dismissed) {
+export function scan(pos, headingRad, speedMs, index, dismissed, lookaheadS = LOOKAHEAD_S) {
   const moving = speedMs >= MIN_SPEED_MS && Number.isFinite(headingRad);
 
   const reach = moving
-    ? Math.min(MAX_CORRIDOR_M, Math.max(MIN_CORRIDOR_M, speedMs * LOOKAHEAD_S))
+    ? Math.min(MAX_CORRIDOR_M, Math.max(MIN_CORRIDOR_M, speedMs * lookaheadS))
     : MIN_CORRIDOR_M;
 
   // When stopped or drifting we fall back to a plain radius, because there is
@@ -115,9 +125,29 @@ export function scan(pos, headingRad, speedMs, index, dismissed) {
 
 // Alert level from the top hit. Hysteresis lives in the caller; this is a pure
 // function of the current scan so it is trivially testable.
-export function alertLevel(worst) {
+//
+// The time thresholds are fractions of the lookahead so a longer lead moves
+// both tiers out together: at the default 20 s that is danger inside 6 s and
+// caution inside 15 s, which is where they always were. The range floors do not
+// scale -- 40 m is close whatever the boat.
+export function alertLevel(worst, lookaheadS = LOOKAHEAD_S) {
   if (!worst) return "clear";
-  if (worst.ttc <= 6 || worst.range <= 40) return "danger";
-  if (worst.ttc <= 15 || worst.range <= 120) return "caution";
+  if (worst.ttc <= lookaheadS * 0.3 || worst.range <= 40) return "danger";
+  if (worst.ttc <= lookaheadS * 0.75 || worst.range <= 120) return "caution";
   return "clear";
+}
+
+// Where the hazard is relative to the bow, as a clock position. "1 o'clock" is
+// what a helm reads in one glance; a bearing in degrees is arithmetic, and a
+// magenta dot on a rotating map is a search. 12 is dead ahead, 3 is off the
+// starboard beam. Not meaningful while drifting, so null when there is no
+// course to measure from.
+export function clockBearing(headingRad, from, to) {
+  if (!Number.isFinite(headingRad)) return null;
+  const abs = Math.atan2(to.y - from.y, to.x - from.x);
+  // Maths angles run counter-clockwise, so a positive offset is to port.
+  let rel = abs - headingRad;
+  rel = Math.atan2(Math.sin(rel), Math.cos(rel));
+  const hour = ((Math.round(-rel / (Math.PI / 6)) % 12) + 12) % 12;
+  return `${hour === 0 ? 12 : hour} o'clock`;
 }

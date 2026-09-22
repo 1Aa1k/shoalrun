@@ -230,7 +230,12 @@ input[type=text]::placeholder { color: var(--ink-faint); opacity: .75; }
 /* --- alert strip ---------------------------------------------------------- */
 /* Sized for a glance from the helm, not for reading. The clear state is
    deliberately quiet so that the loud states mean something. */
-.alert { position: absolute; top: 0; left: 0; right: 0; z-index: 5;
+/* Alert and caveat stack in one column, same reasoning as .v3dchrome: the
+   alert is one line when clear and two when loud, so a hardcoded `top` on the
+   caveat is right in one state and under the banner in the other. */
+.topstack { position: absolute; top: 0; left: 0; right: 0; z-index: 5;
+  display: flex; flex-direction: column; pointer-events: none; }
+.alert { position: relative;
   padding: calc(11px + var(--pad-t)) 16px 10px;
   font-size: 21px; font-weight: 700; letter-spacing: -.01em;
   text-align: center; transition: background .15s, color .15s;
@@ -241,12 +246,17 @@ input[type=text]::placeholder { color: var(--ink-faint); opacity: .75; }
 .alert.danger  { background: var(--danger); color: #fff;
   animation: pulse .7s infinite alternate; box-shadow: 0 6px 30px rgba(216,50,28,.5); }
 @keyframes pulse { to { background: #ff3b26; } }
+/* Loud states: one big number, one line of where. Reads from the far end of
+   the boat; the seconds and the clock position are the small print. */
+.alert .n { display: block; font-size: 40px; line-height: 1; letter-spacing: -.02em;
+  font-variant-numeric: tabular-nums; }
+.alert .where { display: block; font-size: 15px; font-weight: 600; margin-top: 3px;
+  letter-spacing: .04em; text-transform: uppercase; opacity: .92; }
 
 /* One line under the alert, never removed, never behind a tap. The long version
    of this argument lives on the Info tab; this is the part that has to be on
    screen while somebody is steering by the map. */
-.caveat { position: absolute; left: 0; right: 0; z-index: 4;
-  top: calc(52px + var(--pad-t));
+.caveat { position: relative;
   padding: 5px 12px; text-align: center;
   font-size: 11px; line-height: 1.35; letter-spacing: .01em;
   background: rgba(216,50,28,.16); color: #f2b0a6;
@@ -329,6 +339,8 @@ input[type=text]::placeholder { color: var(--ink-faint); opacity: .75; }
        margin-bottom: 7px; font-size: 13px; }
 .rev .who { color: var(--ink-dim); font-size: 12px; }
 .rev .acts { display: flex; gap: 6px; margin-top: 6px; flex-wrap: wrap; }
+.trip { border-bottom: 1px solid var(--line); padding: 8px 2px; }
+.trip .who { color: var(--ink-dim); font-size: 12px; }
 
 /* --- narrow screens ------------------------------------------------------- */
 @media (max-width: 560px) {
@@ -401,7 +413,7 @@ input[type=text]::placeholder { color: var(--ink-faint); opacity: .75; }
 
   .alert { padding: calc(7px + var(--pad-t)) 16px 6px; font-size: 18px; }
   .alert.clear { font-size: 12px; }
-  .caveat { top: calc(37px + var(--pad-t)); padding: 3px 12px; font-size: 10px; }
+  .caveat { padding: 3px 12px; font-size: 10px; }
 
   .legend { padding: 4px 10px; font-size: 10px; gap: 2px 11px; }
   .legend .ramp { width: 56px; height: 6px; }
@@ -574,10 +586,11 @@ body.sim::after { content: "SIMULATION"; position: absolute; top: 45%; left: 0; 
  <div class="lake">
   <canvas id="map"></canvas>
 
-  <div id="alert" class="alert clear">waiting for GPS</div>
-
-  <div class="caveat">
-    <b>Unverified.</b> An aid, not a chart. No marker does not mean clear water.
+  <div class="topstack">
+    <div id="alert" class="alert clear">waiting for GPS</div>
+    <div class="caveat">
+      <b>Unverified.</b> An aid, not a chart. No marker does not mean clear water.
+    </div>
   </div>
 
   <div class="card depthnow" id="depthNow" style="display:none">
@@ -646,6 +659,14 @@ body.sim::after { content: "SIMULATION"; position: absolute; top: 45%; left: 0; 
       <button id="btnDetailAll" class="on">Every candidate</button>
     </div>
     <div class="foot" id="detailNote" style="margin-top:8px"></div>
+
+    <h4>Your boat</h4>
+    <div class="toggles">
+      <button id="btnLead_slow">Pontoon</button>
+      <button id="btnLead_normal" class="on">Runabout</button>
+      <button id="btnLead_fast">Fast boat</button>
+    </div>
+    <div class="foot" id="leadNote" style="margin-top:8px"></div>
 
     <!-- Sits with the marks rather than with the water layers on purpose: the
          magenta candidates came off aerial imagery, so the photograph is how
@@ -828,12 +849,22 @@ body.sim::after { content: "SIMULATION"; position: absolute; top: 45%; left: 0; 
       everything more than 120 m from a real measurement &mdash; that is 42% of
       the lake, and in places 1.9 km.</p>
 
+    <div class="block" id="installHint" style="display:none">
+      <p id="installHintText" style="margin-bottom:8px"></p>
+      <button id="btnInstallHintDone" class="ghost">Got it</button>
+    </div>
+
     <h2>Your data</h2>
     <div class="row">
       <button id="btnExport">Export track</button>
       <button id="btnReview">Review reports (<span id="nPending">0</span>)</button>
     </div>
     <div id="reviewList" style="display:none; margin-bottom:12px"></div>
+
+    <h3>Trips</h3>
+    <p class="foot">Each outing with this open. Distance is what was actually
+      driven; a gap where the phone slept is not counted.</p>
+    <div id="tripList"></div>
 
     <h2>Share with other boats</h2>
     <p>Until a lake code is set, nothing leaves this phone. Joining means boat

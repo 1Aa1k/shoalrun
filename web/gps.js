@@ -58,3 +58,28 @@ export function gpsFailure(err) {
     level: "warn",
   };
 }
+
+// A fix that stopped arriving is worse than one that never came. watchPosition
+// does not always report an error when the stream dies -- the phone drops into
+// low power, Safari suspends the tab under a phone call, the boat runs under a
+// canopy -- and the last banner stays up. On the water a stale "clear ahead"
+// reads as a live "clear ahead", which is the one lie this app must not tell.
+//
+// Under this many milliseconds the fix is treated as current; iOS delivers one
+// a second when it has a lock, so anything past this is a stall, not jitter.
+export const FIX_STALE_MS = 8000;
+
+/**
+ * Banner text for a fix that has gone quiet, or null while it is fresh.
+ * Seconds under a minute, then minutes -- the number is there so a glance can
+ * tell "just stalled" from "has been dead the whole way across".
+ * @param {number|null} lastT   timestamp of the last fix, ms
+ * @param {number} now
+ */
+export function staleBanner(lastT, now) {
+  if (lastT == null) return null;
+  const age = now - lastT;
+  if (age < FIX_STALE_MS) return null;
+  const s = Math.floor(age / 1000);
+  return s < 60 ? `NO FIX ${s}s` : `NO FIX ${Math.floor(s / 60)}m`;
+}

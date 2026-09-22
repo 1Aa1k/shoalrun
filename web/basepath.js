@@ -61,3 +61,27 @@ export function installPwa(loc = location, nav = navigator, doc = document) {
     .register(dir + "sw.js", { scope: widestScope(dir) })
     .catch(() => nav.serviceWorker.register(dir + "sw.js").catch(() => {}));
 }
+
+/**
+ * Whether to tell this person to install the app, and what to say.
+ *
+ * Offline is the whole point on a lake with no signal, and in a browser tab
+ * offline is only a cache that iOS purges after seven days unused. Installed,
+ * the copy is permanent and full screen. The hint is one line, once, and never
+ * on the helm view -- the caller decides where it goes.
+ *
+ * @param {{ua:string, standalone?:boolean, displayModeStandalone?:boolean, dismissed?:boolean}} env
+ * @returns {string|null}
+ */
+export function installHint(env) {
+  if (env.dismissed) return null;
+  if (env.standalone === true || env.displayModeStandalone === true) return null;
+  const ua = env.ua || "";
+  if (/iPhone|iPad|iPod/.test(ua)) {
+    return "Add this to your Home Screen for offline use: tap Share, then \"Add to Home Screen\".";
+  }
+  if (/Android/.test(ua)) {
+    return "Install this for offline use: browser menu, then \"Add to Home screen\".";
+  }
+  return null;
+}

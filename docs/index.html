@@ -230,7 +230,12 @@ input[type=text]::placeholder { color: var(--ink-faint); opacity: .75; }
 /* --- alert strip ---------------------------------------------------------- */
 /* Sized for a glance from the helm, not for reading. The clear state is
    deliberately quiet so that the loud states mean something. */
-.alert { position: absolute; top: 0; left: 0; right: 0; z-index: 5;
+/* Alert and caveat stack in one column, same reasoning as .v3dchrome: the
+   alert is one line when clear and two when loud, so a hardcoded `top` on the
+   caveat is right in one state and under the banner in the other. */
+.topstack { position: absolute; top: 0; left: 0; right: 0; z-index: 5;
+  display: flex; flex-direction: column; pointer-events: none; }
+.alert { position: relative;
   padding: calc(11px + var(--pad-t)) 16px 10px;
   font-size: 21px; font-weight: 700; letter-spacing: -.01em;
   text-align: center; transition: background .15s, color .15s;
@@ -241,12 +246,17 @@ input[type=text]::placeholder { color: var(--ink-faint); opacity: .75; }
 .alert.danger  { background: var(--danger); color: #fff;
   animation: pulse .7s infinite alternate; box-shadow: 0 6px 30px rgba(216,50,28,.5); }
 @keyframes pulse { to { background: #ff3b26; } }
+/* Loud states: one big number, one line of where. Reads from the far end of
+   the boat; the seconds and the clock position are the small print. */
+.alert .n { display: block; font-size: 40px; line-height: 1; letter-spacing: -.02em;
+  font-variant-numeric: tabular-nums; }
+.alert .where { display: block; font-size: 15px; font-weight: 600; margin-top: 3px;
+  letter-spacing: .04em; text-transform: uppercase; opacity: .92; }
 
 /* One line under the alert, never removed, never behind a tap. The long version
    of this argument lives on the Info tab; this is the part that has to be on
    screen while somebody is steering by the map. */
-.caveat { position: absolute; left: 0; right: 0; z-index: 4;
-  top: calc(52px + var(--pad-t));
+.caveat { position: relative;
   padding: 5px 12px; text-align: center;
   font-size: 11px; line-height: 1.35; letter-spacing: .01em;
   background: rgba(216,50,28,.16); color: #f2b0a6;
@@ -329,6 +339,8 @@ input[type=text]::placeholder { color: var(--ink-faint); opacity: .75; }
        margin-bottom: 7px; font-size: 13px; }
 .rev .who { color: var(--ink-dim); font-size: 12px; }
 .rev .acts { display: flex; gap: 6px; margin-top: 6px; flex-wrap: wrap; }
+.trip { border-bottom: 1px solid var(--line); padding: 8px 2px; }
+.trip .who { color: var(--ink-dim); font-size: 12px; }
 
 /* --- narrow screens ------------------------------------------------------- */
 @media (max-width: 560px) {
@@ -401,7 +413,7 @@ input[type=text]::placeholder { color: var(--ink-faint); opacity: .75; }
 
   .alert { padding: calc(7px + var(--pad-t)) 16px 6px; font-size: 18px; }
   .alert.clear { font-size: 12px; }
-  .caveat { top: calc(37px + var(--pad-t)); padding: 3px 12px; font-size: 10px; }
+  .caveat { padding: 3px 12px; font-size: 10px; }
 
   .legend { padding: 4px 10px; font-size: 10px; gap: 2px 11px; }
   .legend .ramp { width: 56px; height: 6px; }
@@ -574,10 +586,11 @@ body.sim::after { content: "SIMULATION"; position: absolute; top: 45%; left: 0; 
  <div class="lake">
   <canvas id="map"></canvas>
 
-  <div id="alert" class="alert clear">waiting for GPS</div>
-
-  <div class="caveat">
-    <b>Unverified.</b> An aid, not a chart. No marker does not mean clear water.
+  <div class="topstack">
+    <div id="alert" class="alert clear">waiting for GPS</div>
+    <div class="caveat">
+      <b>Unverified.</b> An aid, not a chart. No marker does not mean clear water.
+    </div>
   </div>
 
   <div class="card depthnow" id="depthNow" style="display:none">
@@ -646,6 +659,14 @@ body.sim::after { content: "SIMULATION"; position: absolute; top: 45%; left: 0; 
       <button id="btnDetailAll" class="on">Every candidate</button>
     </div>
     <div class="foot" id="detailNote" style="margin-top:8px"></div>
+
+    <h4>Your boat</h4>
+    <div class="toggles">
+      <button id="btnLead_slow">Pontoon</button>
+      <button id="btnLead_normal" class="on">Runabout</button>
+      <button id="btnLead_fast">Fast boat</button>
+    </div>
+    <div class="foot" id="leadNote" style="margin-top:8px"></div>
 
     <!-- Sits with the marks rather than with the water layers on purpose: the
          magenta candidates came off aerial imagery, so the photograph is how
@@ -828,12 +849,22 @@ body.sim::after { content: "SIMULATION"; position: absolute; top: 45%; left: 0; 
       everything more than 120 m from a real measurement &mdash; that is 42% of
       the lake, and in places 1.9 km.</p>
 
+    <div class="block" id="installHint" style="display:none">
+      <p id="installHintText" style="margin-bottom:8px"></p>
+      <button id="btnInstallHintDone" class="ghost">Got it</button>
+    </div>
+
     <h2>Your data</h2>
     <div class="row">
       <button id="btnExport">Export track</button>
       <button id="btnReview">Review reports (<span id="nPending">0</span>)</button>
     </div>
     <div id="reviewList" style="display:none; margin-bottom:12px"></div>
+
+    <h3>Trips</h3>
+    <p class="foot">Each outing with this open. Distance is what was actually
+      driven; a gap where the phone slept is not counted.</p>
+    <div id="tripList"></div>
 
     <h2>Share with other boats</h2>
     <p>Until a lake code is set, nothing leaves this phone. Joining means boat
@@ -1503,6 +1534,15 @@ const DEFAULT_DETAIL = "verified";
 // speed we stop projecting entirely, because course over ground from GPS is
 // meaningless when drifting and would swing the corridor wildly.
 const LOOKAHEAD_S = 20;
+
+// How many seconds of warning the helm gets. Seconds rather than metres because
+// the distance already scales with speed; what differs from boat to boat is how
+// long it takes to react and come off plane. A pontoon at 5 kn is off the throttle
+// and stopped inside 15 s; a bass boat at 40 kn needs the extra ten.
+const LEAD_PRESETS = { slow: 15, normal: LOOKAHEAD_S, fast: 30 };
+function leadSeconds(preset) {
+  return LEAD_PRESETS[preset] ?? LOOKAHEAD_S;
+}
 const MIN_SPEED_MS = 1.5; // ~3 kn; below this, moored/drifting
 const MIN_CORRIDOR_M = 60; // never look less than this far ahead
 const MAX_CORRIDOR_M = 600; // cap the projection at ~35 kn * 20 s
@@ -1552,13 +1592,14 @@ function isConfirmed(rock) {
  * @param {number} speedMs              speed over ground, m/s
  * @param {GridIndex} index             spatial index of rock candidates
  * @param {Set<string>} dismissed       ids the user marked "not there"
+ * @param {number} [lookaheadS]         seconds of travel to project, see LEAD_PRESETS
  * @returns {{list:Array, worst:object|null}}
  */
-function scan(pos, headingRad, speedMs, index, dismissed) {
+function scan(pos, headingRad, speedMs, index, dismissed, lookaheadS = LOOKAHEAD_S) {
   const moving = speedMs >= MIN_SPEED_MS && Number.isFinite(headingRad);
 
   const reach = moving
-    ? Math.min(MAX_CORRIDOR_M, Math.max(MIN_CORRIDOR_M, speedMs * LOOKAHEAD_S))
+    ? Math.min(MAX_CORRIDOR_M, Math.max(MIN_CORRIDOR_M, speedMs * lookaheadS))
     : MIN_CORRIDOR_M;
 
   // When stopped or drifting we fall back to a plain radius, because there is
@@ -1609,11 +1650,31 @@ function scan(pos, headingRad, speedMs, index, dismissed) {
 
 // Alert level from the top hit. Hysteresis lives in the caller; this is a pure
 // function of the current scan so it is trivially testable.
-function alertLevel(worst) {
+//
+// The time thresholds are fractions of the lookahead so a longer lead moves
+// both tiers out together: at the default 20 s that is danger inside 6 s and
+// caution inside 15 s, which is where they always were. The range floors do not
+// scale -- 40 m is close whatever the boat.
+function alertLevel(worst, lookaheadS = LOOKAHEAD_S) {
   if (!worst) return "clear";
-  if (worst.ttc <= 6 || worst.range <= 40) return "danger";
-  if (worst.ttc <= 15 || worst.range <= 120) return "caution";
+  if (worst.ttc <= lookaheadS * 0.3 || worst.range <= 40) return "danger";
+  if (worst.ttc <= lookaheadS * 0.75 || worst.range <= 120) return "caution";
   return "clear";
+}
+
+// Where the hazard is relative to the bow, as a clock position. "1 o'clock" is
+// what a helm reads in one glance; a bearing in degrees is arithmetic, and a
+// magenta dot on a rotating map is a search. 12 is dead ahead, 3 is off the
+// starboard beam. Not meaningful while drifting, so null when there is no
+// course to measure from.
+function clockBearing(headingRad, from, to) {
+  if (!Number.isFinite(headingRad)) return null;
+  const abs = Math.atan2(to.y - from.y, to.x - from.x);
+  // Maths angles run counter-clockwise, so a positive offset is to port.
+  let rel = abs - headingRad;
+  rel = Math.atan2(Math.sin(rel), Math.cos(rel));
+  const hour = ((Math.round(-rel / (Math.PI / 6)) % 12) + 12) % 12;
+  return `${hour === 0 ? 12 : hour} o'clock`;
 }
 
 // Swept area: water the boat has actually driven through, accumulated across
@@ -3399,6 +3460,30 @@ function installPwa(loc = location, nav = navigator, doc = document) {
     .catch(() => nav.serviceWorker.register(dir + "sw.js").catch(() => {}));
 }
 
+/**
+ * Whether to tell this person to install the app, and what to say.
+ *
+ * Offline is the whole point on a lake with no signal, and in a browser tab
+ * offline is only a cache that iOS purges after seven days unused. Installed,
+ * the copy is permanent and full screen. The hint is one line, once, and never
+ * on the helm view -- the caller decides where it goes.
+ *
+ * @param {{ua:string, standalone?:boolean, displayModeStandalone?:boolean, dismissed?:boolean}} env
+ * @returns {string|null}
+ */
+function installHint(env) {
+  if (env.dismissed) return null;
+  if (env.standalone === true || env.displayModeStandalone === true) return null;
+  const ua = env.ua || "";
+  if (/iPhone|iPad|iPod/.test(ua)) {
+    return "Add this to your Home Screen for offline use: tap Share, then \"Add to Home Screen\".";
+  }
+  if (/Android/.test(ua)) {
+    return "Install this for offline use: browser menu, then \"Add to Home screen\".";
+  }
+  return null;
+}
+
 // What to say when the fix does not arrive.
 //
 // On a phone this is the most likely thing to go wrong on a first open, and it
@@ -3460,6 +3545,31 @@ function gpsFailure(err) {
   };
 }
 
+// A fix that stopped arriving is worse than one that never came. watchPosition
+// does not always report an error when the stream dies -- the phone drops into
+// low power, Safari suspends the tab under a phone call, the boat runs under a
+// canopy -- and the last banner stays up. On the water a stale "clear ahead"
+// reads as a live "clear ahead", which is the one lie this app must not tell.
+//
+// Under this many milliseconds the fix is treated as current; iOS delivers one
+// a second when it has a lock, so anything past this is a stall, not jitter.
+const FIX_STALE_MS = 8000;
+
+/**
+ * Banner text for a fix that has gone quiet, or null while it is fresh.
+ * Seconds under a minute, then minutes -- the number is there so a glance can
+ * tell "just stalled" from "has been dead the whole way across".
+ * @param {number|null} lastT   timestamp of the last fix, ms
+ * @param {number} now
+ */
+function staleBanner(lastT, now) {
+  if (lastT == null) return null;
+  const age = now - lastT;
+  if (age < FIX_STALE_MS) return null;
+  const s = Math.floor(age / 1000);
+  return s < 60 ? `NO FIX ${s}s` : `NO FIX ${Math.floor(s / 60)}m`;
+}
+
 // How tall the page actually is, according to the browser rather than to CSS.
 //
 // Safari on iOS puts its address bar at the bottom of the screen, over the
@@ -3510,6 +3620,87 @@ function trackVisibleHeight(win = window, doc = document) {
 
   apply();
   return apply;
+}
+
+// Trip summaries off the stored track, for the log in the Info tab.
+//
+// The fixes are already on the phone -- every outing logs them for the driven
+// water layer -- and until now nothing read them back as trips. A list of what
+// each outing covered is what gets the app opened after the boat is on the
+// trailer, which is when a mark gets reviewed and a report gets filed.
+
+const EARTH_R = 6371000;
+
+// Great-circle distance between two lat/lon points, metres. The stored track
+// carries lat/lon rather than projected metres, so this stays self-contained.
+function haversineM(lat1, lon1, lat2, lon2) {
+  const toRad = (d) => (d * Math.PI) / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
+  return 2 * EARTH_R * Math.asin(Math.sqrt(a));
+}
+
+// A leg longer than this between consecutive fixes is a gap (phone asleep, GPS
+// lost), not distance driven, and is not summed. 30 s at 35 kn is 540 m; a
+// legitimate leg is never anywhere near it at one fix a second.
+const MAX_LEG_MS = 30000;
+
+/**
+ * Group stored fixes into trips and total each one.
+ *
+ * @param {Array<{trip:string,t:number,lat:number,lon:number,spd?:number}>} fixes
+ * @param {Array<{t:number,kind?:string}>} [marks]  flags placed; counted into
+ *   the trip whose time span contains them
+ * @returns {Array<{trip:string,start:number,end:number,meters:number,
+ *   maxSpeedMs:number,points:number,flags:number}>} newest first
+ */
+function summarizeTrips(fixes, marks = []) {
+  const byTrip = new Map();
+  for (const f of fixes) {
+    if (!f || f.lat == null || f.lon == null || !Number.isFinite(f.t)) continue;
+    const key = f.trip || "unknown";
+    if (!byTrip.has(key)) byTrip.set(key, []);
+    byTrip.get(key).push(f);
+  }
+
+  const trips = [];
+  for (const [trip, pts] of byTrip) {
+    pts.sort((a, b) => a.t - b.t);
+    let meters = 0;
+    let maxSpeedMs = 0;
+    for (let i = 0; i < pts.length; i++) {
+      const p = pts[i];
+      if (Number.isFinite(p.spd) && p.spd > maxSpeedMs) maxSpeedMs = p.spd;
+      if (i === 0) continue;
+      const q = pts[i - 1];
+      if (p.t - q.t > MAX_LEG_MS) continue;
+      meters += haversineM(q.lat, q.lon, p.lat, p.lon);
+    }
+    const start = pts[0].t;
+    const end = pts[pts.length - 1].t;
+    const flags = marks.filter(
+      (m) => m && (m.kind === "flag" || m.kind == null) && m.t >= start && m.t <= end
+    ).length;
+    trips.push({ trip, start, end, meters, maxSpeedMs, points: pts.length, flags });
+  }
+
+  trips.sort((a, b) => b.start - a.start);
+  return trips;
+}
+
+const MS_TO_KN = 1.943844;
+
+/** One trip as the words the log prints. */
+function describeTrip(t, now = Date.now()) {
+  const km = (t.meters / 1000).toFixed(1);
+  const mins = Math.max(1, Math.round((t.end - t.start) / 60000));
+  const dur = mins < 60 ? `${mins} min` : `${Math.floor(mins / 60)} h ${mins % 60} min`;
+  const kn = (t.maxSpeedMs * MS_TO_KN).toFixed(0);
+  const flags = t.flags ? ` · ${t.flags} report${t.flags === 1 ? "" : "s"}` : "";
+  return `${km} km · ${dur} · top ${kn} kn${flags}`;
 }
 
 /*
@@ -4232,6 +4423,7 @@ function startTour() {
 
 
 
+
 // DATA is injected at build time so the app is one self-contained file with no
 // network dependency of any kind. There is no cell service on this lake.
 const { lake: LAKE_GEO, rocks: ROCK_GEO, depth: DEPTH_RAW, soundings: SOUNDING_RAW, structures: STRUCT_GEO, sat: SAT_META, meta: DATA_META } = window.SHOALRUN_DATA;
@@ -4311,6 +4503,8 @@ const state = {
   flags: [],
   showSwept: true,
   sound: true,
+  // Seconds of warning, by boat. See LEAD_PRESETS in hazard.js.
+  lead: "normal",
   trip: `trip-${Date.now()}`,
   logged: 0,
 };
@@ -4408,7 +4602,17 @@ view.scale = Math.min(
   view.h / ((bounds[3] - bounds[1]) * proj.mPerDegLat)
 ) * 0.92;
 view.rotation = 0;
-view.follow = false;
+// Following from the first fix. This was false, and the Follow button under it
+// was drawn lit: the map opened on the whole lake, the first fix arrived, and
+// nothing moved -- course-up never engaged and the boat could drive off the
+// edge of the screen with the button still saying it was being followed. The
+// hash handler below still turns it off for a shared spot.
+view.follow = true;
+
+// Zoom to helm scale on the first real fix, once. The boot view is the whole
+// lake so it paints something; that scale is useless for driving.
+const HELM_SCALE = 0.35;
+let zoomedToHelm = false;
 
 // #lat,lon,zoom opens the map somewhere specific. Written for handing someone a
 // spot -- "the camps on Evergreen Way" is a URL rather than four sentences of
@@ -4508,6 +4712,10 @@ function onFix(pos) {
 
   if (view.follow) {
     view.center = { x, y };
+    if (!zoomedToHelm) {
+      zoomedToHelm = true;
+      view.scale = HELM_SCALE;
+    }
     if (view.courseUp && headingRad != null && speed > 1.5) {
       view.rotation = headingRad - Math.PI / 2;
     }
@@ -4598,7 +4806,8 @@ let lastDangerAt = 0;
 
 function evaluate() {
   if (!state.fix) return;
-  const result = scan(state.fix, state.heading, state.speed, index, dismissedSet());
+  const lead = leadSeconds(state.lead);
+  const result = scan(state.fix, state.heading, state.speed, index, dismissedSet(), lead);
 
   state.corridor = result.moving
     ? {
@@ -4610,7 +4819,7 @@ function evaluate() {
       }
     : null;
 
-  let level = alertLevel(result.worst);
+  let level = alertLevel(result.worst, lead);
   const now = Date.now();
   if (level !== "clear") lastDangerAt = now;
   else if (now - lastDangerAt < CLEAR_HOLD_MS) level = state.alert === "clear" ? "clear" : "caution";
@@ -4629,9 +4838,25 @@ function buzz(pattern) {
 }
 
 let audioCtx = null;
+
+// iOS refuses to start audio outside a user gesture. The old code created the
+// context inside beep(), at alert time, with no finger on the screen -- so on
+// an iPhone the context came up suspended and the danger tone never sounded,
+// while the Alarm button sat there lit. The first touch anywhere unlocks it.
+function unlockAudio() {
+  try {
+    audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx.state === "suspended") audioCtx.resume();
+  } catch (_) {}
+}
+if (typeof document !== "undefined") {
+  document.addEventListener("pointerdown", unlockAudio, { once: true, passive: true });
+}
+
 function beep() {
   try {
     audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx.state === "suspended") audioCtx.resume();
     const o = audioCtx.createOscillator();
     const g = audioCtx.createGain();
     o.frequency.value = 880;
@@ -4652,9 +4877,47 @@ function renderAlert(result) {
   }
   const label = w.rock.cls === "shoal" ? "SHOAL" : "ROCK";
   const dist = Math.round(w.range);
-  const ttc = Number.isFinite(w.ttc) ? `  ${Math.round(w.ttc)}s` : "";
-  banner.textContent =
-    state.alert === "clear" ? `nearest ${label.toLowerCase()} ${dist} m` : `${label} ${dist} m${ttc}`;
+  if (state.alert === "clear") {
+    banner.textContent = `nearest ${label.toLowerCase()} ${dist} m`;
+    return;
+  }
+  // Loud states carry one big number and one clock position. Metres are what
+  // the eye lands on from arm's length; the clock says which way to look
+  // without reading the map; seconds are the small print.
+  const clock = clockBearing(state.heading, state.fix, w.rock);
+  // "sec", not "s": the banner is uppercased and "4 S" reads as a typo.
+  const ttc = Number.isFinite(w.ttc) ? `${Math.round(w.ttc)} sec` : "";
+  const where = [label, clock, ttc].filter(Boolean).join(" \u00b7 ");
+  banner.replaceChildren();
+  const n = document.createElement("b");
+  n.className = "n";
+  n.textContent = `${dist} m`;
+  const sub = document.createElement("span");
+  sub.className = "where";
+  sub.textContent = where;
+  banner.append(n, sub);
+}
+
+// The stream dying is not reported as an error, so the fix's age is watched
+// from the frame loop and the banner says NO FIX the moment it goes quiet.
+// This takes over the banner even in the clear state on purpose: a stale
+// "clear ahead" is the lie this app must never tell. See gps.js.
+let staleShown = null;
+function watchFix(now) {
+  if (sim.on || !state.fix) return;
+  const text = staleBanner(state.fix.t, now);
+  if (text === staleShown) return;
+  staleShown = text;
+  const banner = el("alert");
+  if (text) {
+    banner.className = "alert caution";
+    banner.textContent = text;
+    state.alert = "stale";
+  } else {
+    // Fixes are back. The next evaluate() repaints with the real state.
+    state.alert = "clear";
+    evaluate();
+  }
 }
 
 // --- UI --------------------------------------------------------------------
@@ -4937,6 +5200,22 @@ function setDetail(level) {
 el("btnDetailVerified").onclick = () => setDetail("verified");
 el("btnDetailAll").onclick = () => setDetail("all");
 
+// How many seconds of warning. Named by boat rather than by number because the
+// person choosing knows what they drive, not what a lookahead is. The seconds
+// are printed under the buttons so the choice is never a mystery.
+function setLead(preset) {
+  state.lead = preset in { slow: 1, normal: 1, fast: 1 } ? preset : "normal";
+  writePref("lead", state.lead);
+  for (const k of ["slow", "normal", "fast"]) {
+    el(`btnLead_${k}`).classList.toggle("on", k === state.lead);
+  }
+  el("leadNote").textContent = `${leadSeconds(state.lead)} s of warning at your speed.`;
+  evaluate();
+}
+for (const k of ["slow", "normal", "fast"]) {
+  el(`btnLead_${k}`).onclick = () => setLead(k);
+}
+
 // The photograph is loaded on first use, not at boot. It is megabytes, and a
 // user who never touches the slider should never pay for it -- especially on a
 // phone that just came out of a pocket with one bar. Once it is in the service
@@ -5199,7 +5478,7 @@ map.addEventListener("wheel", (e) => {
 
 // lastStep starts at -Infinity so the first fix lands on the very first frame
 // instead of after a full second of blank map.
-const sim = { on: false, t: 0, px: 0, py: 0, hdg: 0.6, lastStep: -Infinity };
+const sim = { on: false, t: 0, px: 0, py: 0, hdg: 0.6, lastStep: -Infinity, aim: false };
 
 function startSim() {
   document.body.classList.add("sim");
@@ -5221,7 +5500,19 @@ function stepSim(now) {
   if (now - sim.lastStep < 1000) return;
   sim.lastStep = now;
   sim.t += 1;
-  sim.hdg += Math.sin(sim.t / 18) * 0.05;
+  if (sim.aim) {
+    // ?aim=1: steer straight at the nearest hazard so the loud banner can be
+    // exercised on demand instead of waiting for the wander to cross one.
+    const near = index.query(sim.px, sim.py, 1500).filter((r) => !dismissedSet().has(r.id));
+    let best = null;
+    for (const r of near) {
+      const d = Math.hypot(r.x - sim.px, r.y - sim.py);
+      if (d > 30 && (!best || d < best.d)) best = { r, d };
+    }
+    if (best) sim.hdg = Math.atan2(best.r.y - sim.py, best.r.x - sim.px);
+  } else {
+    sim.hdg += Math.sin(sim.t / 18) * 0.05;
+  }
   const spd = 8; // ~16 kn
   sim.px += Math.cos(sim.hdg) * spd;
   sim.py += Math.sin(sim.hdg) * spd;
@@ -5257,8 +5548,40 @@ window.addEventListener("unhandledrejection", (e) => {
 // battery on a phone that is already holding a wake lock.
 function frame(now) {
   if (sim.on) stepSim(now || performance.now());
+  watchFix(Date.now());
   if (isActive("map")) view.draw(state);
   requestAnimationFrame(frame);
+}
+
+// --- trip log --------------------------------------------------------------
+// Every outing is already on the phone as fixes. Listing them as trips is what
+// makes the log worth opening after the boat is on the trailer.
+function renderTrips(fixes) {
+  const box = el("tripList");
+  if (!box) return;
+  const marks = [...state.marks.values()];
+  const trips = summarizeTrips(fixes, marks).slice(0, 30);
+  box.replaceChildren();
+  if (!trips.length) {
+    const d = document.createElement("div");
+    d.className = "foot";
+    d.textContent = "No trips yet. Drive the lake with this open and they appear here.";
+    box.append(d);
+    return;
+  }
+  for (const t of trips) {
+    const row = document.createElement("div");
+    row.className = "trip";
+    const b = document.createElement("b");
+    b.textContent = new Date(t.start).toLocaleDateString(undefined, {
+      month: "short", day: "numeric", year: "numeric",
+    });
+    const d = document.createElement("div");
+    d.className = "who";
+    d.textContent = describeTrip(t);
+    row.append(b, d);
+    box.append(row);
+  }
 }
 
 // --- sharing ---------------------------------------------------------------
@@ -5354,6 +5677,11 @@ initViews(
       view.resize();
       view.draw(state);
     },
+    // The list is built once at boot; today's run is still being logged, so
+    // refresh it on the way in rather than leave the newest trip a reload away.
+    info: () => {
+      allTracks().then(renderTrips).catch(() => {});
+    },
   },
 );
 // Chart is the default: this gets used outdoors, in daylight, most of the time.
@@ -5362,6 +5690,28 @@ setTheme(new URLSearchParams(location.search).get("theme") === "night" ? "night"
 // assigned, so the lit button and the count under it can never disagree with
 // what is actually drawn.
 setDetail(readPrefs().detail === "verified" ? "verified" : "all");
+setLead(readPrefs().lead || "normal");
+
+// One line, once, only in a browser tab on a phone. Dismissing it is remembered;
+// installing it makes it moot. Lives on the Info tab, never on the helm.
+{
+  const hint = installHint({
+    ua: navigator.userAgent,
+    standalone: navigator.standalone,
+    displayModeStandalone: typeof matchMedia === "function" && matchMedia("(display-mode: standalone)").matches,
+    dismissed: readPrefs().installHintSeen === true,
+  });
+  const box = el("installHint");
+  if (hint && box) {
+    box.style.display = "";
+    el("installHintText").textContent = hint;
+    el("btnInstallHintDone").onclick = () => {
+      writePref("installHintSeen", true);
+      box.style.display = "none";
+    };
+    setStatus("Works offline once added to your Home Screen. The Info tab says how.", "ok");
+  }
+}
 // Same reasoning for the aerial slider: set the input first, then route through
 // setSat, so the knob, the readout and the drawn opacity cannot disagree. With
 // no imagery in the payload the row goes away entirely -- a control at the helm
@@ -5384,6 +5734,7 @@ loadMarks().then(() => {
         const [x, y] = proj.fwd(f.lon, f.lat);
         return { x, y, accuracy: f.accuracy, speed: f.speed, t: f.t };
       });
+    renderTrips(fixes);
     if (!pts.length) return;
     state.swept = sweptFromFixes(pts);
     const st = coverageStats(state.swept, LAKE_AREA_M2);
@@ -5434,8 +5785,15 @@ loadMarks().then(() => {
 });
 frame();
 
-if (new URLSearchParams(location.search).get("sim") === "1") startSim();
-else startGps();
+{
+  const q = new URLSearchParams(location.search);
+  if (q.get("sim") === "1") {
+    sim.aim = q.get("aim") === "1";
+    startSim();
+  } else {
+    startGps();
+  }
+}
 
 // Last, after the boot overlay is gone and the lake is drawn, so the first ring
 // lands on something rather than on a loading bar. It decides for itself

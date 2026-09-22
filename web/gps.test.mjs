@@ -36,3 +36,18 @@ test("an unrecognised failure still says something true", () => {
   assert.doesNotThrow(() => gpsFailure({}));
   assert.match(gpsFailure(undefined).status, /unknown error/);
 });
+
+import { staleBanner, FIX_STALE_MS } from "./gps.js";
+
+// The stream dying silently is the failure that leaves a stale "clear ahead"
+// on screen. Fresh fixes must never trip it; a stall must, and must say how long.
+test("a fresh fix leaves the banner alone", () => {
+  assert.equal(staleBanner(1000, 1000 + FIX_STALE_MS - 1), null);
+  assert.equal(staleBanner(null, 99999), null);
+});
+
+test("a stalled fix says NO FIX with its age", () => {
+  assert.equal(staleBanner(0, 12000), "NO FIX 12s");
+  assert.equal(staleBanner(0, 59999), "NO FIX 59s");
+  assert.equal(staleBanner(0, 3 * 60000 + 5000), "NO FIX 3m");
+});
